@@ -1,0 +1,26 @@
+# SPDX-License-Identifier: Apache-2.0
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: make check
+      - name: Commits use the project identity and UTC
+        run: |
+          bad=$(git log --format='%H %ae %ai' | awk '$2 != "343741453+Liet-ada@users.noreply.github.com" || $5 != "+0000"')
+          if [ -n "$bad" ]; then echo "$bad"; exit 1; fi
