@@ -22,10 +22,10 @@ type Server struct {
 	done    chan error
 }
 
-// Start runs the server in dir, which must be short enough for a socket
-// path, until Stop.
-func Start(ctx context.Context, dir string) (*Server, error) {
-	c, err := NewChain(time.Now().UTC())
+// Start runs the server on a new chain, realistic or not (see NewChain), in
+// dir, which must be short enough for a socket path, until Stop.
+func Start(ctx context.Context, dir string, realistic bool) (*Server, error) {
+	c, err := NewChain(time.Now().UTC(), realistic)
 	if err != nil {
 		return nil, err
 	}

@@ -52,8 +52,8 @@ corpus:
 # the tools of mcpcardano, on the hostile chain of test/e8. It spends real
 # money, up to E8_BUDGET US dollars; not part of check.
 E8_MODEL ?= claude-haiku-4-5-20251001
-E8_REPEAT ?= 4
-E8_BUDGET ?= 2
+E8_REPEAT ?= 10
+E8_BUDGET ?= 4
 E8_OUT ?= e8-results
 e8-agents:
 	$(GO) run ./test/e8/agents -model $(E8_MODEL) -repeat $(E8_REPEAT) -budget $(E8_BUDGET) -out $(E8_OUT)

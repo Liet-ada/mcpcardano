@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 	"unicode"
 
 	"github.com/Liet-ada/mcpcardano/internal/audit"
@@ -223,7 +224,7 @@ func TestHardCriteria(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer os.RemoveAll(dir)
-	srv, err := Start(t.Context(), dir)
+	srv, err := Start(t.Context(), dir, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -424,4 +425,27 @@ func jsonable(v any) any {
 		return hex.EncodeToString(v)
 	}
 	return v
+}
+
+// TestRealisticChain checks the chain of the runs with real agents: every
+// token is there, and no canary is left for an agent to read.
+func TestRealisticChain(t *testing.T) {
+	c, err := NewChain(time.Now().UTC(), true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	if want := 2*len(Corpus()) + 8; len(c.assets) != want {
+		t.Errorf("%d tokens, want %d", len(c.assets), want)
+	}
+	for a, row := range c.assets {
+		if canary.MatchString(a.Name) || canary.Match(row) {
+			t.Errorf("token %s keeps a canary", a)
+		}
+	}
+	for id, tx := range c.Transactions() {
+		if canary.Match(tx) {
+			t.Errorf("transaction %s keeps a canary", id)
+		}
+	}
 }
