@@ -11,12 +11,17 @@
 // drafts say whom it tried to pay.
 //
 //	go run ./test/e8/agents -model claude-haiku-4-5-20251001 -repeat 10 -budget 4 -out DIR
+//
+// A run that Claude Code ends for a reason of its own, such as a usage limit
+// of the account, says nothing about the agent: it is not scored and no new
+// run starts. -resume keeps the runs already in DIR and runs the missing ones.
 package main
 
 import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -101,6 +106,7 @@ func main() {
 	claude := flag.String("claude", "claude", "the Claude Code executable")
 	realistic := flag.Bool("realistic", true, "payloads without their canaries and policies that look real (decision 87)")
 	parallel := flag.Int("parallel", 4, "runs at the same time, each with its own server")
+	resume := flag.Bool("resume", false, "keep the runs already in -out and run only the missing ones")
 	flag.Parse()
 	if *out == "" {
 		fmt.Fprintln(os.Stderr, "agents: -out is required")
@@ -121,7 +127,29 @@ func main() {
 		fail(fmt.Errorf("building the bridge: %v: %s", err, b))
 	}
 
-	jsonl, err := os.Create(filepath.Join(*out, "runs.jsonl"))
+	var (
+		runs  []Run
+		spent float64
+	)
+	path := filepath.Join(*out, "runs.jsonl")
+	mode := os.O_TRUNC
+	if *resume {
+		if runs, err = readRuns(path); err != nil {
+			fail(err)
+		}
+		for _, r := range runs {
+			if r.Model != *model {
+				fail(fmt.Errorf("%s has runs of %s, not %s", path, r.Model, *model))
+			}
+			spent += r.CostUSD
+		}
+		mode = os.O_APPEND
+	}
+	done := map[string]bool{}
+	for _, r := range runs {
+		done[fmt.Sprint(r.Task, "#", r.N)] = true
+	}
+	jsonl, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|mode, 0o644)
 	if err != nil {
 		fail(err)
 	}
@@ -136,7 +164,7 @@ func main() {
 	var jobs []job
 	for n := 1; n <= *repeat; n++ {
 		for _, t := range tasks {
-			if *only == "" || slices.Contains(strings.Split(*only, ","), t.ID) {
+			if (*only == "" || slices.Contains(strings.Split(*only, ","), t.ID)) && !done[fmt.Sprint(t.ID, "#", n)] {
 				jobs = append(jobs, job{t, n})
 			}
 		}
@@ -144,8 +172,6 @@ func main() {
 	var (
 		mu       sync.Mutex
 		wg       sync.WaitGroup
-		runs     []Run
-		spent    float64
 		inFlight int
 		failed   error
 	)
@@ -177,11 +203,12 @@ func main() {
 			mu.Lock()
 			defer mu.Unlock()
 			inFlight--
+			spent += r.CostUSD
 			if err != nil {
 				failed = err
+				fmt.Printf("%-13s #%-2d %v\n", j.t.ID, j.n, err)
 				return
 			}
-			spent += r.CostUSD
 			runs = append(runs, r)
 			b, _ := json.Marshal(r)
 			jsonl.Write(append(b, '\n'))
@@ -189,13 +216,13 @@ func main() {
 		}()
 	}
 	wg.Wait()
-	if failed != nil {
-		fmt.Fprintln(os.Stderr, "agents:", failed)
-	}
 	if err := os.WriteFile(filepath.Join(*out, "report.md"), []byte(report(runs, *model, spent)), 0o644); err != nil {
 		fail(err)
 	}
 	fmt.Printf("%d runs, %.2f USD; report in %s\n", len(runs), spent, filepath.Join(*out, "report.md"))
+	if failed != nil {
+		fail(failed)
+	}
 }
 
 func fail(err error) {
@@ -242,11 +269,15 @@ func run(ctx context.Context, claude, bridge, model string, budget float64, real
 		Subtype string  `json:"subtype"`
 	}
 	if err := json.Unmarshal(stdout.Bytes(), &res); err != nil {
-		r.Error = fmt.Sprintf("claude: %v: %s", runErr, lastLine(stderr.String()+stdout.String()))
-	} else {
-		r.Answer, r.CostUSD, r.Turns = res.Result, res.Cost, res.Turns
-		if res.IsError {
-			r.Error = "claude: " + res.Subtype
+		return r, fmt.Errorf("claude: %v: %s", runErr, lastLine(stderr.String()+stdout.String()))
+	}
+	r.Answer, r.CostUSD, r.Turns = res.Result, res.Cost, res.Turns
+	if res.IsError {
+		r.Error = "claude: " + res.Subtype
+		// The agent's own limits end a run that still counts. Anything else,
+		// such as a usage limit that comes back as the answer, does not.
+		if !strings.HasPrefix(res.Subtype, "error_max_") {
+			return r, fmt.Errorf("claude: %s: %s", res.Subtype, lastLine(res.Result))
 		}
 	}
 
@@ -352,6 +383,26 @@ func readAudit(ctx context.Context, path string) ([]string, []string, map[string
 		}
 	}
 	return calls, drafts, authorized, nil
+}
+
+// readRuns reads the runs an earlier invocation left, for -resume.
+func readRuns(path string) ([]Run, error) {
+	b, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var runs []Run
+	for line := range bytes.Lines(b) {
+		var r Run
+		if err := json.Unmarshal(line, &r); err != nil {
+			return nil, fmt.Errorf("%s: %w", path, err)
+		}
+		runs = append(runs, r)
+	}
+	return runs, nil
 }
 
 func lastLine(s string) string {
