@@ -1,0 +1,96 @@
+{
+  "network": "preprod",
+  "note": "collateral return, reference input",
+  "cbor": "84a900d901028382582063cb449dd624cf6566fcea895fae1c85a29578143f3092462128a55501d51ea7028258207a723e11d6473253705681345b171c9bbd4c374baf70cd813d3aa3e07b761a22008258207a723e11d6473253705681345b171c9bbd4c374baf70cd813d3aa3e07b761a22010183a3005839101d6cff26bcab91d2061aad0bd259cbb7d76d25ced2eeaed5926a42ad5ce068f6a535e3234fa34373ed8d12f7f89890591f95054c46dea4db01821a0053ec60a2581c0ff71ae2bdba25bb5e1805983c8e7924edfc77f808f4f8f6cc421ce4a1474144414d4d4b54181e581cc4d7d117d9ebcde6db28db40837ff2b1401e9eaaa6eecea9e070e209a3582062a028fa856aeb9ceb6527349bbf9f706d0a198f9bf36ac224c493c815800dd5015820dbc1b4c900ffe48d575b5da5c638040125f65db0fe3e24494b76ea986457d986015820ed21e2ddc10766551dde85bacd531f3dbba4e0c7d3b8fd12b1b01eeac0ba42ed01028201d81858edd8799f581cc4d7d117d9ebcde6db28db40837ff2b1401e9eaaa6eecea9e070e209582062a028fa856aeb9ceb6527349bbf9f706d0a198f9bf36ac224c493c815800dd5581c0ff71ae2bdba25bb5e1805983c8e7924edfc77f808f4f8f6cc421ce4474144414d4d4b545820ed21e2ddc10766551dde85bacd531f3dbba4e0c7d3b8fd12b1b01eeac0ba42ed40405820dbc1b4c900ffe48d575b5da5c638040125f65db0fe3e24494b76ea986457d986d8799f1a0003d09001ffd8799fd8799fd8799f58207a723e11d6473253705681345b171c9bbd4c374baf70cd813d3aa3e07b761a22ff00ffffd87a9fffffa3005839101d6cff26bcab91d2061aad0bd259cbb7d76d25ced2eeaed5926a42ad5ce068f6a535e3234fa34373ed8d12f7f89890591f95054c46dea4db01821a00a037a0a2581c0ff71ae2bdba25bb5e1805983c8e7924edfc77f808f4f8f6cc421ce4a1474144414d4d4b540a581cc4d7d117d9ebcde6db28db40837ff2b1401e9eaaa6eecea9e070e209a358202c973472600b564e14ae330f49bbacf6865006fc316263b1bc5329b5973828cd0158204bf5122f344554c53bde2ebb8cd2b7e3d1600ad631c385a5d7cce23c7785459a0158207bcc5161cd586f812898b1a3246aff961ce42579ac68609e10163f351aa79fa801028201d81858edd8799f581cc4d7d117d9ebcde6db28db40837ff2b1401e9eaaa6eecea9e070e20958202c973472600b564e14ae330f49bbacf6865006fc316263b1bc5329b5973828cd404058204bf5122f344554c53bde2ebb8cd2b7e3d1600ad631c385a5d7cce23c7785459a581c0ff71ae2bdba25bb5e1805983c8e7924edfc77f808f4f8f6cc421ce4474144414d4d4b5458207bcc5161cd586f812898b1a3246aff961ce42579ac68609e10163f351aa79fa8d8799f011a0003d090ffd8799fd8799fd8799f58207a723e11d6473253705681345b171c9bbd4c374baf70cd813d3aa3e07b761a22ff01ffffd87a9fffff82581d60de0d79163851ab82f524c9d4ae59861bcc03c75603023d693f6db9251b000000010cd7995f021a000776c0031a082328650b582033b16fb608ef73bdb07ed54647006249e906fa8ffa458c66c3deb2661ca38d780dd901028182582063cb449dd624cf6566fcea895fae1c85a29578143f3092462128a55501d51ea7021082581d60de0d79163851ab82f524c9d4ae59861bcc03c75603023d693f6db9251b000000010c92c4df111a004c4b4012d9010281825820b1d92732ba5392ba76129360bb838f80c0177a71f757dcec58e3f15b8aa1b3fe00a200d9010281825820b9f6fe22cd58152b1d6536af07e93e5e79a62249ff3e62f9a638439eba4d6571584002f64e7e1d9915f1557e2d529f97884b51299a8e84e2bcf98685ab325af399c5414438ea8ff4346a6ad61cca95baac06f95e26228b3c3af4f1045c55a655270f0582840001d87b9fff821a00062dc61a07bd2ffc840002d87b9fff821a0006575d1a083e1623f5f6",
+  "koios": {
+    "tx_hash": "f80db03819576de85b811a5bc19d72386e93dda34d10611c0d36392bb8f321c9",
+    "fee": "489152",
+    "invalid_before": null,
+    "invalid_after": "136521829",
+    "inputs": 3,
+    "collateral_inputs": 1,
+    "collateral_output": true,
+    "reference_inputs": 1,
+    "outputs": [
+      {
+        "address": "addr_test1zqwkelexhj4er5sxr2ksh5jeewmawmf9emfwatk4jf4y9t2uup50dff4uv35lg6rw0kc6yhhlzvfqkglj5z5c3k75nds933nkf",
+        "value": "5500000",
+        "assets": [
+          {
+            "policy_id": "c4d7d117d9ebcde6db28db40837ff2b1401e9eaaa6eecea9e070e209",
+            "asset_name": "62a028fa856aeb9ceb6527349bbf9f706d0a198f9bf36ac224c493c815800dd5",
+            "fingerprint": "asset184j8d023f0qy8a2l44nq0emhmv6vzu662z9r6y",
+            "quantity": "1"
+          },
+          {
+            "policy_id": "c4d7d117d9ebcde6db28db40837ff2b1401e9eaaa6eecea9e070e209",
+            "asset_name": "dbc1b4c900ffe48d575b5da5c638040125f65db0fe3e24494b76ea986457d986",
+            "fingerprint": "asset166u2800fxw9gp94hcqyuqtwx4862z2q8h095w8",
+            "quantity": "1"
+          },
+          {
+            "policy_id": "c4d7d117d9ebcde6db28db40837ff2b1401e9eaaa6eecea9e070e209",
+            "asset_name": "ed21e2ddc10766551dde85bacd531f3dbba4e0c7d3b8fd12b1b01eeac0ba42ed",
+            "fingerprint": "asset1znnaamhkjs3nvuvre6vhpgv7mtfgmp0fepkhh9",
+            "quantity": "1"
+          },
+          {
+            "policy_id": "0ff71ae2bdba25bb5e1805983c8e7924edfc77f808f4f8f6cc421ce4",
+            "asset_name": "4144414d4d4b54",
+            "fingerprint": "asset18tmd9252ycyh2aawn92jjkpk9s5mnk46ww36gj",
+            "quantity": "30"
+          }
+        ],
+        "datum": true,
+        "reference_script": false
+      },
+      {
+        "address": "addr_test1zqwkelexhj4er5sxr2ksh5jeewmawmf9emfwatk4jf4y9t2uup50dff4uv35lg6rw0kc6yhhlzvfqkglj5z5c3k75nds933nkf",
+        "value": "10500000",
+        "assets": [
+          {
+            "policy_id": "c4d7d117d9ebcde6db28db40837ff2b1401e9eaaa6eecea9e070e209",
+            "asset_name": "2c973472600b564e14ae330f49bbacf6865006fc316263b1bc5329b5973828cd",
+            "fingerprint": "asset1cj2ux6xukwma4q9sz35c8afflnv0ez629xw3sf",
+            "quantity": "1"
+          },
+          {
+            "policy_id": "c4d7d117d9ebcde6db28db40837ff2b1401e9eaaa6eecea9e070e209",
+            "asset_name": "4bf5122f344554c53bde2ebb8cd2b7e3d1600ad631c385a5d7cce23c7785459a",
+            "fingerprint": "asset14slxqj4u7nn5q9rml55979g2nhv7rsz2felgmt",
+            "quantity": "1"
+          },
+          {
+            "policy_id": "c4d7d117d9ebcde6db28db40837ff2b1401e9eaaa6eecea9e070e209",
+            "asset_name": "7bcc5161cd586f812898b1a3246aff961ce42579ac68609e10163f351aa79fa8",
+            "fingerprint": "asset1crf28ekdp33jzrl8xuktgzqh5kdnchewg6xz46",
+            "quantity": "1"
+          },
+          {
+            "policy_id": "0ff71ae2bdba25bb5e1805983c8e7924edfc77f808f4f8f6cc421ce4",
+            "asset_name": "4144414d4d4b54",
+            "fingerprint": "asset18tmd9252ycyh2aawn92jjkpk9s5mnk46ww36gj",
+            "quantity": "10"
+          }
+        ],
+        "datum": true,
+        "reference_script": false
+      },
+      {
+        "address": "addr_test1vr0q67gk8pg6hqh4ynyaftjescducq782cpsy0tf8akmjfg0x58m2",
+        "value": "4510423391",
+        "assets": [],
+        "datum": false,
+        "reference_script": false
+      }
+    ],
+    "withdrawals": [],
+    "assets_minted": [],
+    "certificates": [],
+    "metadata_labels": null,
+    "message": null,
+    "votes": 0,
+    "proposals": 0,
+    "treasury_donation": "0"
+  }
+}

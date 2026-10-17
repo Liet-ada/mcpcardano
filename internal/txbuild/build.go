@@ -18,6 +18,7 @@ import (
 	"github.com/Liet-ada/mcpcardano/internal/cborx"
 	"github.com/Liet-ada/mcpcardano/internal/chain"
 	"github.com/Liet-ada/mcpcardano/internal/model"
+	"github.com/Liet-ada/mcpcardano/internal/txdecode"
 )
 
 var (
@@ -95,6 +96,10 @@ type Tx struct {
 	// leaves out when it measures a transaction for fees and for the maximum
 	// size.
 	Size int
+	// Decoded is the unsigned transaction as read back from its bytes. The
+	// draft takes its view and its summary from here, never from what the
+	// builder meant to write.
+	Decoded *txdecode.Tx
 }
 
 // Unsigned returns the transaction with an empty witness set, as hardware
@@ -152,6 +157,9 @@ func Build(in Input) (*Tx, error) {
 		return nil, err
 	}
 	if err := b.validate(tx); err != nil {
+		return nil, err
+	}
+	if err := b.checkIntent(tx); err != nil {
 		return nil, err
 	}
 	return tx, nil
@@ -505,5 +513,23 @@ func (b *builder) validate(tx *Tx) error {
 	if err := chain.ValidateDraft(b.in.Network, b.in.Params, b.in.TipSlot, signed, spent); err != nil {
 		return fmt.Errorf("%w: %v", ErrInternal, err)
 	}
+	return nil
+}
+
+// checkIntent reads the unsigned transaction back from its bytes and checks
+// it against the intent (section 8.1, step 9). A mismatch is a builder bug.
+func (b *builder) checkIntent(tx *Tx) error {
+	raw, err := tx.Unsigned()
+	if err != nil {
+		return err
+	}
+	d, err := txdecode.Decode(raw, int(b.in.Params.MaxTxSize))
+	if err != nil {
+		return fmt.Errorf("%w: reading the draft back: %w", ErrInternal, err)
+	}
+	if err := d.CheckIntent(b.in.Wallet, b.in.Intent, b.in.Params.CoinsPerUTxOByte); err != nil {
+		return fmt.Errorf("%w: %w", ErrInternal, err)
+	}
+	tx.Decoded = d
 	return nil
 }

@@ -1,0 +1,53 @@
+{
+  "network": "preprod",
+  "note": "plain payment",
+  "cbor": "84a300d9010281825820461dbd4719fd62630a7226b6f762d99562d3407999f0e5a422b4fec82ed7298301018482583900c9117a00dd368fa7955b0744b2c7fab54de218d49e4b9d83623a4c0cb8e31ec1200679523de1f190e7c660327aec74edc73ff3f0bfd1adc01a004c4b408258390033be316d4479adccea7a33caeefc916dc59f5c96c776a236543de436a7587cf76ae84d9e4207e99a5e61bb2bd01d2492c1e3c6e7a9f72c871a002dc6c082583900ed1f36152a94897b3de8bbc08458b7ff5dea7429c633458207908828dbc30183d88f9c7ca6489a4aa21ae8327f44a6aadc02cd4284766bc61a001e848082583900edf1b6ac96f753c0b7d90c84cea01d085af43d86e5ed89d603a89e4b13c93472f1b10cac782aea20b8542f11fffc4c0d8cec8fcc93c3cdc51b0000000252932b60021a0002a7d5a100d9010281825820bc595fd04cb8aa62d6d9efa27e8c665ccfad7380e1dc38cfad0c223c6cd207ed5840cf86b489b81c3787964c828a6e62e8e144c9fcf1e96bdb4785229cb4ce04078ee17957ea594a0cea47a8ffafbaa9bbce7f7e48cb09589f25e042dc7d72fd5e0ff5f6",
+  "koios": {
+    "tx_hash": "108dd6605827719fe116c276db7b7c3732356c2473de93d41c4c1ebfcc255613",
+    "fee": "174037",
+    "invalid_before": null,
+    "invalid_after": null,
+    "inputs": 1,
+    "collateral_inputs": 0,
+    "collateral_output": false,
+    "reference_inputs": 0,
+    "outputs": [
+      {
+        "address": "addr_test1qry3z7sqm5mglfu4tvr5fvk8l265mcsc6j0yh8vrvgaycr9cuv0vzgqx09frmc03jrnuvcpj0tk8fmw88lelp0734hqq0qzyc9",
+        "value": "5000000",
+        "assets": [],
+        "datum": false,
+        "reference_script": false
+      },
+      {
+        "address": "addr_test1qqemuvtdg3u6mn820geu4mhuj9kut86ujmrhdg3k2s77gd48tp70w6hgfk0yyplfnf0xrwet6qwjfykpu0rw020h9jrsmyw06e",
+        "value": "3000000",
+        "assets": [],
+        "datum": false,
+        "reference_script": false
+      },
+      {
+        "address": "addr_test1qrk37ds4922gj7eaazauppzckll4m6n598rrx3vzq7ggs2xmcvqc8ky0n372vjy6f23p46pj0az2d2kuqtx59prkd0rqmrwxfw",
+        "value": "2000000",
+        "assets": [],
+        "datum": false,
+        "reference_script": false
+      },
+      {
+        "address": "addr_test1qrklrd4vjmm48s9hmyxgfn4qr5y94apasmj7mzwkqw5fujcney689ud3pjk8s2h2yzu9gtc3ll7ycrvvaj8uey7rehzsvr9hem",
+        "value": "9975311200",
+        "assets": [],
+        "datum": false,
+        "reference_script": false
+      }
+    ],
+    "withdrawals": [],
+    "assets_minted": [],
+    "certificates": [],
+    "metadata_labels": null,
+    "message": null,
+    "votes": 0,
+    "proposals": 0,
+    "treasury_donation": "0"
+  }
+}

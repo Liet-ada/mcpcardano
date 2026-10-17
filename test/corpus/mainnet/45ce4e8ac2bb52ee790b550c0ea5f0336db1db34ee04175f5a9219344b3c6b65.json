@@ -1,0 +1,43 @@
+{
+  "network": "mainnet",
+  "note": "CIP-20 message",
+  "cbor": "84a500d90102818258207b84347951b8374471e620f09151366b7dddebc0389647227b811f70b5d8642001018282581d61068cc06a31e997e43f6ddef89e928cb123d639c9f5bab87c61b6d19b1a1dcd650082583901e0ac4925d4a0ed4386e317e0e093e299664db7c450f71fc25a3c6b3dcaeb768dee891819e893c8bf4440278ff19ff187697e2902bc9ee4981a11baa08b021a00029ac5031a0bf58242075820747abd7a95e534202cb72affed7ca5d2bd179d9cb49860d9d4eff40fc2e9fcb6a100d9010281825820107645102b66a58a17de6b09d2fe9716b751587eefa4423c95aeee23534d205e584049e01aff5db3e883c306e325eca2bc6a12cb95f09ebc7db0676ea461a72e74afd3406f6b85a1af6bbc79b7006768ed1d131ba2e676bd435d7aadd4f9c6cfa407f5a11902a2a1636d736781781e736f6c6164613a6164616275793a34356536633833373537383933313730",
+  "koios": {
+    "tx_hash": "45ce4e8ac2bb52ee790b550c0ea5f0336db1db34ee04175f5a9219344b3c6b65",
+    "fee": "170693",
+    "invalid_before": null,
+    "invalid_after": "200639042",
+    "inputs": 1,
+    "collateral_inputs": 0,
+    "collateral_output": false,
+    "reference_inputs": 0,
+    "outputs": [
+      {
+        "address": "addr1vyrgesr2x85e0epldh00385j3jcj843ee86m4wruvxmdrxcyewrlk",
+        "value": "500000000",
+        "assets": [],
+        "datum": false,
+        "reference_script": false
+      },
+      {
+        "address": "addr1q8s2cjf96jsw6suxuvt7pcynu2vkvndhc3g0w87ztg7xk0w2admgmm5frqv73y7ghazyqfu07x0lrpmf0c5s90y7ujvq2w6agp",
+        "value": "297443467",
+        "assets": [],
+        "datum": false,
+        "reference_script": false
+      }
+    ],
+    "withdrawals": [],
+    "assets_minted": [],
+    "certificates": [],
+    "metadata_labels": [
+      "674"
+    ],
+    "message": [
+      "solada:adabuy:45e6c83757893170"
+    ],
+    "votes": 0,
+    "proposals": 0,
+    "treasury_donation": "0"
+  }
+}

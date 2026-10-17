@@ -1,0 +1,32 @@
+{
+  "network": "mainnet",
+  "note": "plain payment",
+  "cbor": "84a40081825820a339e51b5740c8ff645ff06d38fa67589138fd853d46eb0835e280d2bee3fbfe00018182581d61bd251ebb0668572b76ec7484d0c07dd9c3ee0a29cb4a4536a02f108f1a478408c7021a00028339031a0bf5977ea100818258209ab4cae4ab0d0e02748868cb665db90326a791ad1c7f0efc9af322802c7a938d5840a904fde9e8f5c243f4bdbee90febae7038f124f66867b7821a1f45e45dc9f1f7aeeca3abacd3b9c5567f07c58f7f8fece15618c5831657629431a7b1e2da230df5f6",
+  "koios": {
+    "tx_hash": "f227f70b2b48b67746b9726c81e3b9fe8e3a1f64a3eb741a3dc6ed2afce36a29",
+    "fee": "164665",
+    "invalid_before": null,
+    "invalid_after": "200644478",
+    "inputs": 1,
+    "collateral_inputs": 0,
+    "collateral_output": false,
+    "reference_inputs": 0,
+    "outputs": [
+      {
+        "address": "addr1vx7j284mqe59w2mka36gf5xq0hvu8ms2989553fk5qh3prcapfpj3",
+        "value": "1199835335",
+        "assets": [],
+        "datum": false,
+        "reference_script": false
+      }
+    ],
+    "withdrawals": [],
+    "assets_minted": [],
+    "certificates": [],
+    "metadata_labels": null,
+    "message": null,
+    "votes": 0,
+    "proposals": 0,
+    "treasury_donation": "0"
+  }
+}

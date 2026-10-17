@@ -1,0 +1,60 @@
+{
+  "network": "preprod",
+  "note": "tokens, inline datum, no TTL",
+  "cbor": "84a300d901028382582016ad79869a95e2105ca42fe84eb8f73fa16b4aa5be741707e3a80c7adfcbc2e40282582016ad79869a95e2105ca42fe84eb8f73fa16b4aa5be741707e3a80c7adfcbc2e40382582016ad79869a95e2105ca42fe84eb8f73fa16b4aa5be741707e3a80c7adfcbc2e4040183a300581d60f3a07c9464bd7d8f3e54370fc414ef731c36a51e67316d21fecb2ffb01821a001e8480a1581c5d7ede22de207a4814bfc8a9ce3b97808e82eb8772ff3e29ac685040a1581c41454749535f50524943455f464545445f555344435f5553445f563101028201d8185823d8799fd87b9fa3001a000f4466011b000001a147b6e243021b000001a147f6f883ffffa300581d60f3a07c9464bd7d8f3e54370fc414ef731c36a51e67316d21fecb2ffb01821a001e8480a1581c6902b0c8e891f584992c1912d71aab6717b5441978a453c4b227dc23a1581c41454749535f50524943455f464545445f555344545f5553445f563101028201d8185823d8799fd87b9fa3001a000f3cc3011b000001a147b6e31c021b000001a147f6f95cffff82581d60f3a07c9464bd7d8f3e54370fc414ef731c36a51e67316d21fecb2ffb1a40f8f796021a0002bf09a100d9010281825820a3b1d0203b02d5ae6101c445549754662f0e91ec6d0f0e7e789561639ef053375840499976baa0046d8c4aa7e68de153175a98b367a5a11f240eee86ebb330359e2d071d2edf7ace450dc4a4946acaf165a92714a54467f7eedf6c607bf9a350f20cf5f6",
+  "koios": {
+    "tx_hash": "1eda010a84ab9f3de0b7a3e4417610e85c4993d3a64ba2a61212bc85b1ed20e8",
+    "fee": "179977",
+    "invalid_before": null,
+    "invalid_after": null,
+    "inputs": 3,
+    "collateral_inputs": 0,
+    "collateral_output": false,
+    "reference_inputs": 0,
+    "outputs": [
+      {
+        "address": "addr_test1vre6qly5vj7hmre72smsl3q5aae3cd49rennzmfplm9jl7csuup3g",
+        "value": "2000000",
+        "assets": [
+          {
+            "policy_id": "5d7ede22de207a4814bfc8a9ce3b97808e82eb8772ff3e29ac685040",
+            "asset_name": "41454749535f50524943455f464545445f555344435f5553445f5631",
+            "fingerprint": "asset1w2whykcejql5uddxgmr8majvmvm9aq6c3gl5yh",
+            "quantity": "1"
+          }
+        ],
+        "datum": true,
+        "reference_script": false
+      },
+      {
+        "address": "addr_test1vre6qly5vj7hmre72smsl3q5aae3cd49rennzmfplm9jl7csuup3g",
+        "value": "2000000",
+        "assets": [
+          {
+            "policy_id": "6902b0c8e891f584992c1912d71aab6717b5441978a453c4b227dc23",
+            "asset_name": "41454749535f50524943455f464545445f555344545f5553445f5631",
+            "fingerprint": "asset1extrgg9kj4jsp7us8plsrhgksgkwpgh7922j2l",
+            "quantity": "1"
+          }
+        ],
+        "datum": true,
+        "reference_script": false
+      },
+      {
+        "address": "addr_test1vre6qly5vj7hmre72smsl3q5aae3cd49rennzmfplm9jl7csuup3g",
+        "value": "1090058134",
+        "assets": [],
+        "datum": false,
+        "reference_script": false
+      }
+    ],
+    "withdrawals": [],
+    "assets_minted": [],
+    "certificates": [],
+    "metadata_labels": null,
+    "message": null,
+    "votes": 0,
+    "proposals": 0,
+    "treasury_donation": "0"
+  }
+}

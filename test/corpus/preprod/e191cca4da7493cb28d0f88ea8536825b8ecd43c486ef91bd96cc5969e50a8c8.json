@@ -1,0 +1,34 @@
+{
+  "network": "preprod",
+  "note": "other metadata",
+  "cbor": "84a400d9010281825820f2b467f48abae154e5ab7d7ec5e25a751434596c2bf3fe0dc8bf3fce2a8675fe00018182583900b8633269d61d5eeaa4bbb9338290528267d7955104258aa305f44e378270ae43ac619304900defa493d637a8b21d283d05fbb9d94de6468d1b0000000253a0b7cb021a00029d2d07582010fe574096ff67e435277555651b04f951e678c07abed256b8846b8dd00ffaa3a100d90102818258202cbe8c84473115fc129840bd50d76ba72179d8e688bed4b7cd6d12c76db26c735840cae45fabee06a0765a8bafd144a12ef33beac20f064fcedc3123f33ad60d8dcc2f56d9730e3314830c945c0b57c8e15d5794f2699f6f9bb35c037dc661608701f5a119069ea364726f6f7478406139343235386562643338373636623664616466343839323832643635363030613232653261353864356436333330313938373866616535323530336331643864646174656a323032362d31302d3137617601",
+  "koios": {
+    "tx_hash": "e191cca4da7493cb28d0f88ea8536825b8ecd43c486ef91bd96cc5969e50a8c8",
+    "fee": "171309",
+    "invalid_before": null,
+    "invalid_after": null,
+    "inputs": 1,
+    "collateral_inputs": 0,
+    "collateral_output": false,
+    "reference_inputs": 0,
+    "outputs": [
+      {
+        "address": "addr_test1qzuxxvnf6cw4a64yhwun8q5s22px04u42yzztz4rqh6yuduzwzhy8trpjvzfqr005jfavdagkgwjs0g9lwuajn0xg6xsdday2h",
+        "value": "9992976331",
+        "assets": [],
+        "datum": false,
+        "reference_script": false
+      }
+    ],
+    "withdrawals": [],
+    "assets_minted": [],
+    "certificates": [],
+    "metadata_labels": [
+      "1694"
+    ],
+    "message": null,
+    "votes": 0,
+    "proposals": 0,
+    "treasury_donation": "0"
+  }
+}

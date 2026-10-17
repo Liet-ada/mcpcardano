@@ -1,0 +1,129 @@
+{
+  "network": "preprod",
+  "note": "CIP-20 message",
+  "cbor": "84ab00d901028a8258202517cd41baf9594c49809c90c0541d4b926d3e109733776bd22b1731f69b7332048258202517cd41baf9594c49809c90c0541d4b926d3e109733776bd22b1731f69b7332058258202517cd41baf9594c49809c90c0541d4b926d3e109733776bd22b1731f69b7332068258202517cd41baf9594c49809c90c0541d4b926d3e109733776bd22b1731f69b733207825820404728a8eeff00adda0f3b6bc358dea06260054e6cdb1e99641806b88dc2ec2100825820404728a8eeff00adda0f3b6bc358dea06260054e6cdb1e99641806b88dc2ec2101825820ad13ac6d2530fcd723fe4572aa97c36b5086ab305a423a8a02f56ca258f3ddbc01825820b355ea5267338a64b00d3cc8b00e2acb391836d4979de6d2ba9ed8d01933f16202825820bb269400faed3d98de196e2e325a9127fb0231e97219282e447cc9328e17973802825820bb269400faed3d98de196e2e325a9127fb0231e97219282e447cc9328e179738030185a300583910d6ba9b7509eac866288ff5072d2a18205ac56f744bc82dcd808cb8fe83ec96719dc0591034b78e472d6f477446261fec4bc517fa4d047f0201821a1e874ab5a2581c15bb7f5b55cda7624e8c12ff9404428caeee143a1a769b61a0b5519aa1490014df10434d4f4e541b0000b8b1a9184991581cd6aae2059baee188f74917493cf7637e679cd219bdfbbf4dcbeb1d0ba258203e1813f03f6e5ff924c9a4d4a7f118933cff4883af58f8ba638db2c8c50c52dc1b7fffffb53dbabafd434d535001028201d818587dd8799fd8799fd87a9f581cfb39ea6bb975ea6de4a2c51572234dc584c89beccc09a49934389e51ffffd8799f4040ffd8799f581c15bb7f5b55cda7624e8c12ff9404428caeee143a1a769b61a0b5519a490014df10434d4f4e54ff1b0000004ac245450c1a1e42a0951b0000b8b1a918499118641864d87a80d87980ffa3005839106e23fe172b5b50e2ad59aded9ee8d488f74c7f4686f91b032220adad83ec96719dc0591034b78e472d6f477446261fec4bc517fa4d047f0201821a00169f90a1581cd6aae2059baee188f74917493cf7637e679cd219bdfbbf4dcbeb1d0ba1434d534601028201d8185848d8799f58203cef0d3ec22ae24f8bde3afc627c1e19bdaaaaf0b3e234c0752ca16130fb6b8458203e1813f03f6e5ff924c9a4d4a7f118933cff4883af58f8ba638db2c8c50c52dcffa3005839106e23fe172b5b50e2ad59aded9ee8d488f74c7f4686f91b032220adad83ec96719dc0591034b78e472d6f477446261fec4bc517fa4d047f0201821a00169f90a1581cd6aae2059baee188f74917493cf7637e679cd219bdfbbf4dcbeb1d0ba1434d534601028201d8185848d8799f58203e1813f03f6e5ff924c9a4d4a7f118933cff4883af58f8ba638db2c8c50c52dc58203e2af579cedc2d9da4e6c3a5919c3da12f44b360e6b985eb5ab3e5ee4d4b2939ffa200581d6071b95ab8dc2c97513ab86583be2b4834ca5bc3b5642fc5990d640fbc01821a00155faea2581c15bb7f5b55cda7624e8c12ff9404428caeee143a1a769b61a0b5519aa1490014df10434d4f4e541b00000374c1a47eb6581cd6aae2059baee188f74917493cf7637e679cd219bdfbbf4dcbeb1d0ba158203e1813f03f6e5ff924c9a4d4a7f118933cff4883af58f8ba638db2c8c50c52dc1b0000004ac2454502a200581d6071b95ab8dc2c97513ab86583be2b4834ca5bc3b5642fc5990d640fbc011a00244367021a00074517031a082323c1075820e9eec164573b6ec63b92f5f6a3ad5bad8c56976e3ba3aa31f2eeab0b4532d8ac09a1581cd6aae2059baee188f74917493cf7637e679cd219bdfbbf4dcbeb1d0ba358203e1813f03f6e5ff924c9a4d4a7f118933cff4883af58f8ba638db2c8c50c52dc1b7fffffffffffffff434d534601434d5350010b58207043b6e961db851e24aaef5d420fed0b2fbf11a644dd78d46c931eda4a2661610dd9010281825820404728a8eeff00adda0f3b6bc358dea06260054e6cdb1e99641806b88dc2ec210010a200581d6071b95ab8dc2c97513ab86583be2b4834ca5bc3b5642fc5990d640fbc011a008daedd111a000ae7a312d90102828258209741d59656e9ad54f197b0763482eede9a6fa1616c4547797eee6617f92a139600825820c429b8ee27e5761ba8714e26e3a5899886cd28d136d43e969d4bc1acf0f72d4a00a200d9010281825820c4e6c5fbc6ce69d4661b10e5572ac83acdc93e77284de398e0e5f4eb0f81cab258404c83c79ee46782824fc5c7a3ed98bfeadccc3e5eac4c604144a74a1e236954869c6ccf5bfd9350b5452b718a02959d6a6c75e3e12dd62b1d76ecf1c01f9dee0805a282000782d8799fd8799f4040ffd8799f581c15bb7f5b55cda7624e8c12ff9404428caeee143a1a769b61a0b5519a490014df10434d4f4e54ffff821a000f2e781a15320d2082010082d87a80821a0006c5931a081f2bb5f5d90103a100a11902a2a1636d736781781853444b204d696e737761703a2043726561746520506f6f6c",
+  "koios": {
+    "tx_hash": "47c2495ea5751d971d218877614ff1c5c2fa73076f542187839f91d6ab127f65",
+    "fee": "476439",
+    "invalid_before": null,
+    "invalid_after": "136520641",
+    "inputs": 10,
+    "collateral_inputs": 1,
+    "collateral_output": true,
+    "reference_inputs": 2,
+    "outputs": [
+      {
+        "address": "addr_test1zrtt4xm4p84vse3g3l6swtf2rqs943t0w39ustwdszxt3l5rajt8r8wqtygrfduwgukk73m5gcnplmztc5tl5ngy0upqhns793",
+        "value": "512182965",
+        "assets": [
+          {
+            "policy_id": "15bb7f5b55cda7624e8c12ff9404428caeee143a1a769b61a0b5519a",
+            "asset_name": "0014df10434d4f4e54",
+            "fingerprint": "asset1mzmlc45lpm0s5gc8vpax29trry300l7nkj9uw9",
+            "quantity": "203073185663377"
+          },
+          {
+            "policy_id": "d6aae2059baee188f74917493cf7637e679cd219bdfbbf4dcbeb1d0b",
+            "asset_name": "3e1813f03f6e5ff924c9a4d4a7f118933cff4883af58f8ba638db2c8c50c52dc",
+            "fingerprint": "asset1cjzqpftxlr8ndnu4dyc8dzrs5854u99s0uk4l0",
+            "quantity": "9223371715767876349"
+          },
+          {
+            "policy_id": "d6aae2059baee188f74917493cf7637e679cd219bdfbbf4dcbeb1d0b",
+            "asset_name": "4d5350",
+            "fingerprint": "asset100gmhu6azzwhq9ugg57d8e7dqmrdczd2qcjgjm",
+            "quantity": "1"
+          }
+        ],
+        "datum": true,
+        "reference_script": false
+      },
+      {
+        "address": "addr_test1zphz8lsh9dd4pc4dtxk7m8hg6jy0wnrlg6r0jxcrygs2mtvrajt8r8wqtygrfduwgukk73m5gcnplmztc5tl5ngy0upqjgg24z",
+        "value": "1482640",
+        "assets": [
+          {
+            "policy_id": "d6aae2059baee188f74917493cf7637e679cd219bdfbbf4dcbeb1d0b",
+            "asset_name": "4d5346",
+            "fingerprint": "asset142vxv3hd8ek79m2dm74f7weeqwf458dspmhdyh",
+            "quantity": "1"
+          }
+        ],
+        "datum": true,
+        "reference_script": false
+      },
+      {
+        "address": "addr_test1zphz8lsh9dd4pc4dtxk7m8hg6jy0wnrlg6r0jxcrygs2mtvrajt8r8wqtygrfduwgukk73m5gcnplmztc5tl5ngy0upqjgg24z",
+        "value": "1482640",
+        "assets": [
+          {
+            "policy_id": "d6aae2059baee188f74917493cf7637e679cd219bdfbbf4dcbeb1d0b",
+            "asset_name": "4d5346",
+            "fingerprint": "asset142vxv3hd8ek79m2dm74f7weeqwf458dspmhdyh",
+            "quantity": "1"
+          }
+        ],
+        "datum": true,
+        "reference_script": false
+      },
+      {
+        "address": "addr_test1vpcmjk4cmskfw5f6hpjc803tfq6v5k7rk4jzl3vep4jql0qsq57sz",
+        "value": "1400750",
+        "assets": [
+          {
+            "policy_id": "d6aae2059baee188f74917493cf7637e679cd219bdfbbf4dcbeb1d0b",
+            "asset_name": "3e1813f03f6e5ff924c9a4d4a7f118933cff4883af58f8ba638db2c8c50c52dc",
+            "fingerprint": "asset1cjzqpftxlr8ndnu4dyc8dzrs5854u99s0uk4l0",
+            "quantity": "321086899458"
+          },
+          {
+            "policy_id": "15bb7f5b55cda7624e8c12ff9404428caeee143a1a769b61a0b5519a",
+            "asset_name": "0014df10434d4f4e54",
+            "fingerprint": "asset1mzmlc45lpm0s5gc8vpax29trry300l7nkj9uw9",
+            "quantity": "3799999872694"
+          }
+        ],
+        "datum": false,
+        "reference_script": false
+      },
+      {
+        "address": "addr_test1vpcmjk4cmskfw5f6hpjc803tfq6v5k7rk4jzl3vep4jql0qsq57sz",
+        "value": "2376551",
+        "assets": [],
+        "datum": false,
+        "reference_script": false
+      }
+    ],
+    "withdrawals": [],
+    "assets_minted": [
+      {
+        "policy_id": "d6aae2059baee188f74917493cf7637e679cd219bdfbbf4dcbeb1d0b",
+        "asset_name": "3e1813f03f6e5ff924c9a4d4a7f118933cff4883af58f8ba638db2c8c50c52dc",
+        "fingerprint": "asset1cjzqpftxlr8ndnu4dyc8dzrs5854u99s0uk4l0",
+        "quantity": "9223372036854775807"
+      },
+      {
+        "policy_id": "d6aae2059baee188f74917493cf7637e679cd219bdfbbf4dcbeb1d0b",
+        "asset_name": "4d5346",
+        "fingerprint": "asset142vxv3hd8ek79m2dm74f7weeqwf458dspmhdyh",
+        "quantity": "1"
+      },
+      {
+        "policy_id": "d6aae2059baee188f74917493cf7637e679cd219bdfbbf4dcbeb1d0b",
+        "asset_name": "4d5350",
+        "fingerprint": "asset100gmhu6azzwhq9ugg57d8e7dqmrdczd2qcjgjm",
+        "quantity": "1"
+      }
+    ],
+    "certificates": [],
+    "metadata_labels": [
+      "674"
+    ],
+    "message": [
+      "SDK Minswap: Create Pool"
+    ],
+    "votes": 0,
+    "proposals": 0,
+    "treasury_donation": "0"
+  }
+}

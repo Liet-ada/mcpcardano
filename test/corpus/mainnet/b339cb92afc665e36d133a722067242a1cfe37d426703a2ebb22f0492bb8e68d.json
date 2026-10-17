@@ -1,0 +1,45 @@
+{
+  "network": "mainnet",
+  "note": "stake registration and pool delegation",
+  "cbor": "84a4008182582003ec514514772a0e0d06983bb3dab0d6612e1fe3388d45c155a6728fcf13582c00018182583901db7a0589b82e51ffff046a89d7c7448f8af84da455b073c81bc88f225cc7b324a971f69226361681f525814de5ef4ef2eb2c64d076fae0dc1a381525e1021a0002af91048382008200581c5cc7b324a971f69226361681f525814de5ef4ef2eb2c64d076fae0dc83028200581c5cc7b324a971f69226361681f525814de5ef4ef2eb2c64d076fae0dc581cff15fe5f76274802ce573d4f64da73d658e16e7140a06e8fc28c16b483098200581c5cc7b324a971f69226361681f525814de5ef4ef2eb2c64d076fae0dc8102a10082825820be70ceaaa63d803503631af926c95d7c4b36709d244e019712d54ecaa81809bc5840979676aa1346807a30e371b80435dc57586ca1754f9e1ae919bc86d1daf79d874d866dec06edc19f81431c4f206a961458536520bdb7dd670a796835f6661a01825820fc36c81d47c786e401b1a85e0eb5533f6970fdda79e780457e91df2355a8faef58400aab779135f382e40b99f92092108fb66ce1265c19e785482ecbbcecf3a249690057a14d1b0260a109c1f136211ed007bbbcc2379bb6bfa72cb8dc36996cbc0df5f6",
+  "koios": {
+    "tx_hash": "b339cb92afc665e36d133a722067242a1cfe37d426703a2ebb22f0492bb8e68d",
+    "fee": "176017",
+    "invalid_before": null,
+    "invalid_after": null,
+    "inputs": 1,
+    "collateral_inputs": 0,
+    "collateral_output": false,
+    "reference_inputs": 0,
+    "outputs": [
+      {
+        "address": "addr1q8dh5pvfhqh9rlllq34gn478gj8c47zd532mqu7gr0yg7gjuc7ejf2t376fzvdsks86jtq2duhh5auht93jdqah6urwq8uryxn",
+        "value": "940910049",
+        "assets": [],
+        "datum": false,
+        "reference_script": false
+      }
+    ],
+    "withdrawals": [],
+    "assets_minted": [],
+    "certificates": [
+      {
+        "index": 0,
+        "type": "stake_registration"
+      },
+      {
+        "index": 1,
+        "type": "pool_delegation"
+      },
+      {
+        "index": 2,
+        "type": "vote_delegation"
+      }
+    ],
+    "metadata_labels": null,
+    "message": null,
+    "votes": 0,
+    "proposals": 0,
+    "treasury_donation": "0"
+  }
+}
