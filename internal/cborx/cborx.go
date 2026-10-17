@@ -20,6 +20,14 @@ import (
 // canonical itself; CheckCanonical verifies that.
 type Raw = cbor.RawMessage
 
+// Tag is a CBOR tag (major type 6), such as 258 for the sets of Cardano
+// transactions. Encoding it needs a codec with AllowTags.
+type Tag = cbor.Tag
+
+// ByteString is a byte string that can be a map key, such as an asset name.
+// Canonical encoding orders such keys by length and then bytewise.
+type ByteString = cbor.ByteString
+
 // ErrNotCanonical reports input that decodes but does not re-encode to the
 // same bytes under the canonical rules.
 var ErrNotCanonical = errors.New("cborx: input is not canonical CBOR")
