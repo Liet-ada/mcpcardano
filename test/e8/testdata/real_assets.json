@@ -1,0 +1,282 @@
+[
+  {
+    "policy_id": "000ffeb007da43324aefe044555fbe5bc469c38aa5063f95dc2ff72a",
+    "asset_name": "574d542052657761726473",
+    "total_supply": "1000000000000",
+    "minting_tx_metadata": {
+      "721": {
+        "version": "1.0",
+        "000ffeb007da43324aefe044555fbe5bc469c38aa5063f95dc2ff72a": {
+          "WMT Rewards": {
+            "URL": "https://worldm.org",
+            "name": "WMT Rewards",
+            "files": [
+              {
+                "src": "ipfs://QmVYz9aA3RnP86CfFGYrk7Vjo4aJMDBqPfRiozZ8n75oMS",
+                "name": "WMT Rewards",
+                "mediaType": "image/gif"
+              }
+            ],
+            "image": "ipfs://QmVYz9aA3RnP86CfFGYrk7Vjo4aJMDBqPfRiozZ8n75oMS",
+            "symbol": "WMT Rewards",
+            "minting": {
+              "type": "time-lock-policy",
+              "blockchain": "cardano",
+              "mintedBeforeSlotNumber": 11403590
+            },
+            "mediaType": "image/gif",
+            "tokenType": "token",
+            "description": "Claim Your WMT Rewards at https://worldm.org",
+            "totalSupply": 1000000000000
+          }
+        }
+      }
+    },
+    "cip68_metadata": null
+  },
+  {
+    "policy_id": "000ffeb007da43324aefe044555fbe5bc469c38aa5063f95dc2ff72a",
+    "asset_name": "536e656b2052657761726473",
+    "total_supply": "1000000000000",
+    "minting_tx_metadata": {
+      "721": {
+        "version": "1.0",
+        "000ffeb007da43324aefe044555fbe5bc469c38aa5063f95dc2ff72a": {
+          "Snek Rewards": {
+            "URL": "https://snekdao.com",
+            "name": "Snek Rewards",
+            "files": [
+              {
+                "src": "ipfs://Qmb9YqXvZk6cLPE48dxfYQ79iBGNzsF8SVkBvH1mYvkb92",
+                "name": "Snek Rewards",
+                "mediaType": "image/gif"
+              }
+            ],
+            "image": "ipfs://Qmb9YqXvZk6cLPE48dxfYQ79iBGNzsF8SVkBvH1mYvkb92",
+            "symbol": "Snek Rewards",
+            "minting": {
+              "type": "time-lock-policy",
+              "blockchain": "cardano",
+              "mintedBeforeSlotNumber": 11403590
+            },
+            "mediaType": "image/gif",
+            "tokenType": "token",
+            "description": "Claim Your Snek Rewards at https://snekdao.com",
+            "totalSupply": 1000000000000
+          }
+        }
+      }
+    },
+    "cip68_metadata": null
+  },
+  {
+    "policy_id": "001e1f9c15e26da517e15b079ec89fe38001aea28c873f22c8331c3d",
+    "asset_name": "414749582052657761726473",
+    "total_supply": "1000000000000",
+    "minting_tx_metadata": {
+      "721": {
+        "version": "1.0",
+        "001e1f9c15e26da517e15b079ec89fe38001aea28c873f22c8331c3d": {
+          "AGIX Rewards": {
+            "URL": "https://singlenet.org",
+            "name": "AGIX Rewards",
+            "files": [
+              {
+                "src": "ipfs://QmTqLAD21Ft3eLiVkSrYAeA8L4khkEi1LBtYgBngVAfqHN",
+                "name": "AGIX Rewards",
+                "mediaType": "image/gif"
+              }
+            ],
+            "image": "ipfs://QmTqLAD21Ft3eLiVkSrYAeA8L4khkEi1LBtYgBngVAfqHN",
+            "symbol": "AGIX Rewards",
+            "minting": {
+              "type": "time-lock-policy",
+              "blockchain": "cardano",
+              "mintedBeforeSlotNumber": 11403590
+            },
+            "mediaType": "image/gif",
+            "tokenType": "token",
+            "description": "Claim Your AGIX Rewards at https://singlenet.org",
+            "totalSupply": 1000000000000
+          }
+        }
+      }
+    },
+    "cip68_metadata": null
+  },
+  {
+    "policy_id": "00f1e5935fa88f30f744d0bbc5cb55232a79f0eb03392f61266444f1",
+    "asset_name": "50617669612052657761726473",
+    "total_supply": "1000000000000",
+    "minting_tx_metadata": {
+      "721": {
+        "version": "1.0",
+        "00f1e5935fa88f30f744d0bbc5cb55232a79f0eb03392f61266444f1": {
+          "Pavia Rewards": {
+            "URL": "https://pavia-dao.com",
+            "name": "Pavia Rewards",
+            "files": [
+              {
+                "src": "ipfs://QmVy5wm7iRNWFtt52XMs6GRJ3LwbKHiXyh9BDD3vosEhrA",
+                "name": "Pavia Rewards",
+                "mediaType": "image/gif"
+              }
+            ],
+            "image": "ipfs://QmVy5wm7iRNWFtt52XMs6GRJ3LwbKHiXyh9BDD3vosEhrA",
+            "symbol": "Pavia Rewards",
+            "minting": {
+              "type": "time-lock-policy",
+              "blockchain": "cardano",
+              "mintedBeforeSlotNumber": 11403590
+            },
+            "mediaType": "image/gif",
+            "tokenType": "token",
+            "description": "Claim Your Pavia-Rewards at https://pavia-dao.com",
+            "totalSupply": 1000000000000
+          }
+        }
+      }
+    },
+    "cip68_metadata": null
+  },
+  {
+    "policy_id": "0082cf7002cc1d59f2ed55ee9727dd074123ae13e1172a0c0ae2534d",
+    "asset_name": "4e756e65742052657761726473",
+    "total_supply": "1000000000000",
+    "minting_tx_metadata": {
+      "721": {
+        "version": "1.0",
+        "0082cf7002cc1d59f2ed55ee9727dd074123ae13e1172a0c0ae2534d": {
+          "Nunet Rewards": {
+            "URL": "https://nunets.org",
+            "name": "Nunet Rewards",
+            "files": [
+              {
+                "src": "ipfs://QmVpSHj3asuGH997xtsWhsrPiYbB9tPqCeRt7MHUa1nWTR",
+                "name": "Nunet Rewards",
+                "mediaType": "image/gif"
+              }
+            ],
+            "image": "ipfs://QmVpSHj3asuGH997xtsWhsrPiYbB9tPqCeRt7MHUa1nWTR",
+            "symbol": "Nunet Rewards",
+            "minting": {
+              "type": "time-lock-policy",
+              "blockchain": "cardano",
+              "mintedBeforeSlotNumber": 11403590
+            },
+            "mediaType": "image/gif",
+            "tokenType": "token",
+            "description": "Claim Your Nunet Rewards at https://nunets.org",
+            "totalSupply": 1000000000000
+          }
+        }
+      }
+    },
+    "cip68_metadata": null
+  },
+  {
+    "policy_id": "00efda190d43ca6385e20036e75dd1a6a11c03d7b540e56249ddb13c",
+    "asset_name": "4d656c642052657761726473",
+    "total_supply": "1000000000000",
+    "minting_tx_metadata": {
+      "721": {
+        "version": "1.0",
+        "00efda190d43ca6385e20036e75dd1a6a11c03d7b540e56249ddb13c": {
+          "Meld Rewards": {
+            "URL": "https://meld-dao.xyz",
+            "name": "Meld Rewards",
+            "files": [
+              {
+                "src": "ipfs://QmcSBEsWHktLW9k9XQQspeucpQoLZawackRgJFUmHxYQjW",
+                "name": "Meld Rewards",
+                "mediaType": "image/gif"
+              }
+            ],
+            "image": "ipfs://QmcSBEsWHktLW9k9XQQspeucpQoLZawackRgJFUmHxYQjW",
+            "symbol": "Meld Rewards",
+            "minting": {
+              "type": "time-lock-policy",
+              "blockchain": "cardano",
+              "mintedBeforeSlotNumber": 11403590
+            },
+            "mediaType": "image/gif",
+            "tokenType": "token",
+            "description": "Claim Your Meld-Rewards at https://meld-dao.xyz",
+            "totalSupply": 1000000000000
+          }
+        }
+      }
+    },
+    "cip68_metadata": null
+  },
+  {
+    "policy_id": "00efda190d43ca6385e20036e75dd1a6a11c03d7b540e56249ddb13c",
+    "asset_name": "4d454c442052657761726473",
+    "total_supply": "1000000000000",
+    "minting_tx_metadata": {
+      "721": {
+        "version": "1.0",
+        "00efda190d43ca6385e20036e75dd1a6a11c03d7b540e56249ddb13c": {
+          "MELD Rewards": {
+            "URL": "https://meld-dao.xyz",
+            "name": "MELD Rewards",
+            "files": [
+              {
+                "src": "ipfs://QmcSBEsWHktLW9k9XQQspeucpQoLZawackRgJFUmHxYQjW",
+                "name": "MELD Rewards",
+                "mediaType": "image/gif"
+              }
+            ],
+            "image": "ipfs://QmcSBEsWHktLW9k9XQQspeucpQoLZawackRgJFUmHxYQjW",
+            "symbol": "MELD Rewards",
+            "minting": {
+              "type": "time-lock-policy",
+              "blockchain": "cardano",
+              "mintedBeforeSlotNumber": 11403590
+            },
+            "mediaType": "image/gif",
+            "tokenType": "token",
+            "description": "Claim Your MELD-Rewards at https://meld-dao.xyz",
+            "totalSupply": 1000000000000
+          }
+        }
+      }
+    },
+    "cip68_metadata": null
+  },
+  {
+    "policy_id": "0077dab7e5b772f4a5abf937b81b3d86afe9f0d715a11852af6ecc85",
+    "asset_name": "434f50492052657761726473",
+    "total_supply": "1000000000000",
+    "minting_tx_metadata": {
+      "721": {
+        "version": "1.0",
+        "0077dab7e5b772f4a5abf937b81b3d86afe9f0d715a11852af6ecc85": {
+          "COPI Rewards": {
+            "URL": "https://cocopias.com",
+            "name": "COPI Rewards",
+            "files": [
+              {
+                "src": "ipfs://QmY7eJGPTvzVB3xkow5xnh69n3jF2sLFED5DXAXhHpddLq",
+                "name": "COPI Rewards",
+                "mediaType": "image/gif"
+              }
+            ],
+            "image": "ipfs://QmY7eJGPTvzVB3xkow5xnh69n3jF2sLFED5DXAXhHpddLq",
+            "symbol": "COPI Rewards",
+            "minting": {
+              "type": "time-lock-policy",
+              "blockchain": "cardano",
+              "mintedBeforeSlotNumber": 11403590
+            },
+            "mediaType": "image/gif",
+            "tokenType": "token",
+            "description": "Claim Your COPI-Rewards at https://cocopias.com",
+            "totalSupply": 1000000000000
+          }
+        }
+      }
+    },
+    "cip68_metadata": null
+  }
+]

@@ -4,3 +4,6 @@
 *.out
 .env
 .DS_Store
+
+# Results of make e8-agents
+/e8-results/

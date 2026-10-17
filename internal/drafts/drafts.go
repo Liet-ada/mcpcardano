@@ -106,6 +106,9 @@ type Request struct {
 	TipSlot uint64
 	// TTLSeconds is what the agent asked for; zero means the default.
 	TTLSeconds uint32
+	// Verified marks, in the summary, the tokens the person listed in the
+	// policy of any wallet (decision 84); nil marks none.
+	Verified func(model.AssetID) bool
 }
 
 // Store holds the drafts of every wallet.
@@ -197,7 +200,7 @@ func (s *Store) Create(r Request) (Draft, error) {
 	if verdict.Status == policy.Blocked {
 		return Draft{}, &BlockedError{Verdict: verdict}
 	}
-	summary, err := tx.Decoded.Summary(txdecode.Options{Wallet: &r.Wallet.Address, Spent: tx.Inputs})
+	summary, err := tx.Decoded.Summary(txdecode.Options{Wallet: &r.Wallet.Address, Spent: tx.Inputs, Verified: r.Verified})
 	if err != nil {
 		return Draft{}, err
 	}

@@ -3,7 +3,7 @@
 GO ?= go
 FUZZTIME ?= 10s
 
-.PHONY: check fmt vet test boundaries fuzz vuln live oracle corpus
+.PHONY: check fmt vet test boundaries fuzz vuln live oracle corpus e8-agents e8-record
 
 check: fmt vet test boundaries
 
@@ -47,3 +47,17 @@ oracle:
 # Koios says they contain; the decoding tests compare against it.
 corpus:
 	$(GO) run test/corpus/record.go
+
+# Experiment E8 with real agents (paper, section 9.2): Claude Code, with only
+# the tools of mcpcardano, on the hostile chain of test/e8. It spends real
+# money, up to E8_BUDGET US dollars; not part of check.
+E8_MODEL ?= claude-haiku-4-5-20251001
+E8_REPEAT ?= 10
+E8_BUDGET ?= 4
+E8_OUT ?= e8-results
+e8-agents:
+	$(GO) run ./test/e8/agents -model $(E8_MODEL) -repeat $(E8_REPEAT) -budget $(E8_BUDGET) -out $(E8_OUT)
+
+# Refetches the real phishing tokens of test/e8/real.txt from Koios.
+e8-record:
+	$(GO) run test/e8/record.go
