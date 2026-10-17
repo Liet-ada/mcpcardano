@@ -138,6 +138,42 @@ func TestNoMCPSDKInCLI(t *testing.T) {
 	}
 }
 
+// TestExternalDependenciesStayEncapsulated checks rule 4 of section 2.3: each
+// large external dependency is imported by one package only, so an upgrade
+// touches only that package.
+func TestExternalDependenciesStayEncapsulated(t *testing.T) {
+	owners := map[string]string{
+		"github.com/blinklabs-io/gouroboros": internal("chain"),
+		"github.com/blinklabs-io/plutigo":    internal("plutus"),
+		mcpSDK:                               internal("mcp"),
+	}
+	cmd := exec.Command("go", "list", "-json", "./...")
+	cmd.Dir = repoRoot(t)
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("go list: %v", err)
+	}
+	dec := json.NewDecoder(strings.NewReader(string(out)))
+	for dec.More() {
+		var p struct {
+			pkg
+			TestImports  []string
+			XTestImports []string
+		}
+		if err := dec.Decode(&p); err != nil {
+			t.Fatal(err)
+		}
+		imports := append(append(p.Imports, p.TestImports...), p.XTestImports...)
+		for _, imp := range imports {
+			for dep, owner := range owners {
+				if hasPrefix(imp, dep) && !hasPrefix(p.ImportPath, owner) {
+					t.Errorf("%s imports %s, which only %s may import", p.ImportPath, imp, owner)
+				}
+			}
+		}
+	}
+}
+
 // TestCommonPackagesStayCommon checks rule 1 of section 2.3: the shared
 // packages import only the standard library, golang.org/x and fxamacker/cbor.
 func TestCommonPackagesStayCommon(t *testing.T) {
