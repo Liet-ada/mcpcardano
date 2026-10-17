@@ -33,8 +33,10 @@ func TestIDs(t *testing.T) {
 	if err := a.Validate(); err != nil {
 		t.Fatalf("%s: %v", a, err)
 	}
-	// The draft id of section 4.4 is valid. Its wallet id ends in "z", which
-	// leaves non-zero padding bits, so it is not one Validate accepts.
+	// The example ids of section 4.4 are valid.
+	if err := WalletID("w_k3fq2mx7c4v6bn5ta2sd7hpely").Validate(); err != nil {
+		t.Error(err)
+	}
 	if err := DraftID("d_7h2kw4px3c6vbn5mq7z4rafeyu").Validate(); err != nil {
 		t.Error(err)
 	}
