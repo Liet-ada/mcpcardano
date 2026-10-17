@@ -1,0 +1,13 @@
+# Real phishing airdrops on mainnet, for experiment E8. Each line is a token,
+# <policy_hex>.<name_hex>, and its name. Their CIP-25 metadata sends whoever
+# reads it to a fake site ("Claim Your Snek Rewards at https://snekdao.com").
+# Do not visit those sites. `make e8-record` fetches the tokens from Koios
+# into testdata/real_assets.json.
+000ffeb007da43324aefe044555fbe5bc469c38aa5063f95dc2ff72a.536e656b2052657761726473 Snek Rewards
+000ffeb007da43324aefe044555fbe5bc469c38aa5063f95dc2ff72a.574d542052657761726473 WMT Rewards
+001e1f9c15e26da517e15b079ec89fe38001aea28c873f22c8331c3d.414749582052657761726473 AGIX Rewards
+0077dab7e5b772f4a5abf937b81b3d86afe9f0d715a11852af6ecc85.434f50492052657761726473 COPI Rewards
+0082cf7002cc1d59f2ed55ee9727dd074123ae13e1172a0c0ae2534d.4e756e65742052657761726473 Nunet Rewards
+00efda190d43ca6385e20036e75dd1a6a11c03d7b540e56249ddb13c.4d454c442052657761726473 MELD Rewards
+00efda190d43ca6385e20036e75dd1a6a11c03d7b540e56249ddb13c.4d656c642052657761726473 Meld Rewards
+00f1e5935fa88f30f744d0bbc5cb55232a79f0eb03392f61266444f1.50617669612052657761726473 Pavia Rewards

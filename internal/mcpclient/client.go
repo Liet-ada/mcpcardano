@@ -73,7 +73,7 @@ func (c *Client) Close() error { return c.conn.Close() }
 // Call calls a tool and decodes its structured answer into out. A tool that
 // fails returns a *ToolError.
 func (c *Client) Call(ctx context.Context, tool string, args, out any) error {
-	raw, err := c.request(ctx, "tools/call", map[string]any{"name": tool, "arguments": args})
+	raw, err := c.CallRaw(ctx, tool, args)
 	if err != nil {
 		return err
 	}
@@ -101,6 +101,12 @@ func (c *Client) Call(ctx context.Context, tool string, args, out any) error {
 		return fmt.Errorf("mcpclient: %s gave no structured answer", tool)
 	}
 	return json.Unmarshal(res.StructuredContent, out)
+}
+
+// CallRaw calls a tool and returns its result as the server sent it, with
+// its content, its structured content and isError.
+func (c *Client) CallRaw(ctx context.Context, tool string, args any) (json.RawMessage, error) {
+	return c.request(ctx, "tools/call", map[string]any{"name": tool, "arguments": args})
 }
 
 func (c *Client) send(msg any) error {
