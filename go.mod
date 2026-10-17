@@ -5,7 +5,7 @@ go 1.26.8
 toolchain go1.27.2
 
 require (
-	github.com/blinklabs-io/gouroboros v0.213.3
+	github.com/blinklabs-io/gouroboros v0.213.4
 	github.com/fxamacker/cbor/v2 v2.9.6
 )
 
