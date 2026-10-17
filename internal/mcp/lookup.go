@@ -190,7 +190,7 @@ type assetInfo struct {
 	// datum for CIP-68.
 	MetadataUnverified any `json:"metadata_unverified,omitempty"`
 	// Verified says whether the policy of a wallet lists the token.
-	Verified bool `json:"verified"`
+	Verified bool `json:"verified" jsonschema:"True only when the person listed this token in the policy of a wallet. Anyone can mint a token with any name and metadata and send it to any address."`
 }
 
 // cip67Labels are the asset name prefixes of CIP-68 tokens (CIP-67): the

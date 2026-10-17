@@ -107,7 +107,7 @@ type Asset struct {
 	Fingerprint    string `json:"fingerprint"`
 	NameUnverified string `json:"name_unverified,omitempty"`
 	Quantity       string `json:"quantity"`
-	Verified       bool   `json:"verified"`
+	Verified       bool   `json:"verified" jsonschema:"True only when the person listed this token in the policy of a wallet. Anyone can mint a token with any name and metadata and send it to any address."`
 }
 
 // Effect is the net change of a wallet's holdings: what the transaction

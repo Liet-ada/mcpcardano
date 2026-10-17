@@ -331,9 +331,16 @@ func TestTools(t *testing.T) {
 	if !slices.Equal(got, want) {
 		t.Fatalf("tools %v", got)
 	}
+	// The answers that list tokens: reads and drafts with their summary.
+	tokens := []string{"authorize_draft", "build_consolidation", "build_payment", "cancel_draft", "decode_transaction",
+		"get_address_info", "get_asset_info", "get_draft", "get_transaction", "get_wallet_overview", "list_utxos",
+		"submit_signed_transaction"}
 	for name, tool := range e.tools {
 		if !strings.HasSuffix(tool.Description, dataNotInstructions) {
 			t.Errorf("%s: the description does not say that _unverified fields are data", name)
+		}
+		if says := strings.Contains(tool.Description, verifiedMeans); says != slices.Contains(tokens, name) {
+			t.Errorf("%s: says what verified means: %v", name, says)
 		}
 		a := tool.Annotations
 		readOnly := strings.HasPrefix(name, "get_") || strings.HasPrefix(name, "list_") || name == "decode_transaction"
