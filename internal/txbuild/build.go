@@ -113,6 +113,28 @@ func (t *Tx) Unsigned() ([]byte, error) {
 	return assemble(c, t.Body, empty, t.AuxData)
 }
 
+// Signed returns the transaction with the given witness set, an encoded
+// CBOR map such as a hardware wallet returns. It is assembled the same way as
+// the drafts the fee was computed for.
+func (t *Tx) Signed(witnesses []byte) ([]byte, error) {
+	return assemble(newCodec(), t.Body, witnesses, t.AuxData)
+}
+
+// Spent returns the outputs the inputs consume, as the phase-1 rules take
+// them.
+func (t *Tx) Spent() ([]chain.Spent, error) {
+	c := newCodec()
+	spent := make([]chain.Spent, len(t.Inputs))
+	for i, u := range t.Inputs {
+		out, err := c.Marshal(outputCBOR(u.Address, u.Value))
+		if err != nil {
+			return nil, err
+		}
+		spent[i] = chain.Spent{In: u.In, Output: out}
+	}
+	return spent, nil
+}
+
 // builder carries what every step of one build shares.
 type builder struct {
 	in      Input
@@ -502,13 +524,9 @@ func (b *builder) validate(tx *Tx) error {
 	if err != nil {
 		return err
 	}
-	spent := make([]chain.Spent, len(tx.Inputs))
-	for i, u := range tx.Inputs {
-		out, err := b.c.Marshal(outputCBOR(u.Address, u.Value))
-		if err != nil {
-			return err
-		}
-		spent[i] = chain.Spent{In: u.In, Output: out}
+	spent, err := tx.Spent()
+	if err != nil {
+		return err
 	}
 	if err := chain.ValidateDraft(b.in.Network, b.in.Params, b.in.TipSlot, signed, spent); err != nil {
 		return fmt.Errorf("%w: %v", ErrInternal, err)
