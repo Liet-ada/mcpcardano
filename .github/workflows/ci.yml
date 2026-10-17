@@ -20,6 +20,7 @@ jobs:
         with:
           go-version-file: go.mod
       - run: make check
+      - run: make vuln
       - run: make fuzz
       - name: Commits use the project identity
         run: |
