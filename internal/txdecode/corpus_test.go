@@ -4,6 +4,7 @@
 package txdecode
 
 import (
+	"bytes"
 	"encoding/hex"
 	"encoding/json"
 	"os"
@@ -44,11 +45,12 @@ type corpusEntry struct {
 			Index int    `json:"index"`
 			Type  string `json:"type"`
 		} `json:"certificates"`
-		MetadataLabels   []string `json:"metadata_labels"`
-		Message          []string `json:"message"`
-		Votes            int      `json:"votes"`
-		Proposals        int      `json:"proposals"`
-		TreasuryDonation string   `json:"treasury_donation"`
+		MetadataLabels   []string                   `json:"metadata_labels"`
+		Message          []string                   `json:"message"`
+		Metadata         map[string]json.RawMessage `json:"metadata"`
+		Votes            int                        `json:"votes"`
+		Proposals        int                        `json:"proposals"`
+		TreasuryDonation string                     `json:"treasury_donation"`
 	} `json:"koios"`
 }
 
@@ -168,6 +170,21 @@ func TestCorpusSummaries(t *testing.T) {
 			}
 			check("donation", donation, k.TreasuryDonation)
 
+			// Koios lists every token; the summary shows MaxTokens in all and
+			// the length of each list it cuts.
+			left := MaxTokens
+			expect := func(all []Asset) ([]Asset, int) {
+				n := min(len(all), left)
+				left -= n
+				shown := all[:n]
+				if n == 0 {
+					shown = nil
+				}
+				if n < len(all) {
+					return shown, len(all)
+				}
+				return shown, 0
+			}
 			check("outputs", len(s.Outputs), len(k.Outputs))
 			for i := range min(len(s.Outputs), len(k.Outputs)) {
 				o, ko := s.Outputs[i], k.Outputs[i]
@@ -175,7 +192,9 @@ func TestCorpusSummaries(t *testing.T) {
 				check("output lovelace", o.Lovelace, ko.Value)
 				check("output datum", o.Datum, ko.Datum)
 				check("output reference script", o.ReferenceScript, ko.ReferenceScript)
-				check("output assets", withoutNames(o.Assets), koiosAssets(ko.Assets))
+				want, count := expect(koiosAssets(ko.Assets))
+				check("output assets", withoutNames(o.Assets), want)
+				check("output assets count", o.AssetsCount, count)
 				if o.Own != nil {
 					t.Error("own is set without a wallet")
 				}
@@ -191,7 +210,9 @@ func TestCorpusSummaries(t *testing.T) {
 			slices.Sort(withdrawals)
 			slices.Sort(kw)
 			check("withdrawals", withdrawals, kw)
-			check("mint", withoutNames(s.Mint), koiosAssets(k.AssetsMinted))
+			want, count := expect(koiosAssets(k.AssetsMinted))
+			check("mint", withoutNames(s.Mint), want)
+			check("mint count", s.MintCount, count)
 
 			var kinds [][]string
 			for _, c := range k.Certificates {
@@ -212,6 +233,11 @@ func TestCorpusSummaries(t *testing.T) {
 			}
 
 			check("metadata labels", s.MetadataLabels, k.MetadataLabels)
+			if len(k.Metadata) > 0 {
+				check("metadata", tx.Metadata(), koiosMetadata(t, k.Metadata))
+			} else if tx.Metadata() != nil {
+				t.Error("metadata that Koios does not see")
+			}
 			check("message", s.MessageUnverified, message(k.Message))
 		})
 	}
@@ -268,4 +294,36 @@ func TestCorpusCovers(t *testing.T) {
 			t.Errorf("no transaction in the corpus has %s", f)
 		}
 	}
+}
+
+// koiosMetadata reads db-sync's rendering of metadata with integers as
+// decimal strings, the one difference from ours.
+func koiosMetadata(t *testing.T, m map[string]json.RawMessage) map[string]any {
+	out := map[string]any{}
+	for label, raw := range m {
+		dec := json.NewDecoder(bytes.NewReader(raw))
+		dec.UseNumber()
+		var v any
+		if err := dec.Decode(&v); err != nil {
+			t.Fatal(err)
+		}
+		out[label] = numbersAsText(v)
+	}
+	return out
+}
+
+func numbersAsText(v any) any {
+	switch v := v.(type) {
+	case json.Number:
+		return v.String()
+	case map[string]any:
+		for k, x := range v {
+			v[k] = numbersAsText(x)
+		}
+	case []any:
+		for i, x := range v {
+			v[i] = numbersAsText(x)
+		}
+	}
+	return v
 }

@@ -3,7 +3,7 @@
 GO ?= go
 FUZZTIME ?= 10s
 
-.PHONY: check fmt vet test boundaries fuzz live oracle corpus
+.PHONY: check fmt vet test boundaries fuzz vuln live oracle corpus
 
 check: fmt vet test boundaries
 
@@ -28,6 +28,11 @@ fuzz:
 			$(GO) test -run '^$$' -fuzz "^$$f$$" -fuzztime $(FUZZTIME) $$pkg || exit 1; \
 		done; \
 	done
+
+# Known vulnerabilities that our code reaches (section 11.2). The version is
+# fixed so every run checks the same way.
+vuln:
+	$(GO) run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
 
 # Tests against the public preprod network; not part of check.
 live:

@@ -25,6 +25,26 @@ const (
 	MaxMessageLines     = 16
 )
 
+// Limits per response, since flooding the context is an attack too (paper,
+// section 7.1). A summary shows at most MaxOutputs outputs and MaxTokens
+// tokens in all; a list that is cut says how long it was.
+const (
+	MaxOutputs = 100
+	MaxTokens  = 100
+)
+
+// Budget is what a response may still show of the tokens.
+type Budget struct{ left int }
+
+// NewBudget returns a budget of n tokens.
+func NewBudget(n int) *Budget { return &Budget{left: n} }
+
+// Tokens lists the tokens of a value in the fixed order of section 8.2, as
+// far as the budget allows. If it cuts the list, count is how many there are.
+func Tokens(b *Budget, m map[model.AssetID]uint64) (list []Asset, count int) {
+	return assets(b, m, model.FormatAmount)
+}
+
 // Summary is what the agent and the person read about a transaction
 // (section 4.4). Amounts are decimal strings (section 4.1); net effect and
 // mint quantities carry a sign. Text from the chain is neutralized and sits
@@ -34,6 +54,7 @@ type Summary struct {
 	TxID              string   `json:"tx_id"`
 	Inputs            int      `json:"inputs"`
 	Outputs           []Output `json:"outputs"`
+	OutputsCount      int      `json:"outputs_count,omitempty"` // only when the list is cut
 	Fee               string   `json:"fee"`
 	NetEffect         *Effect  `json:"net_effect,omitempty"`
 	TTLSlot           string   `json:"ttl_slot,omitempty"`
@@ -42,6 +63,7 @@ type Summary struct {
 	Certificates      []string     `json:"certificates,omitempty"`
 	Withdrawals       []Withdrawal `json:"withdrawals,omitempty"`
 	Mint              []Asset      `json:"mint,omitempty"`
+	MintCount         int          `json:"mint_count,omitempty"`
 	MessageUnverified []string     `json:"message_unverified,omitempty"`
 	MetadataLabels    []string     `json:"metadata_labels,omitempty"`
 
@@ -64,6 +86,7 @@ type Output struct {
 	Own             *bool   `json:"own,omitempty"`
 	Lovelace        string  `json:"lovelace"`
 	Assets          []Asset `json:"assets,omitempty"`
+	AssetsCount     int     `json:"assets_count,omitempty"` // only when the list is cut
 	Datum           bool    `json:"datum,omitempty"`
 	ReferenceScript bool    `json:"reference_script,omitempty"`
 }
@@ -80,8 +103,9 @@ type Asset struct {
 // Effect is the net change of a wallet's holdings: what the transaction
 // leaves at the wallet's address minus what it takes from it.
 type Effect struct {
-	Lovelace string  `json:"lovelace"`
-	Assets   []Asset `json:"assets,omitempty"`
+	Lovelace    string  `json:"lovelace"`
+	Assets      []Asset `json:"assets,omitempty"`
+	AssetsCount int     `json:"assets_count,omitempty"`
 }
 
 // Withdrawal is a reward withdrawal.
@@ -100,12 +124,14 @@ type Options struct {
 	Spent []chain.UTxO
 }
 
-// Summary describes the transaction.
+// Summary describes the transaction, within the limits of a response.
 func (t *Tx) Summary(o Options) (Summary, error) {
+	budget := NewBudget(MaxTokens)
 	d, v := t.d, t.d.View
 	s := Summary{
 		TxID:             hex.EncodeToString(d.ID[:]),
 		Inputs:           len(d.Inputs),
+		Outputs:          []Output{},
 		Fee:              model.FormatAmount(v.Fee),
 		NetworkID:        v.NetworkID,
 		CollateralInputs: v.Collateral,
@@ -131,7 +157,15 @@ func (t *Tx) Summary(o Options) (Summary, error) {
 		s.RequiredSigners = append(s.RequiredSigners, hex.EncodeToString(h[:]))
 	}
 
-	for _, out := range v.Outputs {
+	// The net effect goes first: it is what the person most needs to see.
+	if o.Wallet != nil {
+		s.NetEffect = netEffect(d, *o.Wallet, o.Spent, budget)
+	}
+	outs := v.Outputs
+	if len(outs) > MaxOutputs {
+		s.OutputsCount, outs = len(outs), outs[:MaxOutputs]
+	}
+	for _, out := range outs {
 		addr, err := chain.AddressText(out.Address)
 		if err != nil {
 			return Summary{}, err
@@ -139,10 +173,10 @@ func (t *Tx) Summary(o Options) (Summary, error) {
 		so := Output{
 			Address:         addr,
 			Lovelace:        model.FormatAmount(out.Value.Lovelace),
-			Assets:          assets(out.Value.Assets, model.FormatAmount),
 			Datum:           out.HasDatum,
 			ReferenceScript: out.HasScript,
 		}
+		so.Assets, so.AssetsCount = Tokens(budget, out.Value.Assets)
 		if o.Wallet != nil {
 			own := out.Address.Equal(*o.Wallet)
 			so.Own = &own
@@ -156,30 +190,31 @@ func (t *Tx) Summary(o Options) (Summary, error) {
 	for i, w := range v.Withdrawals {
 		s.Withdrawals = append(s.Withdrawals, Withdrawal{Account: d.Accounts[i], Lovelace: model.FormatAmount(w.Amount)})
 	}
-	s.Mint = assets(v.Mint, func(q int64) string { return strconv.FormatInt(q, 10) })
+	s.Mint, s.MintCount = assets(budget, v.Mint, func(q int64) string { return strconv.FormatInt(q, 10) })
 
 	for _, l := range d.MetadataLabels {
 		s.MetadataLabels = append(s.MetadataLabels, strconv.FormatUint(l, 10))
 	}
 	s.MessageUnverified = message(d.Message)
-
-	if o.Wallet != nil {
-		s.NetEffect = netEffect(d, *o.Wallet, o.Spent)
-	}
 	return s, nil
 }
 
-// assets lists a token map in the fixed order of section 8.2.
-func assets[Q uint64 | int64](m map[model.AssetID]Q, format func(Q) string) []Asset {
+// assets lists a token map in the fixed order of section 8.2, as far as the
+// budget allows, and the number of tokens if the list is cut.
+func assets[Q uint64 | int64 | string](b *Budget, m map[model.AssetID]Q, format func(Q) string) ([]Asset, int) {
+	var zero Q
 	ids := slices.SortedFunc(maps.Keys(m), model.AssetID.Compare)
+	ids = slices.DeleteFunc(ids, func(id model.AssetID) bool { return m[id] == zero })
+	n := min(len(ids), b.left)
+	b.left -= n
 	var out []Asset
-	for _, id := range ids {
-		if m[id] == 0 {
-			continue
-		}
+	for _, id := range ids[:n] {
 		out = append(out, asset(id, format(m[id])))
 	}
-	return out
+	if n < len(ids) {
+		return out, len(ids)
+	}
+	return out, 0
 }
 
 func asset(id model.AssetID, quantity string) Asset {
@@ -210,7 +245,7 @@ func message(lines []string) []string {
 
 // netEffect is what the outputs leave at the wallet's address minus what the
 // inputs take from it. It is nil unless every input is among spent.
-func netEffect(d *chain.DecodedTx, wallet model.Address, spent []chain.UTxO) *Effect {
+func netEffect(d *chain.DecodedTx, wallet model.Address, spent []chain.UTxO, b *Budget) *Effect {
 	if len(d.Inputs) == 0 {
 		return nil
 	}
@@ -243,11 +278,26 @@ func netEffect(d *chain.DecodedTx, wallet model.Address, spent []chain.UTxO) *Ef
 			add(out.Value, 1)
 		}
 	}
-	e := &Effect{Lovelace: lovelace.String()}
-	for _, id := range slices.SortedFunc(maps.Keys(tokens), model.AssetID.Compare) {
-		if q := tokens[id]; q.Sign() != 0 {
-			e.Assets = append(e.Assets, asset(id, q.String()))
+	signed := map[model.AssetID]string{}
+	for id, q := range tokens {
+		if q.Sign() != 0 {
+			signed[id] = q.String()
 		}
 	}
+	e := &Effect{Lovelace: lovelace.String()}
+	e.Assets, e.AssetsCount = assets(b, signed, func(q string) string { return q })
 	return e
 }
+
+// MetadataUnverified returns the whole metadata of the transaction,
+// neutralized and cut like any text from the chain, or nil if it has none.
+func (t *Tx) MetadataUnverified() any {
+	if t.d.Metadata == nil {
+		return nil
+	}
+	return sanitize.Value(t.d.Metadata)
+}
+
+// Metadata returns the whole metadata as decoded, for tests and the audit
+// log; anything shown to the agent goes through MetadataUnverified.
+func (t *Tx) Metadata() map[string]any { return t.d.Metadata }

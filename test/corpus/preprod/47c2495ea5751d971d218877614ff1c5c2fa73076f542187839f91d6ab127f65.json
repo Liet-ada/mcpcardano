@@ -122,6 +122,13 @@
     "message": [
       "SDK Minswap: Create Pool"
     ],
+    "metadata": {
+      "674": {
+        "msg": [
+          "SDK Minswap: Create Pool"
+        ]
+      }
+    },
     "votes": 0,
     "proposals": 0,
     "treasury_donation": "0"

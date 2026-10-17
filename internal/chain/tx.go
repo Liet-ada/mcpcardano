@@ -5,6 +5,7 @@ package chain
 
 import (
 	"bytes"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"slices"
@@ -40,6 +41,11 @@ type DecodedTx struct {
 	// Message holds the strings of a CIP-20 message, as found on the chain.
 	// It is nil when label 674 is absent or does not follow CIP-20.
 	Message []string
+	// Metadata is the whole metadata as a JSON-like tree, nil if there is
+	// none, as cardano-db-sync renders it but for integers, which are decimal
+	// strings: maps by label, bytes as 0x and hex, also as keys. A map with a
+	// list or a map as a key becomes a list of entries {k, v}.
+	Metadata map[string]any
 }
 
 // DecodeTransaction decodes a Conway transaction. The caller bounds its size
@@ -100,6 +106,9 @@ func DecodeTransaction(raw []byte) (*DecodedTx, error) {
 
 	if md := tx.Metadata(); md != nil {
 		d.MetadataLabels, d.Message = metadata(md)
+		if top, ok := metadatumJSON(md).(map[string]any); ok {
+			d.Metadata = top
+		}
 	}
 	return d, nil
 }
@@ -301,4 +310,71 @@ func cip20Message(v common.TransactionMetadatum) []string {
 // Fingerprint returns the CIP-14 fingerprint of an asset (asset1...).
 func Fingerprint(a model.AssetID) string {
 	return common.NewAssetFingerprint(a.Policy[:], []byte(a.Name)).String()
+}
+
+// metadatumJSON turns metadata into a JSON-like tree.
+func metadatumJSON(m common.TransactionMetadatum) any {
+	switch m := m.(type) {
+	case common.MetaInt:
+		if m.Value == nil {
+			return nil
+		}
+		return m.Value.String()
+	case common.MetaBytes:
+		return "0x" + hex.EncodeToString(m.Value)
+	case common.MetaText:
+		return m.Value
+	case common.MetaList:
+		out := make([]any, 0, len(m.Items))
+		for _, x := range m.Items {
+			out = append(out, metadatumJSON(x))
+		}
+		return out
+	case common.MetaMap:
+		obj := make(map[string]any, len(m.Pairs))
+		for _, p := range m.Pairs {
+			var key string
+			switch k := p.Key.(type) {
+			case common.MetaText:
+				key = k.Value
+			case common.MetaInt:
+				if k.Value == nil {
+					return pairs(m)
+				}
+				key = k.Value.String()
+			case common.MetaBytes:
+				key = "0x" + hex.EncodeToString(k.Value)
+			default:
+				return pairs(m)
+			}
+			if _, dup := obj[key]; dup {
+				return pairs(m)
+			}
+			obj[key] = metadatumJSON(p.Value)
+		}
+		return obj
+	}
+	return nil
+}
+
+// pairs keeps a map with a list or a map as a key as a list of entries.
+func pairs(m common.MetaMap) []any {
+	out := make([]any, 0, len(m.Pairs))
+	for _, p := range m.Pairs {
+		out = append(out, map[string]any{"k": metadatumJSON(p.Key), "v": metadatumJSON(p.Value)})
+	}
+	return out
+}
+
+// StakeAddress returns the reward address, in bech32, of a stake credential.
+func StakeAddress(n model.Network, c model.Credential) (string, error) {
+	header := byte(0xe0) // key hash
+	if c.Kind == model.ScriptHash {
+		header = 0xf0
+	}
+	a, err := common.NewAddressFromBytes(append([]byte{header | n.AddressID()}, c.Hash[:]...))
+	if err != nil {
+		return "", fmt.Errorf("%w: %v", ErrInvalidAddress, err)
+	}
+	return a.String(), nil
 }

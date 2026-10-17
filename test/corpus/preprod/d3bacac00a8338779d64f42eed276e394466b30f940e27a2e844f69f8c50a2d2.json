@@ -17,18 +17,6 @@
         "value": "3000000",
         "assets": [
           {
-            "policy_id": "54f9290a88a407b2a1b9ce2c9a96142d02a8d0b686a634346a00d1ef",
-            "asset_name": "5349524955532d42",
-            "fingerprint": "asset1pzj5jp3dxq07929yv5wfk98e8344t3rnzweta4",
-            "quantity": "2500000000"
-          },
-          {
-            "policy_id": "59e35b701247154f645388c5e17a098fced0e5098543dd58a797c04a",
-            "asset_name": "524947454c",
-            "fingerprint": "asset1ln7lh783tvvsnutlf9ef5hempnqqkwrv3dpurk",
-            "quantity": "2000000000"
-          },
-          {
             "policy_id": "73dead11ca9e387fef50a8a68726a68273d607eea0f1d2bde205140f",
             "asset_name": "5349524955532d41",
             "fingerprint": "asset1qykqqh6rpplq46lyyelzpv63ts4n8fsfajavf2",
@@ -39,6 +27,18 @@
             "asset_name": "56454741",
             "fingerprint": "asset1x3kjlw2gw5xlzdf8fdtuqjwgaypz6ckv0er7fy",
             "quantity": "1000000000"
+          },
+          {
+            "policy_id": "54f9290a88a407b2a1b9ce2c9a96142d02a8d0b686a634346a00d1ef",
+            "asset_name": "5349524955532d42",
+            "fingerprint": "asset1pzj5jp3dxq07929yv5wfk98e8344t3rnzweta4",
+            "quantity": "2500000000"
+          },
+          {
+            "policy_id": "59e35b701247154f645388c5e17a098fced0e5098543dd58a797c04a",
+            "asset_name": "524947454c",
+            "fingerprint": "asset1ln7lh783tvvsnutlf9ef5hempnqqkwrv3dpurk",
+            "quantity": "2000000000"
           }
         ],
         "datum": false,
@@ -55,6 +55,24 @@
         "address": "addr_test1qpgj4f97ttaw7cpgg85p9n9fgm3regazlrx7kl7j467vzq4dwk5ach2d0f3ar96rhzj53h2s0p4shcnnklpyrndw528s58ylff",
         "value": "9915778788",
         "assets": [
+          {
+            "policy_id": "899e46d62232b0440d828659368d75587d7629b90080a8b4fea0128b",
+            "asset_name": "56454741",
+            "fingerprint": "asset13ag7rsuyfzmmq95dss698ga6scx55fjgg5rssr",
+            "quantity": "16248550"
+          },
+          {
+            "policy_id": "9ac274445426aebadc4585d11b9966eff251b8920e7352051f9d5226",
+            "asset_name": "5349524955532d41",
+            "fingerprint": "asset130rtp5vs76hh736wf0wztl96ers3vxv387yj9j",
+            "quantity": "9219296"
+          },
+          {
+            "policy_id": "c0e65618da9d3d39d20d0f7cdefc6481aebe616fe063a447d8647c90",
+            "asset_name": "56454741",
+            "fingerprint": "asset1x3kjlw2gw5xlzdf8fdtuqjwgaypz6ckv0er7fy",
+            "quantity": "75000000000"
+          },
           {
             "policy_id": "191d33bd84064d5e2b96a3864e7caac53e67a8713101b03a4a9d05ed",
             "asset_name": "6772764c50284144412c5645474129",
@@ -78,24 +96,6 @@
             "asset_name": "5349524955532d41",
             "fingerprint": "asset1qykqqh6rpplq46lyyelzpv63ts4n8fsfajavf2",
             "quantity": "187500000000"
-          },
-          {
-            "policy_id": "899e46d62232b0440d828659368d75587d7629b90080a8b4fea0128b",
-            "asset_name": "56454741",
-            "fingerprint": "asset13ag7rsuyfzmmq95dss698ga6scx55fjgg5rssr",
-            "quantity": "16248550"
-          },
-          {
-            "policy_id": "9ac274445426aebadc4585d11b9966eff251b8920e7352051f9d5226",
-            "asset_name": "5349524955532d41",
-            "fingerprint": "asset130rtp5vs76hh736wf0wztl96ers3vxv387yj9j",
-            "quantity": "9219296"
-          },
-          {
-            "policy_id": "c0e65618da9d3d39d20d0f7cdefc6481aebe616fe063a447d8647c90",
-            "asset_name": "56454741",
-            "fingerprint": "asset1x3kjlw2gw5xlzdf8fdtuqjwgaypz6ckv0er7fy",
-            "quantity": "75000000000"
           }
         ],
         "datum": false,
@@ -132,6 +132,7 @@
     "certificates": [],
     "metadata_labels": null,
     "message": null,
+    "metadata": null,
     "votes": 0,
     "proposals": 0,
     "treasury_donation": "0"

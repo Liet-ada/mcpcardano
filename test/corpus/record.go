@@ -54,9 +54,12 @@ type Koios struct {
 	Certificates     []Certificate `json:"certificates"`
 	MetadataLabels   []string      `json:"metadata_labels"`
 	Message          []string      `json:"message"`
-	Votes            int           `json:"votes"`
-	Proposals        int           `json:"proposals"`
-	TreasuryDonation string        `json:"treasury_donation"`
+	// Metadata is the whole metadata as db-sync renders it: integers as
+	// numbers, bytes as 0x and hex.
+	Metadata         map[string]json.RawMessage `json:"metadata"`
+	Votes            int                        `json:"votes"`
+	Proposals        int                        `json:"proposals"`
+	TreasuryDonation string                     `json:"treasury_donation"`
 }
 
 type Output struct {
@@ -264,6 +267,7 @@ func normalize(t txInfo) Koios {
 		Withdrawals:      t.Withdrawals,
 		AssetsMinted:     t.AssetsMinted,
 		Certificates:     t.Certificates,
+		Metadata:         t.Metadata,
 		Votes:            len(t.VotingProcedures),
 		Proposals:        len(t.ProposalProcedures),
 		TreasuryDonation: t.TreasuryDonation,

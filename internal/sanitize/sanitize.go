@@ -15,6 +15,9 @@
 package sanitize
 
 import (
+	"encoding/json"
+	"slices"
+	"strconv"
 	"unicode"
 	"unicode/utf8"
 )
@@ -85,4 +88,76 @@ func Name(b []byte, max int) string {
 		return ""
 	}
 	return Text(string(b), max)
+}
+
+// Limits of Value: metadata is free-form, so it is cut in depth, in size and
+// in the length of each string.
+const (
+	MaxValueDepth  = 8
+	MaxValueNodes  = 200
+	MaxValueString = 256
+	MaxValueKey    = 64
+)
+
+// Value neutralizes a JSON-like tree from the chain, such as token metadata:
+// every key and string goes through Text, numbers become decimal strings,
+// since metadata integers may be far larger than any JSON reader takes, and
+// the tree is cut at MaxValueDepth levels and MaxValueNodes values, an
+// ellipsis marking where. It accepts what encoding/json decodes into an interface and
+// returns a tree of the same kinds.
+func Value(v any) any {
+	nodes := 0
+	return value(v, 0, &nodes)
+}
+
+func value(v any, depth int, nodes *int) any {
+	*nodes++
+	if *nodes > MaxValueNodes || depth >= MaxValueDepth {
+		return Ellipsis
+	}
+	switch v := v.(type) {
+	case string:
+		return Text(v, MaxValueString)
+	case map[string]any:
+		out := make(map[string]any, min(len(v), MaxValueNodes))
+		for _, k := range sortedKeys(v) {
+			if *nodes >= MaxValueNodes {
+				out[Ellipsis] = Ellipsis
+				break
+			}
+			out[Text(k, MaxValueKey)] = value(v[k], depth+1, nodes)
+		}
+		return out
+	case []any:
+		out := make([]any, 0, min(len(v), MaxValueNodes))
+		for _, x := range v {
+			if *nodes >= MaxValueNodes {
+				out = append(out, Ellipsis)
+				break
+			}
+			out = append(out, value(x, depth+1, nodes))
+		}
+		return out
+	case json.Number:
+		return Text(string(v), MaxValueString)
+	case float64:
+		return strconv.FormatFloat(v, 'g', -1, 64)
+	case int64:
+		return strconv.FormatInt(v, 10)
+	case uint64:
+		return strconv.FormatUint(v, 10)
+	case bool, nil:
+		return v
+	default:
+		return Ellipsis
+	}
+}
+
+func sortedKeys(m map[string]any) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	slices.Sort(keys)
+	return keys
 }
