@@ -3,7 +3,7 @@
 GO ?= go
 FUZZTIME ?= 10s
 
-.PHONY: check fmt vet test boundaries fuzz live
+.PHONY: check fmt vet test boundaries fuzz live oracle
 
 check: fmt vet test boundaries
 
@@ -32,3 +32,8 @@ fuzz:
 # Tests against the public preprod network; not part of check.
 live:
 	$(GO) test -tags live -run Live -count=1 -v ./...
+
+# Regenerates internal/txbuild/testdata/apollo_macs.json.gz with Apollo's MACS,
+# from a separate module so Apollo never enters ours.
+oracle:
+	cd test/apollo-oracle && $(GO) run .

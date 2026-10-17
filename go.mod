@@ -5,8 +5,9 @@ go 1.26.8
 toolchain go1.27.2
 
 require (
-	github.com/blinklabs-io/gouroboros v0.213.3
+	github.com/blinklabs-io/gouroboros v0.213.4
 	github.com/fxamacker/cbor/v2 v2.9.6
+	golang.org/x/crypto v0.57.0
 )
 
 require (
@@ -25,7 +26,6 @@ require (
 	github.com/minio/sha256-simd v1.0.1 // indirect
 	github.com/utxorpc/go-codegen v0.19.2 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
-	golang.org/x/crypto v0.57.0 // indirect
 	golang.org/x/sys v0.48.0 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
 )

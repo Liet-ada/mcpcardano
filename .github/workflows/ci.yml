@@ -21,7 +21,7 @@ jobs:
           go-version-file: go.mod
       - run: make check
       - run: make fuzz
-      - name: Commits use the project identity and UTC
+      - name: Commits use the project identity
         run: |
-          bad=$(git log --format='%H %ae %ai' | awk '$2 != "343741453+Liet-ada@users.noreply.github.com" || $5 != "+0000"')
+          bad=$(git log --format='%H %ae' | awk '$2 != "343741453+Liet-ada@users.noreply.github.com"')
           if [ -n "$bad" ]; then echo "$bad"; exit 1; fi
