@@ -122,10 +122,10 @@ func value(v any, depth int, nodes *int) any {
 		out := make(map[string]any, min(len(v), MaxValueNodes))
 		for _, k := range sortedKeys(v) {
 			if *nodes >= MaxValueNodes {
-				out[Ellipsis] = Ellipsis
+				out[key(out, Ellipsis)] = Ellipsis
 				break
 			}
-			out[Text(k, MaxValueKey)] = value(v[k], depth+1, nodes)
+			out[key(out, k)] = value(v[k], depth+1, nodes)
 		}
 		return out
 	case []any:
@@ -150,6 +150,20 @@ func value(v any, depth int, nodes *int) any {
 		return v
 	default:
 		return Ellipsis
+	}
+}
+
+// key neutralizes k as a key of out. Two keys that differ only in what
+// does not show read the same once neutralized; the later one gets " (2)",
+// " (3)" and so on, within MaxValueKey, so neither hides the other.
+func key(out map[string]any, k string) string {
+	t := Text(k, MaxValueKey)
+	for n := 2; ; n++ {
+		if _, taken := out[t]; !taken {
+			return t
+		}
+		suffix := " (" + strconv.Itoa(n) + ")"
+		t = Text(k, MaxValueKey-len(suffix)) + suffix
 	}
 }
 

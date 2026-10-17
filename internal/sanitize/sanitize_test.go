@@ -154,6 +154,19 @@ func TestValue(t *testing.T) {
 	if Value(struct{}{}) != Ellipsis {
 		t.Error("an unexpected kind is kept")
 	}
+
+	// Keys that read the same once neutralized do not hide each other.
+	clash := map[string]any{"pay\U0000200b": "first", "pay\U0000200c": "second", "pay\U0000200d": "third", "pay\U0000fffd (2)": "fourth"}
+	b, _ = json.Marshal(Value(clash))
+	if want := `{"pay` + r + `":"first","pay` + r + ` (2)":"second","pay` + r + ` (2) (2)":"fourth","pay` + r + ` (3)":"third"}`; string(b) != want {
+		t.Errorf("clashing keys\ngot  %s\nwant %s", b, want)
+	}
+	long := strings.Repeat("k", MaxValueKey)
+	for k := range Value(map[string]any{long + "\U0000200b": 1, long + "\U0000200c": 2}).(map[string]any) {
+		if len(k) > MaxValueKey {
+			t.Errorf("a %d-byte key", len(k))
+		}
+	}
 }
 
 // FuzzValue: whatever JSON the chain holds, the result has only visible
