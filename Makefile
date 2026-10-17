@@ -3,7 +3,7 @@
 GO ?= go
 FUZZTIME ?= 10s
 
-.PHONY: check fmt vet test boundaries fuzz
+.PHONY: check fmt vet test boundaries fuzz live
 
 check: fmt vet test boundaries
 
@@ -28,3 +28,7 @@ fuzz:
 			$(GO) test -run '^$$' -fuzz "^$$f$$" -fuzztime $(FUZZTIME) $$pkg || exit 1; \
 		done; \
 	done
+
+# Tests against the public preprod network; not part of check.
+live:
+	$(GO) test -tags live -run Live -count=1 -v ./...

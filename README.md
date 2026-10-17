@@ -12,7 +12,7 @@ The agent only prepares draft transactions. A separate, network-isolated wallet 
 make check   # format, vet, tests with -race, package boundary checks
 ```
 
-Requires Go 1.26 or newer.
+Requires Go 1.26.8 or newer.
 
 ## License
 
