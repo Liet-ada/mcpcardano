@@ -224,7 +224,7 @@ func TestHWCLI(t *testing.T) {
 	script := filepath.Join(dir, "cardano-hw-cli")
 	os.WriteFile(script, []byte(`#!/bin/sh
 echo "$@" > "`+dir+`/args"
-if [ -f "`+dir+`/reject" ]; then echo "Error: Failure_ActionCancelled: Action cancelled by user" >&2; exit 1; fi
+if [ -f "`+dir+`/fail" ]; then cat "`+dir+`/fail" >&2; exit 1; fi
 while [ $# -gt 0 ]; do
   if [ "$1" = "--out-file" ]; then cp "`+dir+`/witness.json" "$2"; fi
   if [ "$1" = "--tx-file" ]; then cp "$2" "`+dir+`/tx.json"; fi
@@ -248,8 +248,33 @@ done
 	if json.Unmarshal(txFile, &e) != nil || e.Type != "Unwitnessed Tx ConwayEra" || e.CBORHex != hex.EncodeToString(tx) {
 		t.Errorf("tx file %s", txFile)
 	}
-	os.WriteFile(filepath.Join(dir, "reject"), nil, 0o600)
-	if _, _, err := h.Witness(t.Context(), model.Preprod, tx, "/keys"); !errors.Is(err, ErrRejected) {
-		t.Errorf("a rejection on the device: %v", err)
+	// The failures, as cardano-hw-cli 1.19.1 prints them.
+	for _, c := range []struct {
+		name, out string
+		want      error
+		has       string
+	}{
+		{"a rejection on the device", "Error: Failure_ActionCancelled: Action cancelled by user\n", ErrRejected, ""},
+		{"no device", "Error: Error occurred while trying to find hw transport, make sure Ledger or Trezor or Keystone is connected to your computer\n", ErrNoDevice, ""},
+		{"a Trezor Safe 7, taken as a Keystone", `Error: releaseInterface error: invalid state
+    at WebUSBDevice._releaseInterface (/snapshot/cardano-hw-cli/node_modules/usb/dist/webusb/webusb-device.js:400:19)
+    at Generator.next (<anonymous>)
+Error: The requested operation failed. Check that your Keystone device is connected.
+Details: Error: open error: Error: LIBUSB_ERROR_NO_DEVICE
+`, ErrNoDevice, ""},
+		{"a Ledger without the Cardano app", `Error: The requested operation failed. Check that your Ledger device is connected, unlocked and with Cardano app running.
+Details: TransportStatusError: Ledger device: CLA_NOT_SUPPORTED (0x6e00)
+`, nil, "Error: The requested operation failed. Check that your Ledger device is connected, unlocked and with Cardano app running. Details: TransportStatusError: Ledger device: CLA_NOT_SUPPORTED (0x6e00)"},
+	} {
+		os.WriteFile(filepath.Join(dir, "fail"), []byte(c.out), 0o600)
+		_, _, err := h.Witness(t.Context(), model.Preprod, tx, "/keys")
+		switch {
+		case err == nil:
+			t.Errorf("%s: no error", c.name)
+		case c.want != nil && !errors.Is(err, c.want):
+			t.Errorf("%s: %v, want %v", c.name, err, c.want)
+		case c.has != "" && (!strings.HasSuffix(err.Error(), c.has) || errors.Is(err, ErrNoDevice) || errors.Is(err, ErrRejected)):
+			t.Errorf("%s: %v", c.name, err)
+		}
 	}
 }

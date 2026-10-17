@@ -23,6 +23,10 @@ import (
 // ErrRejected reports that the person rejected the action on the device.
 var ErrRejected = errors.New("signer: rejected on the hardware wallet")
 
+// ErrNoDevice reports that cardano-hw-cli found no hardware wallet it can use.
+var ErrNoDevice = errors.New("signer: no hardware wallet that cardano-hw-cli can use; connect and unlock a Ledger " +
+	"with the Cardano app open, or a Trezor Model T, Safe 3 or Safe 5 (cardano-hw-cli does not support the Trezor Safe 7)")
+
 // deviceTimeout bounds one action on the device, which waits for the person.
 const deviceTimeout = 5 * time.Minute
 
@@ -62,17 +66,38 @@ func (h HWCLI) run(ctx context.Context, args ...string) error {
 		text := strings.TrimSpace(out.String())
 		low := strings.ToLower(text)
 		if strings.Contains(low, "reject") || strings.Contains(low, "cancel") || strings.Contains(low, "denied by user") {
-			return fmt.Errorf("%w: %s", ErrRejected, lastLine(text))
+			return fmt.Errorf("%w: %s", ErrRejected, lastError(text))
 		}
-		return fmt.Errorf("signer: cardano-hw-cli %s: %v: %s", args[0]+" "+args[1], err, lastLine(text))
+		// cardano-hw-cli finds no device, or falls back to its Keystone
+		// transport, which takes any device with the USB vendor ID Keystone
+		// shares with Trezor (0x1209) when Trezor Connect fails, as it does
+		// with the Safe 7. Its error then names a Keystone.
+		if strings.Contains(low, "find hw transport") || strings.Contains(low, "check that your keystone device is connected") {
+			return ErrNoDevice
+		}
+		return fmt.Errorf("signer: cardano-hw-cli %s: %v: %s", args[0]+" "+args[1], err, lastError(text))
 	}
 	return nil
 }
 
-func lastLine(s string) string {
-	if i := strings.LastIndexByte(s, '\n'); i >= 0 {
-		s = s[i+1:]
+// lastError returns cardano-hw-cli's last error in one line: from its last
+// line that starts with "Error:" to the end, without stack frames.
+func lastError(s string) string {
+	lines := strings.Split(s, "\n")
+	start := len(lines) - 1
+	for i := start; i >= 0; i-- {
+		if strings.HasPrefix(lines[i], "Error:") {
+			start = i
+			break
+		}
 	}
+	var msg []string
+	for _, l := range lines[start:] {
+		if l = strings.TrimSpace(l); l != "" && !strings.HasPrefix(l, "at ") {
+			msg = append(msg, l)
+		}
+	}
+	s = strings.Join(msg, " ")
 	if len(s) > 300 {
 		s = s[:300]
 	}
