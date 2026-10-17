@@ -85,6 +85,7 @@ func (r *recorder) Append(_ context.Context, _ string, body any) error {
 
 type env struct {
 	t      *testing.T
+	clock  func() time.Time
 	src    *fakeSource
 	audit  *recorder
 	server *Server
@@ -100,7 +101,9 @@ const (
 	frozenID = "w_aaaaaaaaaaaaaaaaaaaaaaaaaa"
 )
 
-func newEnv(t *testing.T) *env {
+// fixture builds the wallets, the data source and the server, without a
+// client.
+func fixture(t testing.TB) *env {
 	t.Helper()
 	priv := ed25519.NewKeyFromSeed(bytes.Repeat([]byte{7}, 32))
 	h, _ := blake2b.New(28, nil)
@@ -139,9 +142,17 @@ func newEnv(t *testing.T) *env {
 	if err != nil {
 		t.Fatal(err)
 	}
+	return &env{clock: clock, src: src, audit: audit, server: s, wallet: w, frozen: frozen, shop: shopText, tools: map[string]*sdk.Tool{}}
+}
+
+// newEnv connects an MCP client to a fixture.
+func newEnv(t *testing.T) *env {
+	t.Helper()
+	e := fixture(t)
+	e.t = t
 	ct, st := sdk.NewInMemoryTransports()
 	ctx := t.Context()
-	if _, err := s.sdk.Connect(ctx, st, nil); err != nil {
+	if _, err := e.server.sdk.Connect(ctx, st, nil); err != nil {
 		t.Fatal(err)
 	}
 	cs, err := sdk.NewClient(&sdk.Implementation{Name: "test", Version: "0"}, nil).Connect(ctx, ct, nil)
@@ -149,7 +160,7 @@ func newEnv(t *testing.T) *env {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { cs.Close() })
-	e := &env{t: t, src: src, audit: audit, server: s, client: cs, wallet: w, frozen: frozen, shop: shopText, tools: map[string]*sdk.Tool{}}
+	e.client = cs
 	list, err := cs.ListTools(ctx, nil)
 	if err != nil {
 		t.Fatal(err)
