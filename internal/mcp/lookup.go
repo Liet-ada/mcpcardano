@@ -147,7 +147,7 @@ func (s *Server) addressInfo(ctx context.Context, a addressArg) (addressInfo, er
 	for _, id := range ids[:min(limit, len(ids))] {
 		page[id] = total.Assets[id]
 	}
-	out.Assets, _ = txdecode.Tokens(txdecode.NewBudget(limit), page)
+	out.Assets, _ = txdecode.Tokens(txdecode.NewBudget(limit, s.verified), page)
 	if out.Assets == nil {
 		out.Assets = []txdecode.Asset{}
 	}
@@ -227,12 +227,7 @@ func (s *Server) assetInfo(ctx context.Context, a assetQuery) (assetInfo, error)
 	out := assetInfo{
 		Network: string(s.d.Network), Asset: id.String(), PolicyID: hex.EncodeToString(id.Policy[:]), NameHex: nameHex,
 		Fingerprint: chain.Fingerprint(id), TotalSupply: x.Supply, Standard: "none",
-		NameUnverified: sanitize.Name([]byte(id.Name), txdecode.MaxNameBytes),
-	}
-	for _, w := range s.d.Wallets {
-		if _, ok := w.Policy.Assets[id]; ok {
-			out.Verified = true
-		}
+		NameUnverified: sanitize.Name([]byte(id.Name), txdecode.MaxNameBytes), Verified: s.verified(id),
 	}
 	labelled := len(nameHex) >= 8 && slices.Contains(cip67Labels, nameHex[:8])
 	if labelled {
@@ -407,7 +402,7 @@ func (s *Server) transaction(ctx context.Context, a txQuery) (transactionView, e
 	if err != nil {
 		return transactionView{}, err
 	}
-	summary, err := tx.Summary(txdecode.Options{})
+	summary, err := tx.Summary(txdecode.Options{Verified: s.verified})
 	if err != nil {
 		return transactionView{}, err
 	}

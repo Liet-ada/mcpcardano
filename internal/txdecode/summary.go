@@ -33,11 +33,18 @@ const (
 	MaxTokens  = 100
 )
 
-// Budget is what a response may still show of the tokens.
-type Budget struct{ left int }
+// Budget is what a response may still show of the tokens, and which tokens
+// it marks as verified.
+type Budget struct {
+	left     int
+	verified func(model.AssetID) bool
+}
 
-// NewBudget returns a budget of n tokens.
-func NewBudget(n int) *Budget { return &Budget{left: n} }
+// NewBudget returns a budget of n tokens. verified says which tokens the
+// person listed in the policy of a wallet; nil marks none.
+func NewBudget(n int, verified func(model.AssetID) bool) *Budget {
+	return &Budget{left: n, verified: verified}
+}
 
 // Tokens lists the tokens of a value in the fixed order of section 8.2, as
 // far as the budget allows. If it cuts the list, count is how many there are.
@@ -93,11 +100,14 @@ type Output struct {
 
 // Asset is a quantity of a token. The asset id and the CIP-14 fingerprint
 // identify it; the name is only a label anyone can copy (paper, section 7.2).
+// Verified says whether the person listed the token in the policy of a
+// wallet: a token nobody listed may be anyone's (decision 84).
 type Asset struct {
 	Asset          string `json:"asset"`
 	Fingerprint    string `json:"fingerprint"`
 	NameUnverified string `json:"name_unverified,omitempty"`
 	Quantity       string `json:"quantity"`
+	Verified       bool   `json:"verified"`
 }
 
 // Effect is the net change of a wallet's holdings: what the transaction
@@ -122,11 +132,13 @@ type Options struct {
 	// Spent are the outputs the inputs consume. With a wallet and every
 	// input among them, the summary has a net effect.
 	Spent []chain.UTxO
+	// Verified marks the tokens the person listed in the policy of a wallet.
+	Verified func(model.AssetID) bool
 }
 
 // Summary describes the transaction, within the limits of a response.
 func (t *Tx) Summary(o Options) (Summary, error) {
-	budget := NewBudget(MaxTokens)
+	budget := NewBudget(MaxTokens, o.Verified)
 	d, v := t.d, t.d.View
 	s := Summary{
 		TxID:             hex.EncodeToString(d.ID[:]),
@@ -209,7 +221,9 @@ func assets[Q uint64 | int64 | string](b *Budget, m map[model.AssetID]Q, format 
 	b.left -= n
 	var out []Asset
 	for _, id := range ids[:n] {
-		out = append(out, asset(id, format(m[id])))
+		a := asset(id, format(m[id]))
+		a.Verified = b.verified != nil && b.verified(id)
+		out = append(out, a)
 	}
 	if n < len(ids) {
 		return out, len(ids)

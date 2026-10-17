@@ -142,3 +142,50 @@ func TestTransaction(t *testing.T) {
 	e.fails("get_transaction", map[string]any{"tx_id": "02" + strings.Repeat("0", 62)}, CodeDatasourceUnavailable)
 	e.fails("get_transaction", map[string]any{"tx_id": "ABC"}, CodeInvalidParams)
 }
+
+// TestVerifiedTokens checks that every list of tokens says which ones the
+// person listed in the policy of a wallet (decision 84).
+func TestVerifiedTokens(t *testing.T) {
+	e := newEnv(t)
+	listed := assetID(t, strings.Repeat("a1", 28)+"."+hex.EncodeToString([]byte("MC")))
+	stranger := assetID(t, strings.Repeat("b2", 28)+"."+hex.EncodeToString([]byte("Snek Rewards")))
+	w := e.wallet
+	w.Policy.Assets = map[model.AssetID]uint64{listed: 10}
+	e.server.wallets[walletID] = w
+	e.server.d.Wallets = []Wallet{w, e.frozen}
+	key := string(w.Address.Raw)
+	e.src.utxos[key] = append(e.src.utxos[key], chain.UTxO{In: chain.TxIn{TxID: [32]byte{0: 0xef}}, Address: w.Address,
+		Value: model.Value{Lovelace: ada(3), Assets: map[model.AssetID]uint64{listed: 5, stranger: 7}}})
+	want := map[string]bool{listed.String(): true, stranger.String(): false}
+	check := func(where string, assets any, all bool) {
+		t.Helper()
+		seen := map[string]bool{}
+		items, _ := assets.([]any)
+		for _, x := range items {
+			a := x.(map[string]any)
+			id := a["asset"].(string)
+			if v, ok := want[id]; ok {
+				seen[id] = true
+				if a["verified"] != v {
+					t.Errorf("%s: %s has verified %v, want %v", where, id, a["verified"], v)
+				}
+			}
+		}
+		if all && len(seen) != len(want) {
+			t.Errorf("%s lists %d of the %d tokens", where, len(seen), len(want))
+		}
+	}
+	o := e.ok("get_wallet_overview", map[string]any{"wallet_id": string(walletID)})
+	check("get_wallet_overview", o["balance"].(map[string]any)["assets"], true)
+	for _, x := range e.ok("list_utxos", map[string]any{"wallet_id": string(walletID)})["utxos"].([]any) {
+		if as, ok := x.(map[string]any)["assets"]; ok {
+			check("list_utxos", as, true)
+		}
+	}
+	text, _ := chain.FormatAddress(w.Address)
+	check("get_address_info", e.ok("get_address_info", map[string]any{"address": text})["assets"], true)
+	d := e.ok("build_consolidation", map[string]any{"wallet_id": string(walletID)})
+	for _, x := range d["summary"].(map[string]any)["outputs"].([]any) {
+		check("a draft's summary", x.(map[string]any)["assets"], false)
+	}
+}

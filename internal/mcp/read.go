@@ -260,7 +260,7 @@ func (s *Server) walletOverview(ctx context.Context, a walletArg) (overview, err
 		h.Suggestion = "consolidate"
 	}
 	b := balanceView{Lovelace: model.FormatAmount(total.Lovelace)}
-	b.Assets, b.AssetsCount = txdecode.Tokens(txdecode.NewBudget(txdecode.MaxTokens), total.Assets)
+	b.Assets, b.AssetsCount = txdecode.Tokens(txdecode.NewBudget(txdecode.MaxTokens, s.verified), total.Assets)
 	return overview{
 		Network: string(s.d.Network), WalletID: string(w.ID), Address: addr,
 		Balance: b, UTxOs: len(utxos), Reserved: r,
@@ -413,7 +413,7 @@ func (s *Server) listUTxOs(ctx context.Context, a utxosArg) (utxoPage, error) {
 		return utxoPage{}, err
 	}
 	page := utxoPage{Network: string(s.d.Network), Address: text, UTxOs: []utxoView{}}
-	budget := txdecode.NewBudget(txdecode.MaxTokens)
+	budget := txdecode.NewBudget(txdecode.MaxTokens, s.verified)
 	for _, u := range utxos {
 		if after != nil && u.In.Compare(*after) <= 0 {
 			continue
@@ -464,7 +464,7 @@ func (s *Server) decodeTransaction(_ context.Context, a decodeArg) (decodedView,
 	if err != nil {
 		return decodedView{}, err
 	}
-	summary, err := tx.Summary(txdecode.Options{})
+	summary, err := tx.Summary(txdecode.Options{Verified: s.verified})
 	if err != nil {
 		return decodedView{}, err
 	}

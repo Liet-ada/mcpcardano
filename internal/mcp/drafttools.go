@@ -197,7 +197,7 @@ func (s *Server) build(ctx context.Context, w Wallet, intent model.Intent, ttl u
 	}
 	d, err := s.d.Drafts.Create(drafts.Request{
 		Wallet: w.Wallet, Policy: w.Policy, Intent: intent,
-		UTxOs: utxos, Params: params, TipSlot: tip.Slot, TTLSeconds: ttl,
+		UTxOs: utxos, Params: params, TipSlot: tip.Slot, TTLSeconds: ttl, Verified: s.verified,
 	})
 	if err != nil {
 		return draftView{}, err

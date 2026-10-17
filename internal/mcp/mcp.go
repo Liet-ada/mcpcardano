@@ -232,6 +232,18 @@ func (s *Server) record(ctx context.Context, entry map[string]any) {
 	}
 }
 
+// verified reports whether the policy of a wallet lists the token: the
+// person's list of verified tokens (decision 69). Every list of tokens shows
+// it (decision 84).
+func (s *Server) verified(id model.AssetID) bool {
+	for _, w := range s.d.Wallets {
+		if _, ok := w.Policy.Assets[id]; ok {
+			return true
+		}
+	}
+	return false
+}
+
 // wallet returns a configured wallet.
 func (s *Server) wallet(id string) (Wallet, error) {
 	w, ok := s.wallets[model.WalletID(id)]
