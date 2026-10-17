@@ -27,7 +27,10 @@ type Config struct {
 	DataDir    string           `json:"data_dir"`
 	Socket     string           `json:"socket,omitempty"`
 	DataSource DataSourceConfig `json:"datasource"`
-	Wallets    []WalletConfig   `json:"wallets"`
+	// ConfirmationDepth is how many blocks make a transaction confirmed;
+	// zero means DefaultConfirmationDepth.
+	ConfirmationDepth uint32         `json:"confirmation_depth,omitempty"`
+	Wallets           []WalletConfig `json:"wallets"`
 }
 
 // DataSourceConfig picks the data source. Milestone H-1 has Koios only.
@@ -88,11 +91,12 @@ type UTxOConfig struct {
 
 // Settings is a checked configuration, in the project's types.
 type Settings struct {
-	Network  model.Network
-	DataDir  string
-	Socket   string
-	KoiosURL string
-	Wallets  []mcp.Wallet
+	Network           model.Network
+	DataDir           string
+	Socket            string
+	KoiosURL          string
+	ConfirmationDepth uint32
+	Wallets           []mcp.Wallet
 }
 
 // maxConfigBytes bounds config.json.
@@ -149,7 +153,10 @@ func Resolve(c Config) (Settings, []string, error) {
 	case c.DataSource.Kind != "koios":
 		return fail("datasource.kind must be koios")
 	}
-	s := Settings{Network: n, DataDir: filepath.Clean(c.DataDir), Socket: c.Socket, KoiosURL: c.DataSource.URL}
+	s := Settings{Network: n, DataDir: filepath.Clean(c.DataDir), Socket: c.Socket, KoiosURL: c.DataSource.URL, ConfirmationDepth: c.ConfirmationDepth}
+	if s.ConfirmationDepth == 0 {
+		s.ConfirmationDepth = DefaultConfirmationDepth
+	}
 	if s.Socket == "" {
 		s.Socket = filepath.Join(s.DataDir, "mcp.sock")
 	}

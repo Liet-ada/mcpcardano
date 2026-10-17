@@ -26,6 +26,7 @@ const (
 	CodeInsufficientFreeUTxOs = "INSUFFICIENT_FREE_UTXOS"
 	CodeTooManyUTxOs          = "TOO_MANY_UTXOS"
 	CodeTxTooLarge            = "TX_TOO_LARGE"
+	CodeUTxOContention        = "UTXO_CONTENTION"
 	CodeDraftExpired          = "DRAFT_EXPIRED"
 	CodeDraftMismatch         = "DRAFT_MISMATCH"
 	CodePolicyBlocked         = "POLICY_BLOCKED"
@@ -45,6 +46,7 @@ var hints = map[string]string{
 	CodeInsufficientFreeUTxOs: "Other drafts hold the UTxOs this needs; wait for them, or cancel drafts with cancel_draft.",
 	CodeTooManyUTxOs:          "The wallet has more UTxOs than the server reads; do not retry; ask the person to consolidate it with another tool.",
 	CodeTxTooLarge:            "Consolidate with build_consolidation, or split the payment.",
+	CodeUTxOContention:        "An input was already spent; build the draft again.",
 	CodeDraftExpired:          "Build a new draft.",
 	CodeDraftMismatch:         "Build a new draft; the signature does not belong to this one.",
 	CodePolicyBlocked:         "The policy does not allow this; do not retry; tell the person.",

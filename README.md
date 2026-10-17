@@ -33,6 +33,18 @@ To add the server to Claude Code:
 claude mcp add mcpcardano -- /path/to/bin/mcpcardano mcp -socket /path/to/mcp.sock
 ```
 
+### Signing in mode A
+
+The person signs every payment of a mode A wallet on a hardware wallet, through [cardano-hw-cli](https://github.com/vacuumlabs/cardano-hw-cli). The agent calls `authorize_draft`; the signer takes the draft to the device, where the person checks destinations, amounts and fee, and confirms.
+
+```
+bin/mcpcardano signer init -hw-cli /path/to/cardano-hw-cli   # once: exports the public keys, shows the address on the device
+bin/mcpcardano signer -socket /path/to/mcp.sock -hw-cli /path/to/cardano-hw-cli
+bin/mcpcardano sign <draft_id> -socket ... -hw-cli ...        # by hand, when the signer is not running
+```
+
+`signer init` prints the wallet's address, to add to `config.json`. The signer keeps only cardano-hw-cli's signing files, which hold public keys; the private keys never leave the device.
+
 ## License
 
 Apache-2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).

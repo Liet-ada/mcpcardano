@@ -50,6 +50,13 @@ type Source interface {
 	// Transaction returns a transaction in the chain with its block, or
 	// ErrNotFound.
 	Transaction(ctx context.Context, id [32]byte) (Transaction, error)
+	// Submit sends a signed transaction to the network, once. ErrRejected
+	// means the node refused it; ErrUnavailable means nobody knows whether
+	// it arrived.
+	Submit(ctx context.Context, tx []byte, id [32]byte) error
+	// Confirmations says, for each transaction, how many blocks contain or
+	// follow it; zero if it is not in the chain.
+	Confirmations(ctx context.Context, ids [][32]byte) (map[[32]byte]uint64, error)
 }
 
 // Tip is the latest block a source knows.
