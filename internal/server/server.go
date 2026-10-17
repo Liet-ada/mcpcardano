@@ -37,6 +37,9 @@ type Options struct {
 	Version string
 	// Source replaces the data source of the configuration, for tests.
 	Source datasource.Source
+	// WatchEvery replaces how often the chain is asked about sent
+	// transactions, for tests.
+	WatchEvery time.Duration
 }
 
 // Run serves until ctx ends, then closes every session and returns.
@@ -88,8 +91,9 @@ func Run(ctx context.Context, s Settings, o Options) error {
 		log.Warn("the data source does not answer yet", "source", src.Name(), "err", err)
 	}
 
+	store := drafts.New(o.Now, nil)
 	srv, err := mcp.New(mcp.Deps{
-		Network: s.Network, Source: src, Drafts: drafts.New(o.Now, nil),
+		Network: s.Network, Source: src, Drafts: store,
 		Wallets: s.Wallets, Audit: rec, Logger: log, Now: o.Now, Version: o.Version,
 	})
 	if err != nil {
@@ -105,7 +109,17 @@ func Run(ctx context.Context, s Settings, o Options) error {
 		return fmt.Errorf("server: audit log: %w", err)
 	}
 	log.Info("serving MCP", "socket", s.Socket, "network", s.Network, "wallets", len(s.Wallets))
+	w := &watcher{store: store, src: src, rec: rec, now: o.Now, depth: s.ConfirmationDepth, log: log}
+	every := o.WatchEvery
+	if every == 0 {
+		every = watchEvery
+	}
+	watchCtx, stopWatch := context.WithCancel(ctx)
+	var watching sync.WaitGroup
+	watching.Go(func() { w.run(watchCtx, every) })
 	serve(ctx, ln, srv, log)
+	stopWatch()
+	watching.Wait()
 	rec.Append(context.WithoutCancel(ctx), "server_stop", map[string]any{})
 	return nil
 }

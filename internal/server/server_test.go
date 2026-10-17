@@ -127,6 +127,10 @@ func (source) AssetByFingerprint(context.Context, string) (model.AssetID, error)
 func (source) Transaction(context.Context, [32]byte) (datasource.Transaction, error) {
 	return datasource.Transaction{}, datasource.ErrNotFound
 }
+func (source) Submit(context.Context, []byte, [32]byte) error { return datasource.ErrUnavailable }
+func (source) Confirmations(_ context.Context, ids [][32]byte) (map[[32]byte]uint64, error) {
+	return map[[32]byte]uint64{}, nil
+}
 
 // shortDir returns a directory whose path fits a Unix socket name; the
 // temporary directory of macOS is too long.

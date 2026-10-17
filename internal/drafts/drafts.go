@@ -262,6 +262,34 @@ func compareIDs(a, b model.DraftID) int {
 	return 0
 }
 
+// Watched returns the drafts whose transaction was sent and whose state the
+// chain may still change: submitted, confirmed and rolled back.
+func (s *Store) Watched() []Draft {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.sweep(s.now())
+	var out []Draft
+	for _, d := range s.drafts {
+		if d.State == StateSubmitted || d.State == StateConfirmed || d.State == StateRolledBack {
+			out = append(out, *d)
+		}
+	}
+	return out
+}
+
+// ByTx returns the draft of a transaction, if the store still has it.
+func (s *Store) ByTx(id [32]byte) (Draft, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.sweep(s.now())
+	for _, d := range s.drafts {
+		if d.Tx.ID == id {
+			return *d, nil
+		}
+	}
+	return Draft{}, ErrNotFound
+}
+
 // Reserved returns the inputs the drafts of a wallet hold.
 func (s *Store) Reserved(wallet model.WalletID) []chain.TxIn {
 	s.mu.Lock()

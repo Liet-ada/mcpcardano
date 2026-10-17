@@ -67,6 +67,7 @@ type Server struct {
 	sdk     *sdk.Server
 	d       Deps
 	wallets map[model.WalletID]Wallet
+	sends   sendState
 }
 
 // New builds the server and registers its tools.
@@ -78,6 +79,7 @@ func New(d Deps) (*Server, error) {
 		sdk:     sdk.NewServer(&sdk.Implementation{Name: "mcpcardano", Version: d.Version}, nil),
 		d:       d,
 		wallets: make(map[model.WalletID]Wallet, len(d.Wallets)),
+		sends:   sendState{uncertain: map[model.DraftID]bool{}},
 	}
 	for _, w := range d.Wallets {
 		if _, dup := s.wallets[w.ID]; dup {
@@ -92,6 +94,9 @@ func New(d Deps) (*Server, error) {
 		return nil, err
 	}
 	if err := s.registerDrafts(); err != nil {
+		return nil, err
+	}
+	if err := s.registerSubmit(); err != nil {
 		return nil, err
 	}
 	return s, nil

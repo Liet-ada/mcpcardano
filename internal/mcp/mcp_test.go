@@ -42,6 +42,29 @@ type fakeSource struct {
 	assets       map[model.AssetID]datasource.Asset
 	fingerprints map[string]model.AssetID
 	txs          map[[32]byte]datasource.Transaction
+
+	submitted     [][]byte
+	submitErr     error // what the next Submit returns
+	confirmations map[[32]byte]uint64
+}
+
+func (f *fakeSource) Submit(_ context.Context, tx []byte, _ [32]byte) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.submitted = append(f.submitted, tx)
+	err := f.submitErr
+	f.submitErr = nil
+	return err
+}
+
+func (f *fakeSource) Confirmations(_ context.Context, ids [][32]byte) (map[[32]byte]uint64, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := map[[32]byte]uint64{}
+	for _, id := range ids {
+		out[id] = f.confirmations[id]
+	}
+	return out, nil
 }
 
 func (f *fakeSource) Account(_ context.Context, stake string) (datasource.Account, error) {
@@ -133,6 +156,7 @@ func (r *recorder) Append(_ context.Context, _ string, body any) error {
 
 type env struct {
 	t      *testing.T
+	priv   ed25519.PrivateKey // the wallet's key, as on the hardware wallet
 	clock  func() time.Time
 	src    *fakeSource
 	audit  *recorder
@@ -180,6 +204,7 @@ func fixture(t testing.TB) *env {
 		tip: datasource.Tip{Slot: slot, Height: 4_000_000, Epoch: 319, Time: now}, utxos: map[string][]chain.UTxO{},
 		accounts: map[string]datasource.Account{}, assets: map[model.AssetID]datasource.Asset{},
 		fingerprints: map[string]model.AssetID{}, txs: map[[32]byte]datasource.Transaction{},
+		confirmations: map[[32]byte]uint64{},
 	}
 	for i, l := range []uint64{ada(50), ada(30), 600_000} {
 		src.utxos[string(addr.Raw)] = append(src.utxos[string(addr.Raw)],
@@ -194,7 +219,7 @@ func fixture(t testing.TB) *env {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &env{clock: clock, src: src, audit: audit, server: s, wallet: w, frozen: frozen, shop: shopText, tools: map[string]*sdk.Tool{}}
+	return &env{priv: priv, clock: clock, src: src, audit: audit, server: s, wallet: w, frozen: frozen, shop: shopText, tools: map[string]*sdk.Tool{}}
 }
 
 // newEnv connects an MCP client to a fixture.
@@ -294,7 +319,8 @@ func TestTools(t *testing.T) {
 	e := newEnv(t)
 	want := []string{"authorize_draft", "build_consolidation", "build_payment", "cancel_draft", "decode_transaction",
 		"get_address_info", "get_asset_info", "get_draft", "get_network_status", "get_policy_status",
-		"get_protocol_parameters", "get_transaction", "get_wallet_overview", "list_drafts", "list_utxos", "list_wallets"}
+		"get_protocol_parameters", "get_transaction", "get_transaction_status", "get_wallet_overview", "list_drafts",
+		"list_utxos", "list_wallets", "submit_signed_transaction"}
 	got := slices.Sorted(func(yield func(string) bool) {
 		for n := range e.tools {
 			if !yield(n) {
@@ -314,7 +340,7 @@ func TestTools(t *testing.T) {
 		if a.ReadOnlyHint != readOnly || a.IdempotentHint != readOnly {
 			t.Errorf("%s: read-only %v, idempotent %v", name, a.ReadOnlyHint, a.IdempotentHint)
 		}
-		if destructive := a.DestructiveHint != nil && *a.DestructiveHint; destructive != (name == "authorize_draft") {
+		if destructive := a.DestructiveHint != nil && *a.DestructiveHint; destructive != (name == "authorize_draft" || name == "submit_signed_transaction") {
 			t.Errorf("%s: destructive %v", name, destructive)
 		}
 	}
