@@ -168,6 +168,21 @@ func TestCorpusSummaries(t *testing.T) {
 			}
 			check("donation", donation, k.TreasuryDonation)
 
+			// Koios lists every token; the summary shows MaxTokens in all and
+			// the length of each list it cuts.
+			left := MaxTokens
+			expect := func(all []Asset) ([]Asset, int) {
+				n := min(len(all), left)
+				left -= n
+				shown := all[:n]
+				if n == 0 {
+					shown = nil
+				}
+				if n < len(all) {
+					return shown, len(all)
+				}
+				return shown, 0
+			}
 			check("outputs", len(s.Outputs), len(k.Outputs))
 			for i := range min(len(s.Outputs), len(k.Outputs)) {
 				o, ko := s.Outputs[i], k.Outputs[i]
@@ -175,7 +190,9 @@ func TestCorpusSummaries(t *testing.T) {
 				check("output lovelace", o.Lovelace, ko.Value)
 				check("output datum", o.Datum, ko.Datum)
 				check("output reference script", o.ReferenceScript, ko.ReferenceScript)
-				check("output assets", withoutNames(o.Assets), koiosAssets(ko.Assets))
+				want, count := expect(koiosAssets(ko.Assets))
+				check("output assets", withoutNames(o.Assets), want)
+				check("output assets count", o.AssetsCount, count)
 				if o.Own != nil {
 					t.Error("own is set without a wallet")
 				}
@@ -191,7 +208,9 @@ func TestCorpusSummaries(t *testing.T) {
 			slices.Sort(withdrawals)
 			slices.Sort(kw)
 			check("withdrawals", withdrawals, kw)
-			check("mint", withoutNames(s.Mint), koiosAssets(k.AssetsMinted))
+			want, count := expect(koiosAssets(k.AssetsMinted))
+			check("mint", withoutNames(s.Mint), want)
+			check("mint count", s.MintCount, count)
 
 			var kinds [][]string
 			for _, c := range k.Certificates {

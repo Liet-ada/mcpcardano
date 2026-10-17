@@ -14,6 +14,25 @@ make check   # format, vet, tests with -race, package boundary checks
 
 Requires Go 1.26.8 or newer.
 
+## Run (milestone H-1, preprod)
+
+The server runs on its own and serves MCP on a Unix socket. An MCP client reaches it through `mcpcardano mcp`, a bridge it starts like any stdio server.
+
+```
+go build -o bin/ ./cmd/...
+bin/mcpcardano-server -new-wallet-id          # an id for each wallet in config.json
+bin/mcpcardano-server -config config.json -check
+bin/mcpcardano-server -config config.json
+```
+
+See [internal/server/testdata/config.json](internal/server/testdata/config.json) for the format. The wallets of H-1 are hardware wallets (mode A): the server only knows their address and policy, and every payment is confirmed on the device. Amounts are lovelace as decimal strings; a limit at zero forbids.
+
+To add the server to Claude Code:
+
+```
+claude mcp add mcpcardano -- /path/to/bin/mcpcardano mcp -socket /path/to/mcp.sock
+```
+
 ## License
 
 Apache-2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).

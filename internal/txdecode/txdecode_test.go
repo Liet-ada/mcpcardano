@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"testing"
 
 	"golang.org/x/crypto/blake2b"
@@ -338,4 +339,28 @@ func FuzzDecode(f *testing.F) {
 		}
 		_ = tx.CheckIntent(wallet, model.Intent{Kind: model.IntentConsolidation}, coinsPerByte)
 	})
+}
+
+// TestSummaryLimits: a transaction with more outputs and tokens than a
+// response shows is cut, and says how long its lists were.
+func TestSummaryLimits(t *testing.T) {
+	wallet, shop, _ := addresses(t)
+	tokens := map[model.AssetID]uint64{}
+	for i := range MaxTokens + 20 {
+		tokens[token(t, fmt.Sprintf("%03d", i))] = 1
+	}
+	outs := []any{out(wallet, model.Value{Lovelace: 5_000_000, Assets: tokens})}
+	for range MaxOutputs + 10 {
+		outs = append(outs, out(shop, model.Value{Lovelace: 1_000_000}))
+	}
+	s, err := decode(t, draft{outs: outs}.bytes(t)).Summary(Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(s.Outputs) != MaxOutputs || s.OutputsCount != MaxOutputs+11 {
+		t.Errorf("%d outputs shown of %d", len(s.Outputs), s.OutputsCount)
+	}
+	if first := s.Outputs[0]; len(first.Assets) != MaxTokens || first.AssetsCount != MaxTokens+20 {
+		t.Errorf("%d tokens shown of %d", len(first.Assets), first.AssetsCount)
+	}
 }
