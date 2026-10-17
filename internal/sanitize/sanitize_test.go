@@ -4,6 +4,8 @@
 package sanitize
 
 import (
+	"bytes"
+	"encoding/json"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -120,6 +122,86 @@ func FuzzText(f *testing.F) {
 		}
 		if len(s) <= limit && utf8.ValidString(s) && strings.IndexFunc(s, func(c rune) bool { return !Visible(c) }) < 0 && got != s {
 			t.Fatalf("changed visible text %q into %q", s, got)
+		}
+	})
+}
+
+func TestValue(t *testing.T) {
+	var in any
+	json.Unmarshal([]byte(`{"name":"Evil‮Token","n":5,"ok":true,"none":null,"list":["a\nb",1.5],"k​ey":"v"}`), &in)
+	got, _ := json.Marshal(Value(in))
+	want := `{"k` + r + `ey":"v","list":["a` + r + `b","1.5"],"n":"5","name":"Evil` + r + `Token","none":null,"ok":true}`
+	if string(got) != want {
+		t.Errorf("got  %s\nwant %s", got, want)
+	}
+
+	deep := any("bottom")
+	for range MaxValueDepth + 3 {
+		deep = []any{deep}
+	}
+	b, _ := json.Marshal(Value(deep))
+	if strings.Contains(string(b), "bottom") || !strings.Contains(string(b), Ellipsis) {
+		t.Errorf("not cut in depth: %s", b)
+	}
+
+	wide := make([]any, 10*MaxValueNodes)
+	for i := range wide {
+		wide[i] = "x"
+	}
+	if n := len(Value(wide).([]any)); n > MaxValueNodes {
+		t.Errorf("%d values kept", n)
+	}
+	if Value(struct{}{}) != Ellipsis {
+		t.Error("an unexpected kind is kept")
+	}
+}
+
+// FuzzValue: whatever JSON the chain holds, the result has only visible
+// text, stays within its limits and is still JSON.
+func FuzzValue(f *testing.F) {
+	for _, s := range []string{`{}`, `[1,"a",{"b":[true,null]}]`, `{"‮":"​"}`, `"x"`} {
+		f.Add([]byte(s))
+	}
+	f.Fuzz(func(t *testing.T, data []byte) {
+		dec := json.NewDecoder(bytes.NewReader(data))
+		dec.UseNumber()
+		var in any
+		if dec.Decode(&in) != nil {
+			return
+		}
+		out, err := json.Marshal(Value(in))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var back any
+		if err := json.Unmarshal(out, &back); err != nil {
+			t.Fatal(err)
+		}
+		nodes := 0
+		var walk func(any)
+		walk = func(v any) {
+			nodes++
+			switch v := v.(type) {
+			case string:
+				if strings.IndexFunc(v, func(c rune) bool { return !Visible(c) }) >= 0 || len(v) > MaxValueString {
+					t.Fatalf("string %q", v)
+				}
+			case map[string]any:
+				for k, x := range v {
+					if strings.IndexFunc(k, func(c rune) bool { return !Visible(c) }) >= 0 {
+						t.Fatalf("key %q", k)
+					}
+					walk(x)
+				}
+			case []any:
+				for _, x := range v {
+					walk(x)
+				}
+			}
+		}
+		walk(back)
+		if nodes > 2*MaxValueNodes+1 {
+			t.Fatalf("%d nodes", nodes)
 		}
 	})
 }

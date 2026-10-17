@@ -88,6 +88,9 @@ func New(d Deps) (*Server, error) {
 	if err := s.registerRead(); err != nil {
 		return nil, err
 	}
+	if err := s.registerLookups(); err != nil {
+		return nil, err
+	}
 	if err := s.registerDrafts(); err != nil {
 		return nil, err
 	}

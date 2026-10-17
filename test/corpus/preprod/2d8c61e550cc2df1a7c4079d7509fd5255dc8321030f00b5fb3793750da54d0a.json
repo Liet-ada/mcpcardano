@@ -24,12 +24,6 @@
         "value": "27865512757",
         "assets": [
           {
-            "policy_id": "fedf5c51ebf380ffc00957919ab607ff93eca38e47f4d8d84a1d9a86",
-            "asset_name": "576f77",
-            "fingerprint": "asset1h6p5w80qht70xuatk4rrqwu0ez5udekkuhzgsl",
-            "quantity": "123"
-          },
-          {
             "policy_id": "01e4ef1ab822a850b9536c4364b19ca65cf167b452243e263574ea32",
             "asset_name": "576f77",
             "fingerprint": "asset1queeusvzavywd33e0qa63j78hv5v0z24xcz7nq",
@@ -682,6 +676,12 @@
             "asset_name": "576f77",
             "fingerprint": "asset1g8yv7vzasl9f5mv0padfvxl999q9ey3cwwkq2r",
             "quantity": "123"
+          },
+          {
+            "policy_id": "fedf5c51ebf380ffc00957919ab607ff93eca38e47f4d8d84a1d9a86",
+            "asset_name": "576f77",
+            "fingerprint": "asset1h6p5w80qht70xuatk4rrqwu0ez5udekkuhzgsl",
+            "quantity": "123"
           }
         ],
         "datum": false,
@@ -698,6 +698,7 @@
     ],
     "metadata_labels": null,
     "message": null,
+    "metadata": null,
     "votes": 0,
     "proposals": 0,
     "treasury_donation": "0"

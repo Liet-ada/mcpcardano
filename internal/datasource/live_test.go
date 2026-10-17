@@ -7,6 +7,7 @@ package datasource
 
 import (
 	"context"
+	"encoding/hex"
 	"os"
 	"testing"
 	"time"
@@ -63,4 +64,28 @@ func TestLiveKoiosPreprod(t *testing.T) {
 		total += u.Value.Lovelace
 	}
 	t.Logf("UTxOs: %d, %d lovelace", len(utxos), total)
+
+	acc, err := k.Account(ctx, delegatingAccount)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("account: registered %v, pool %s, drep %s", acc.Registered, acc.Pool, acc.DRep)
+	id, err := k.AssetByFingerprint(ctx, cip25Fingerprint)
+	if err != nil || id.String() != cip25Asset {
+		t.Fatalf("fingerprint: %s, %v", id, err)
+	}
+	a, err := k.Asset(ctx, id)
+	if err != nil || a.CIP25 == nil {
+		t.Fatalf("asset: %v", err)
+	}
+	t.Logf("asset %s: supply %s", id, a.Supply)
+	tx, err := k.Transaction(ctx, txID(t, mintTx))
+	if err != nil {
+		t.Fatal(err)
+	}
+	d, err := chain.DecodeTransaction(tx.CBOR)
+	if err != nil || hex.EncodeToString(d.ID[:]) != mintTx {
+		t.Fatalf("the CBOR is not the transaction: %v", err)
+	}
+	t.Logf("transaction %s in block %d", mintTx, tx.BlockHeight)
 }

@@ -39,6 +39,17 @@ type Source interface {
 	// UTxOs returns the unspent outputs at a payment address, ordered by
 	// reference.
 	UTxOs(ctx context.Context, addr model.Address) ([]chain.UTxO, error)
+	// Account returns the state of a stake account, given by its reward
+	// address in bech32, or ErrNotFound if the chain has never seen it.
+	Account(ctx context.Context, stake string) (Account, error)
+	// Asset returns what the source knows of a token, or ErrNotFound.
+	Asset(ctx context.Context, id model.AssetID) (Asset, error)
+	// AssetByFingerprint returns the token with a CIP-14 fingerprint, or
+	// ErrNotFound.
+	AssetByFingerprint(ctx context.Context, fingerprint string) (model.AssetID, error)
+	// Transaction returns a transaction in the chain with its block, or
+	// ErrNotFound.
+	Transaction(ctx context.Context, id [32]byte) (Transaction, error)
 }
 
 // Tip is the latest block a source knows.

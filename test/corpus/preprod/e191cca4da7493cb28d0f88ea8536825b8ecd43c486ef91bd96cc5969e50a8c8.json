@@ -27,6 +27,13 @@
       "1694"
     ],
     "message": null,
+    "metadata": {
+      "1694": {
+        "v": 1,
+        "date": "2026-10-17",
+        "root": "a94258ebd38766b6dadf489282d65600a22e2a58d5d633019878fae52503c1d8"
+      }
+    },
     "votes": 0,
     "proposals": 0,
     "treasury_donation": "0"

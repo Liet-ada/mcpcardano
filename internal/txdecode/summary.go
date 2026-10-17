@@ -288,3 +288,16 @@ func netEffect(d *chain.DecodedTx, wallet model.Address, spent []chain.UTxO, b *
 	e.Assets, e.AssetsCount = assets(b, signed, func(q string) string { return q })
 	return e
 }
+
+// MetadataUnverified returns the whole metadata of the transaction,
+// neutralized and cut like any text from the chain, or nil if it has none.
+func (t *Tx) MetadataUnverified() any {
+	if t.d.Metadata == nil {
+		return nil
+	}
+	return sanitize.Value(t.d.Metadata)
+}
+
+// Metadata returns the whole metadata as decoded, for tests and the audit
+// log; anything shown to the agent goes through MetadataUnverified.
+func (t *Tx) Metadata() map[string]any { return t.d.Metadata }

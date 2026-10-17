@@ -115,6 +115,18 @@ func (source) ProtocolParameters(context.Context) (chain.ProtocolParameters, err
 	return chain.ProtocolParameters{}, datasource.ErrUnavailable
 }
 func (source) UTxOs(context.Context, model.Address) ([]chain.UTxO, error) { return nil, nil }
+func (source) Account(context.Context, string) (datasource.Account, error) {
+	return datasource.Account{}, datasource.ErrNotFound
+}
+func (source) Asset(context.Context, model.AssetID) (datasource.Asset, error) {
+	return datasource.Asset{}, datasource.ErrNotFound
+}
+func (source) AssetByFingerprint(context.Context, string) (model.AssetID, error) {
+	return model.AssetID{}, datasource.ErrNotFound
+}
+func (source) Transaction(context.Context, [32]byte) (datasource.Transaction, error) {
+	return datasource.Transaction{}, datasource.ErrNotFound
+}
 
 // shortDir returns a directory whose path fits a Unix socket name; the
 // temporary directory of macOS is too long.

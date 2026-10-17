@@ -713,6 +713,7 @@
     "certificates": [],
     "metadata_labels": null,
     "message": null,
+    "metadata": null,
     "votes": 0,
     "proposals": 0,
     "treasury_donation": "0"

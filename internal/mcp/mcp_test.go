@@ -34,10 +34,58 @@ func ada(n uint64) uint64 { return n * 1_000_000 }
 
 // fakeSource is a data source with fixed answers, or none when down.
 type fakeSource struct {
-	mu    sync.Mutex
-	down  bool
-	tip   datasource.Tip
-	utxos map[string][]chain.UTxO // by raw address
+	mu           sync.Mutex
+	down         bool
+	tip          datasource.Tip
+	utxos        map[string][]chain.UTxO // by raw address
+	accounts     map[string]datasource.Account
+	assets       map[model.AssetID]datasource.Asset
+	fingerprints map[string]model.AssetID
+	txs          map[[32]byte]datasource.Transaction
+}
+
+func (f *fakeSource) Account(_ context.Context, stake string) (datasource.Account, error) {
+	if err := f.err(); err != nil {
+		return datasource.Account{}, err
+	}
+	a, ok := f.accounts[stake]
+	if !ok {
+		return a, datasource.ErrNotFound
+	}
+	return a, nil
+}
+
+func (f *fakeSource) Asset(_ context.Context, id model.AssetID) (datasource.Asset, error) {
+	if err := f.err(); err != nil {
+		return datasource.Asset{}, err
+	}
+	a, ok := f.assets[id]
+	if !ok {
+		return a, datasource.ErrNotFound
+	}
+	return a, nil
+}
+
+func (f *fakeSource) AssetByFingerprint(_ context.Context, fp string) (model.AssetID, error) {
+	if err := f.err(); err != nil {
+		return model.AssetID{}, err
+	}
+	id, ok := f.fingerprints[fp]
+	if !ok {
+		return id, datasource.ErrNotFound
+	}
+	return id, nil
+}
+
+func (f *fakeSource) Transaction(_ context.Context, id [32]byte) (datasource.Transaction, error) {
+	if err := f.err(); err != nil {
+		return datasource.Transaction{}, err
+	}
+	t, ok := f.txs[id]
+	if !ok {
+		return t, datasource.ErrNotFound
+	}
+	return t, nil
 }
 
 func (f *fakeSource) Name() string                       { return "fake" }
@@ -128,7 +176,11 @@ func fixture(t testing.TB) *env {
 	now := time.Date(2026, 10, 17, 12, 0, 0, 0, time.UTC)
 	clock := func() time.Time { return now }
 	slot := chain.Clock(model.Preprod).Slot(now)
-	src := &fakeSource{tip: datasource.Tip{Slot: slot, Height: 4_000_000, Epoch: 319, Time: now}, utxos: map[string][]chain.UTxO{}}
+	src := &fakeSource{
+		tip: datasource.Tip{Slot: slot, Height: 4_000_000, Epoch: 319, Time: now}, utxos: map[string][]chain.UTxO{},
+		accounts: map[string]datasource.Account{}, assets: map[model.AssetID]datasource.Asset{},
+		fingerprints: map[string]model.AssetID{}, txs: map[[32]byte]datasource.Transaction{},
+	}
 	for i, l := range []uint64{ada(50), ada(30), 600_000} {
 		src.utxos[string(addr.Raw)] = append(src.utxos[string(addr.Raw)],
 			chain.UTxO{In: chain.TxIn{TxID: [32]byte{0: 0xee, 31: byte(i)}}, Address: addr, Value: model.Value{Lovelace: l}})
@@ -241,8 +293,8 @@ func (e *env) pay(lovelace string) map[string]any {
 func TestTools(t *testing.T) {
 	e := newEnv(t)
 	want := []string{"authorize_draft", "build_consolidation", "build_payment", "cancel_draft", "decode_transaction",
-		"get_draft", "get_network_status", "get_policy_status", "get_protocol_parameters", "get_wallet_overview",
-		"list_drafts", "list_utxos", "list_wallets"}
+		"get_address_info", "get_asset_info", "get_draft", "get_network_status", "get_policy_status",
+		"get_protocol_parameters", "get_transaction", "get_wallet_overview", "list_drafts", "list_utxos", "list_wallets"}
 	got := slices.Sorted(func(yield func(string) bool) {
 		for n := range e.tools {
 			if !yield(n) {
