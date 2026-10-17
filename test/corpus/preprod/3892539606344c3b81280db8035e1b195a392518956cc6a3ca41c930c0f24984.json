@@ -1,0 +1,77 @@
+{
+  "network": "preprod",
+  "note": "CIP-25 mint with metadata 721",
+  "cbor": "84a600d901028182582024cc59d53b1b229dc8ec11ae0748dd69431630a5beacfec3f7a7021ec9a53b45010182825839003ec054e3ea0f968a4ae8a8884ecb4dad31deb328b4fe6d3c1f4dbe8a92f661d7c79f007c209d260a4dd813710cc939710f8c07b64f6445c2821a001e8480a1581c5178e996ab2323e8500487c813165e5f264664adf323584d059624f3a14b41544c4153434f555253451903e8825839003ec054e3ea0f968a4ae8a8884ecb4dad31deb328b4fe6d3c1f4dbe8a92f661d7c79f007c209d260a4dd813710cc939710f8c07b64f6445c21b00000002511ccd69021a0003044d0758207225a4b215e0ae12aeb77892985908b98ebb3259437b056de71457cc402733aa09a1581c5178e996ab2323e8500487c813165e5f264664adf323584d059624f3a14b41544c4153434f555253451903e80f00a200d90102818258206ef92a685df77a09fe3805ce2eb79f59f6c4e83dd0ef2ec1ad451c7d9da0a764584081ebf2d72ef9322c69f14aae782a2a5c16bd360f602af8ac6c740ac5ae85ffe62c05bedd01f54919634ba5477444148628db99b2f1c1c461da6a342fd771220201d90102818201818200581c3ec054e3ea0f968a4ae8a8884ecb4dad31deb328b4fe6d3c1f4dbe8af5a11902d1a278383531373865393936616232333233653835303034383763383133313635653566323634363634616466333233353834643035393632346633a16b41544c4153434f55525345a5646e616d657241746c617320436f7572736520546f6b656e65696d616765847840646174613a696d6167652f7376672b786d6c3b757466382c3c73766720786d6c6e733d27687474703a2f2f7777772e77332e6f72672f323030302f7376672720784076696577426f783d273020302031303020313030273e3c726563742077696474683d2731303027206865696768743d27313030272066696c6c3d27233030333378406164272f3e3c7465787420783d2735302720793d2735382720666f6e742d73697a653d2731342720746578742d616e63686f723d276d6964646c65272066696c781c6c3d277768697465273e41544c41533c2f746578743e3c2f7376673e696d65646961547970656d696d6167652f7376672b786d6c6b6465736372697074696f6e82783543617264616e6f2041636164656d79204167656e74696320436f64696e67202d204d6f64756c652031312028476f6775656e204929782950726570726f64207465737420746f6b656e20666f722048656174682c20737570706c792031303030667469636b65726541544c41536776657273696f6e63312e30",
+  "koios": {
+    "tx_hash": "3892539606344c3b81280db8035e1b195a392518956cc6a3ca41c930c0f24984",
+    "fee": "197709",
+    "invalid_before": null,
+    "invalid_after": null,
+    "inputs": 1,
+    "collateral_inputs": 0,
+    "collateral_output": false,
+    "reference_inputs": 0,
+    "outputs": [
+      {
+        "address": "addr_test1qqlvq48rag8edzj2az5gsnktfkknrh4n9z60umfuraxmaz5j7esa03ulqp7zp8fxpfxasym3pnynjug03srmvnmyghpqhh79kk",
+        "value": "2000000",
+        "assets": [
+          {
+            "policy_id": "5178e996ab2323e8500487c813165e5f264664adf323584d059624f3",
+            "asset_name": "41544c4153434f55525345",
+            "fingerprint": "asset1nlx50uad93666l5q2gjh9xr3c7zxkqy4v6we7k",
+            "quantity": "1000"
+          }
+        ],
+        "datum": false,
+        "reference_script": false
+      },
+      {
+        "address": "addr_test1qqlvq48rag8edzj2az5gsnktfkknrh4n9z60umfuraxmaz5j7esa03ulqp7zp8fxpfxasym3pnynjug03srmvnmyghpqhh79kk",
+        "value": "9950776681",
+        "assets": [],
+        "datum": false,
+        "reference_script": false
+      }
+    ],
+    "withdrawals": [],
+    "assets_minted": [
+      {
+        "policy_id": "5178e996ab2323e8500487c813165e5f264664adf323584d059624f3",
+        "asset_name": "41544c4153434f55525345",
+        "fingerprint": "asset1nlx50uad93666l5q2gjh9xr3c7zxkqy4v6we7k",
+        "quantity": "1000"
+      }
+    ],
+    "certificates": [],
+    "metadata_labels": [
+      "721"
+    ],
+    "message": null,
+    "metadata": {
+      "721": {
+        "version": "1.0",
+        "5178e996ab2323e8500487c813165e5f264664adf323584d059624f3": {
+          "ATLASCOURSE": {
+            "name": "Atlas Course Token",
+            "image": [
+              "data:image/svg+xml;utf8,\u003csvg xmlns='http://www.w3.org/2000/svg' ",
+              "viewBox='0 0 100 100'\u003e\u003crect width='100' height='100' fill='#0033",
+              "ad'/\u003e\u003ctext x='50' y='58' font-size='14' text-anchor='middle' fil",
+              "l='white'\u003eATLAS\u003c/text\u003e\u003c/svg\u003e"
+            ],
+            "ticker": "ATLAS",
+            "mediaType": "image/svg+xml",
+            "description": [
+              "Cardano Academy Agentic Coding - Module 11 (Goguen I)",
+              "Preprod test token for Heath, supply 1000"
+            ]
+          }
+        }
+      }
+    },
+    "votes": 0,
+    "proposals": 0,
+    "treasury_donation": "0"
+  }
+}

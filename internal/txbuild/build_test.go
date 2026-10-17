@@ -8,6 +8,8 @@ import (
 	"crypto/ed25519"
 	"errors"
 	"fmt"
+	"maps"
+	"math/big"
 	"math/rand/v2"
 	"slices"
 	"strings"
@@ -18,6 +20,7 @@ import (
 	"github.com/Liet-ada/mcpcardano/internal/cborx"
 	"github.com/Liet-ada/mcpcardano/internal/chain"
 	"github.com/Liet-ada/mcpcardano/internal/model"
+	"github.com/Liet-ada/mcpcardano/internal/txdecode"
 )
 
 // The parameters of preprod at epoch 319.
@@ -325,6 +328,78 @@ func TestReferenceScriptUTxOsAreLeftAlone(t *testing.T) {
 	}
 }
 
+// checkDecoded compares the transaction read back from its bytes with what
+// the builder says it wrote: the same outputs, the same own ones, and a net
+// effect equal to the change minus the inputs.
+func checkDecoded(t testing.TB, w wallet, tx *Tx) {
+	t.Helper()
+	d := tx.Decoded
+	if d == nil || d.ID() != tx.ID {
+		t.Fatal("the transaction was not read back")
+	}
+	view := d.View(w.addr)
+	if len(view.Outputs) != len(tx.Outputs) || view.Fee != tx.Fee || view.TTL == nil || *view.TTL != tx.TTL {
+		t.Fatalf("view %+v does not match the built transaction", view)
+	}
+	var net big.Int
+	for i, o := range tx.Outputs {
+		got := view.Outputs[i]
+		if !got.Address.Equal(o.Address) || got.Own != o.Own || got.Value.Lovelace != o.Value.Lovelace || !maps.Equal(got.Value.Assets, o.Value.Assets) {
+			t.Fatalf("output %d read back as %+v, built as %+v", i, got, o)
+		}
+		if o.Own {
+			net.Add(&net, new(big.Int).SetUint64(o.Value.Lovelace))
+		}
+	}
+	for _, u := range tx.Inputs {
+		net.Sub(&net, new(big.Int).SetUint64(u.Value.Lovelace))
+	}
+	s, err := d.Summary(txdecode.Options{Wallet: &w.addr, Spent: tx.Inputs})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.NetEffect == nil || s.NetEffect.Lovelace != net.String() {
+		t.Fatalf("net effect %+v, want %s lovelace", s.NetEffect, net.String())
+	}
+}
+
+// TestDecodedDraft reads a payment with a token and a message back from its
+// bytes, as the draft will show it.
+func TestDecodedDraft(t *testing.T) {
+	w := newWallet(t, 1)
+	tok := asset(t, 0xa1, "MC")
+	shop := enterprise(t, 7)
+	intent := pay(shop, model.Value{Lovelace: ada(5), Assets: map[model.AssetID]uint64{tok: 40}})
+	intent.Payment.Message = strings.Repeat("ñ", 40) + " Invoice 42"
+	pool := []chain.UTxO{
+		w.utxo(1, 0, model.Value{Lovelace: ada(3), Assets: map[model.AssetID]uint64{tok: 100}}),
+		w.utxo(2, 0, model.Value{Lovelace: ada(50)}),
+	}
+	in := input(w, intent, pool)
+	in.Verified = func(a model.AssetID) bool { return a == tok }
+	tx, err := Build(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	checkDecoded(t, w, tx)
+	s, err := tx.Decoded.Summary(txdecode.Options{Wallet: &w.addr, Spent: tx.Inputs})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Outputs[0].Own == nil || *s.Outputs[0].Own || s.Outputs[0].Lovelace != "5000000" {
+		t.Errorf("payment output %+v", s.Outputs[0])
+	}
+	if got := s.NetEffect.Assets; len(got) != 1 || got[0].Asset != tok.String() || got[0].Quantity != "-40" || got[0].NameUnverified != "MC" {
+		t.Errorf("token net effect %+v", got)
+	}
+	if want := -int64(ada(5) + tx.Fee); s.NetEffect.Lovelace != fmt.Sprint(want) {
+		t.Errorf("net effect %s lovelace, want %d", s.NetEffect.Lovelace, want)
+	}
+	if strings.Join(s.MessageUnverified, "") != intent.Payment.Message {
+		t.Errorf("message %q", s.MessageUnverified)
+	}
+}
+
 func TestMessage(t *testing.T) {
 	w := newWallet(t, 1)
 	msg := strings.Repeat("ñ", 40) + " Invoice 42" // 80 + 11 bytes, multi-byte runes on the cut
@@ -527,6 +602,7 @@ func TestRandomBuilds(t *testing.T) {
 		built++
 		signAndValidate(t, w, tx)
 		checkBalance(t, tx)
+		checkDecoded(t, w, tx)
 		seen := map[chain.TxIn]bool{}
 		for _, u := range tx.Inputs {
 			if seen[u.In] {

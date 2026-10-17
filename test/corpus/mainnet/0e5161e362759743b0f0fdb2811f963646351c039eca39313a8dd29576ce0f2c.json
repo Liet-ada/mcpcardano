@@ -1,0 +1,38 @@
+{
+  "network": "mainnet",
+  "note": "vote delegation",
+  "cbor": "84a50084825820a47a689acddb3fc3888c6989d9bb2365f59fc98e55961c9f879ff17ff1ca558d0082582077f3a2f51b5ea70c795693e830bba59be1184ae641c1ee942a3c02050813b3f800825820da532646feb6d0be84dc59e0d3bbc5589ab1c665e71d4334d6899657abfb848a00825820be2c8a67d476d2cd3d9f432990ace0f55113105c7016ada4ebe9cf06b34ad798020181825839014f8265fef8d9a7554226f4193ba78dc65a64e306d3c7da9748290a7aa94b231ba17c4324f9120c4fedce67881565ae259d1f682c943f07441b0000000613ecc14f021a0002b2cf031a0bf58007048183098200581ca94b231ba17c4324f9120c4fedce67881565ae259d1f682c943f07448102a100828258201e5bcbed5289fc9a48474764ffe0a5142ca2d33896b3306425b309672a4082815840da4d85aa91eaa21ba3be2c3e75f164312400ad15bc1c67cb652e57b59bd2fc2b42f45b9adc96685cd60f166615ad5a291115d3afcef305f2a1d157c15992d90e825820f498669d802e311ea44d1de22c268ff03ed401b395ec4e5372f5a32673415a0458403097281f32ab53ec4b9aabcfa9b7e898b9f4a79eaed9a1199066e23fc7d60fa8c04ec43d354d9904f045b8ef5fb5de3e32003c5dda21ed0e5921844faea2680cf5f6",
+  "koios": {
+    "tx_hash": "0e5161e362759743b0f0fdb2811f963646351c039eca39313a8dd29576ce0f2c",
+    "fee": "176847",
+    "invalid_before": null,
+    "invalid_after": "200638471",
+    "inputs": 4,
+    "collateral_inputs": 0,
+    "collateral_output": false,
+    "reference_inputs": 0,
+    "outputs": [
+      {
+        "address": "addr1q98cye07lrv6w42zym6pjwa83hr95e8rqmfu0k5hfq5s574ffv33hgtugvj0jysvflkuueugz4j6ufvara5ze9plqazq98cfrx",
+        "value": "26104086863",
+        "assets": [],
+        "datum": false,
+        "reference_script": false
+      }
+    ],
+    "withdrawals": [],
+    "assets_minted": [],
+    "certificates": [
+      {
+        "index": 0,
+        "type": "vote_delegation"
+      }
+    ],
+    "metadata_labels": null,
+    "message": null,
+    "metadata": null,
+    "votes": 0,
+    "proposals": 0,
+    "treasury_donation": "0"
+  }
+}

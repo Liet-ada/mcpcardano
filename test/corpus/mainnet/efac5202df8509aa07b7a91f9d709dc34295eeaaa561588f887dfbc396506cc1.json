@@ -1,0 +1,98 @@
+{
+  "network": "mainnet",
+  "note": "mint and burn",
+  "cbor": "84ac00d901028382582029a40e51bda439622832b75137d2b98475efa499068f9f934e219d84ea1b84d8018258202a47cc437e88a498f1b0417840ba9861ad746fc33e8aac74f4d0b249992c90b6038258207ad33c710b9685098b58d80960124df30224626fd87efd1256289ffb8dbdba7c0c0183a300581d71e1d55cdc8255ba4a54e465d520dc6600a1900c83237bfec15d4bf68201821a0016d212a2581c6f7d8e31d9256ec27f35d25659dd053cfec098032a5669b2b56798d0a1401b0000020bde736400581c73a7b8a53c2e2b6a176b38a8eb8ac767c83222f2ca94d6635f5a3722a1410001028201d818583f85581c7ac5878231522baf2972231d1a587e20a0d814c164fa7fea28ee459f1b000000d0503400cc1b000000163ea55e5c1a1e12f9801b005e920186ae0022a300581d715f44048a0a9d304e434729d1be559096323ae8afae98ace237dff64101821a002dc6c0a2581cc48cbb3d5e57ed56e276bc45f99ab39abe94e6cd7ac39fb402da47ada1480014df105553444d1b0000001260176d53581ce50ce37ceacd25ecc42ce8397b6adca66f13f83a86a81dc03b4744e7a14001028201d8185818828500001b0000000649534e0000003b00000001d3e88639825839017ac5878231522baf2972231d1a587e20a0d814c164fa7fea28ee459fd0b0276dde276c340ac167ec0b7a1cd7250c4bd6e495eb053fd84441821a0113fa9ca1581cc48cbb3d5e57ed56e276bc45f99ab39abe94e6cd7ac39fb402da47ada1480014df105553444d1b0000000649534e00021a000a4a8d031a0bf582f005a1581df16e6f9011c09b228213a1887048e2f617e36f407212be7ae2b0f466e80009a1581c73a7b8a53c2e2b6a176b38a8eb8ac767c83222f2ca94d6635f5a3722a24100014101200b582073cade35e9bdad04327bdfa538a6dd22f6661d07d88c350986e7792dbb51f2060dd901028182582029a40e51bda439622832b75137d2b98475efa499068f9f934e219d84ea1b84d8010ed9010281581c7ac5878231522baf2972231d1a587e20a0d814c164fa7fea28ee459f10825839017ac5878231522baf2972231d1a587e20a0d814c164fa7fea28ee459fd0b0276dde276c340ac167ec0b7a1cd7250c4bd6e495eb053fd844411a00d1f9e9111a004c4b4012d901028a825820332db20e5740e750dc4986d6b32eb99bc6e1e34d0b7474b31e778b2a1922382801825820332db20e5740e750dc4986d6b32eb99bc6e1e34d0b7474b31e778b2a19223828028258202a47cc437e88a498f1b0417840ba9861ad746fc33e8aac74f4d0b249992c90b6018258201eda871cd9b269a79524ad2edf7f7790933d4360b88f9860c81b6f45832ee51f00825820dc9a40db731526fea2d81fd852bc39ec9df2f95ff35490157056f3f4aa003e2a09825820eff3138fb8133e9c52795909a9519d24e76b903cba0e2dc0a20adc4d9c08f0130082582088f2e8383a0dc1c26c5e796f1ed8b2fe712279aa5973695bfc809c816911f08b018258206ef07f130bbe20d0cdf5a113a202d0e2fd915197cf52ca2431d7ab2f315ae3700d825820197dab82433ca0dd45b2623a9f6257c87614b5466bffbd6c9a184f92adde8b3300825820cbd8e1aba360e5b4563883f3f384382e6139a63cef81c2dc5e5e7be85156030300a200d901028182582051549b5c1c7b4e705b9465124ecf0ebb2243030ddfd4eb1e4eae34f1e65af9f258408e0b498b49e2044052beb7ac3ffe4c29ecadac33e99dd78bb12197c8e348fa7c28c105e52ddadabafc3e7813af0c442acb4a36f0af8fb7d52472c5947b53e8090584840001d87980821a000706711a09db38bf840002d87980821a000178591a01ff7d9a840100d87980821a000176011a01fe069a84030000821a001e26dc1a25bcc5cdf5f6",
+  "koios": {
+    "tx_hash": "efac5202df8509aa07b7a91f9d709dc34295eeaaa561588f887dfbc396506cc1",
+    "fee": "674445",
+    "invalid_before": null,
+    "invalid_after": "200639216",
+    "inputs": 3,
+    "collateral_inputs": 1,
+    "collateral_output": true,
+    "reference_inputs": 10,
+    "outputs": [
+      {
+        "address": "addr1w8sa2hxusf2m5jj5u3ja2gxuvcq2ryqvsv3hhlkpt49ldqs6u4265",
+        "value": "1495570",
+        "assets": [
+          {
+            "policy_id": "6f7d8e31d9256ec27f35d25659dd053cfec098032a5669b2b56798d0",
+            "asset_name": "",
+            "fingerprint": "asset1vafdekx8xy2snpgx27a0semrxtgrtc9muryhwm",
+            "quantity": "2250000000000"
+          },
+          {
+            "policy_id": "73a7b8a53c2e2b6a176b38a8eb8ac767c83222f2ca94d6635f5a3722",
+            "asset_name": "00",
+            "fingerprint": "asset1t4zykgyc3svs3unezmpk8w0naae7mguag96z7m",
+            "quantity": "1"
+          }
+        ],
+        "datum": true,
+        "reference_script": false
+      },
+      {
+        "address": "addr1w905gpy2p2wnqnjrgu5ar0j4jztrywhg47hf3t8zxl0lvsgdh98wf",
+        "value": "3000000",
+        "assets": [
+          {
+            "policy_id": "c48cbb3d5e57ed56e276bc45f99ab39abe94e6cd7ac39fb402da47ad",
+            "asset_name": "0014df105553444d",
+            "fingerprint": "asset12ffdj8kk2w485sr7a5ekmjjdyecz8ps2cm5zed",
+            "quantity": "78921559379"
+          },
+          {
+            "policy_id": "e50ce37ceacd25ecc42ce8397b6adca66f13f83a86a81dc03b4744e7",
+            "asset_name": "",
+            "fingerprint": "asset1zy4l2seram30036leyg5fprt888ghx985g434u",
+            "quantity": "1"
+          }
+        ],
+        "datum": true,
+        "reference_script": false
+      },
+      {
+        "address": "addr1q9avtpuzx9fzhtefwg336xjc0cs2pkq5c9j05ll29rhyt87skqnkmh38ds6q4st8as9h58xhy5xyh4hyjh4s207cg3qsmp6hqj",
+        "value": "18086556",
+        "assets": [
+          {
+            "policy_id": "c48cbb3d5e57ed56e276bc45f99ab39abe94e6cd7ac39fb402da47ad",
+            "asset_name": "0014df105553444d",
+            "fingerprint": "asset12ffdj8kk2w485sr7a5ekmjjdyecz8ps2cm5zed",
+            "quantity": "27000000000"
+          }
+        ],
+        "datum": false,
+        "reference_script": false
+      }
+    ],
+    "withdrawals": [
+      {
+        "stake_addr": "stake179hxlyq3czdj9qsn5xy8qj8z7ct7xm6qwgftu7hzkr6xd6qwt07ze",
+        "amount": "0"
+      }
+    ],
+    "assets_minted": [
+      {
+        "policy_id": "73a7b8a53c2e2b6a176b38a8eb8ac767c83222f2ca94d6635f5a3722",
+        "asset_name": "00",
+        "fingerprint": "asset1t4zykgyc3svs3unezmpk8w0naae7mguag96z7m",
+        "quantity": "1"
+      },
+      {
+        "policy_id": "73a7b8a53c2e2b6a176b38a8eb8ac767c83222f2ca94d6635f5a3722",
+        "asset_name": "01",
+        "fingerprint": "asset1avlsfa23t5aytpm6tedhj8cq6c3zcv60z25g9r",
+        "quantity": "-1"
+      }
+    ],
+    "certificates": [],
+    "metadata_labels": null,
+    "message": null,
+    "metadata": null,
+    "votes": 0,
+    "proposals": 0,
+    "treasury_donation": "0"
+  }
+}

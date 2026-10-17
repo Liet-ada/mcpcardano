@@ -18,6 +18,7 @@ import (
 	"github.com/Liet-ada/mcpcardano/internal/cborx"
 	"github.com/Liet-ada/mcpcardano/internal/chain"
 	"github.com/Liet-ada/mcpcardano/internal/model"
+	"github.com/Liet-ada/mcpcardano/internal/txdecode"
 )
 
 var (
@@ -95,6 +96,10 @@ type Tx struct {
 	// leaves out when it measures a transaction for fees and for the maximum
 	// size.
 	Size int
+	// Decoded is the unsigned transaction as read back from its bytes. The
+	// draft takes its view and its summary from here, never from what the
+	// builder meant to write.
+	Decoded *txdecode.Tx
 }
 
 // Unsigned returns the transaction with an empty witness set, as hardware
@@ -106,6 +111,28 @@ func (t *Tx) Unsigned() ([]byte, error) {
 		return nil, err
 	}
 	return assemble(c, t.Body, empty, t.AuxData)
+}
+
+// Signed returns the transaction with the given witness set, an encoded
+// CBOR map such as a hardware wallet returns. It is assembled the same way as
+// the drafts the fee was computed for.
+func (t *Tx) Signed(witnesses []byte) ([]byte, error) {
+	return assemble(newCodec(), t.Body, witnesses, t.AuxData)
+}
+
+// Spent returns the outputs the inputs consume, as the phase-1 rules take
+// them.
+func (t *Tx) Spent() ([]chain.Spent, error) {
+	c := newCodec()
+	spent := make([]chain.Spent, len(t.Inputs))
+	for i, u := range t.Inputs {
+		out, err := c.Marshal(outputCBOR(u.Address, u.Value))
+		if err != nil {
+			return nil, err
+		}
+		spent[i] = chain.Spent{In: u.In, Output: out}
+	}
+	return spent, nil
 }
 
 // builder carries what every step of one build shares.
@@ -152,6 +179,9 @@ func Build(in Input) (*Tx, error) {
 		return nil, err
 	}
 	if err := b.validate(tx); err != nil {
+		return nil, err
+	}
+	if err := b.checkIntent(tx); err != nil {
 		return nil, err
 	}
 	return tx, nil
@@ -494,16 +524,30 @@ func (b *builder) validate(tx *Tx) error {
 	if err != nil {
 		return err
 	}
-	spent := make([]chain.Spent, len(tx.Inputs))
-	for i, u := range tx.Inputs {
-		out, err := b.c.Marshal(outputCBOR(u.Address, u.Value))
-		if err != nil {
-			return err
-		}
-		spent[i] = chain.Spent{In: u.In, Output: out}
+	spent, err := tx.Spent()
+	if err != nil {
+		return err
 	}
 	if err := chain.ValidateDraft(b.in.Network, b.in.Params, b.in.TipSlot, signed, spent); err != nil {
 		return fmt.Errorf("%w: %v", ErrInternal, err)
 	}
+	return nil
+}
+
+// checkIntent reads the unsigned transaction back from its bytes and checks
+// it against the intent (section 8.1, step 9). A mismatch is a builder bug.
+func (b *builder) checkIntent(tx *Tx) error {
+	raw, err := tx.Unsigned()
+	if err != nil {
+		return err
+	}
+	d, err := txdecode.Decode(raw, int(b.in.Params.MaxTxSize))
+	if err != nil {
+		return fmt.Errorf("%w: reading the draft back: %w", ErrInternal, err)
+	}
+	if err := d.CheckIntent(b.in.Wallet, b.in.Intent, b.in.Params.CoinsPerUTxOByte); err != nil {
+		return fmt.Errorf("%w: %w", ErrInternal, err)
+	}
+	tx.Decoded = d
 	return nil
 }

@@ -218,3 +218,15 @@ func FuzzParseDecimal(f *testing.F) {
 		}
 	})
 }
+
+func TestStakeAddress(t *testing.T) {
+	a, err := ParseAddress(model.Preprod, "addr_test1qrkk3gdqruhhn9ya44xcgqrkpe9fp737e7c9hgs06xturtqpkdqaf773t2wv0v2fdhxlequtxwq7gm66sfg5u630nvyq8l53zd")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// What Koios gives as the stake address of that address.
+	got, err := StakeAddress(model.Preprod, *a.Stake)
+	if err != nil || got != "stake_test1uqqmxsw5l0g448x8k9ykmn0usw9n8q0ydadgy52wdghekzqwdwj27" {
+		t.Errorf("got %q, %v", got, err)
+	}
+}

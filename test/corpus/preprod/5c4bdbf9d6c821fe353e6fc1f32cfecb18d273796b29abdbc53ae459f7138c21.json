@@ -1,0 +1,47 @@
+{
+  "network": "preprod",
+  "note": "Plutus script, validity start",
+  "cbor": "84aa00d9010282825820acd710f6940a5fb10683d18297a2b86aaefe14bc21949f32042723b34b51ee0201825820ccbe54aafaf3a4b0f52dea98bf5aa0bef5f1e4ae4dcec24e09ed1df2df523651000182a300581d7012951622b1fa0a57e8f8cf08cc42a833fe41e611f546e90d31d5cefe01821a002dc6c0a1581c97db885dad46668ca5fa8ce15e10de29743cccbb1d7aa082f47c4a8aa1581c11c52036b9f687e9a0d45832191f18f6befff25141b06ca103d0eed701028201d8185843d8799f581c6891b1a5d5d15831a15aa7b447b950a9f623cd95f61640c7d0e3daa6490014df105a4d5346541b0001e12b0d5184001b000001a147b581c01a0036ee80ff82583900db0cc670a728702a27932a36224f79181ffa7e71289ddb3810c5c1d64db4a0d51c87129013bfa89be189093a3c74cefa48fae812648ddd6d1a00ab28d4021a0004681a031a082327aa075820bdaa99eb158414dea0a91d6c727e2268574b23efe6e08ab3b841abe8059a030c081a0823267e0b58201d330b19722db447898b9a08684dd1bb3c10a7133f39816d13400f92f409721f0dd9010281825820faef4369dbe830fa97a7a03a0142bff7d58b968bee8f3ba72cb31c3a9aa8748d000ed9010281581cdb0cc670a728702a27932a36224f79181ffa7e71289ddb3810c5c1d612d9010283825820ab8bea4b6375188cd3418c668f69bfff2692bfca637824bed8b839afb31b9ff600825820c2aaf0e7908d339981a808101ea8daee05df385d00337a290dc1d92850a3434700825820a209794b5c230eec31622f624ea4af0e3f137a7427747d371bfde54e3e45229800a200d901028182582084af158a5cb3a89933b2cff96db5b2be32cd0cc3a7d9f31a33595aea47f5760b584085468b64ed97387153249dc079021ca4815a7ec92688ea954b3b20031b1d813ee497375c393a35952081390d8e7356b3c17a3a9fcf58d36d6ba33b837b5a330205a182000182d87980821a0009c9551a0cf9227df5d90103a0",
+  "koios": {
+    "tx_hash": "5c4bdbf9d6c821fe353e6fc1f32cfecb18d273796b29abdbc53ae459f7138c21",
+    "fee": "288794",
+    "invalid_before": "136521342",
+    "invalid_after": "136521642",
+    "inputs": 2,
+    "collateral_inputs": 1,
+    "collateral_output": false,
+    "reference_inputs": 3,
+    "outputs": [
+      {
+        "address": "addr_test1wqff293zk8aq54lglr8s3nzz4qelus0xz865d6gdx82ualsdrxfrg",
+        "value": "3000000",
+        "assets": [
+          {
+            "policy_id": "97db885dad46668ca5fa8ce15e10de29743cccbb1d7aa082f47c4a8a",
+            "asset_name": "11c52036b9f687e9a0d45832191f18f6befff25141b06ca103d0eed7",
+            "fingerprint": "asset1h39z9dktg7krwc8yaal9fr45r29fw8ewexs9r8",
+            "quantity": "1"
+          }
+        ],
+        "datum": true,
+        "reference_script": false
+      },
+      {
+        "address": "addr_test1qrdse3ns5u58q238jv4rvgj00yvpl7n7wy5fmkeczrzur4jdkjsd28y8z2gp80agn0scjzf6836va7jglt5pyeydm4ksmyxf3h",
+        "value": "11217108",
+        "assets": [],
+        "datum": false,
+        "reference_script": false
+      }
+    ],
+    "withdrawals": [],
+    "assets_minted": [],
+    "certificates": [],
+    "metadata_labels": null,
+    "message": null,
+    "metadata": null,
+    "votes": 0,
+    "proposals": 0,
+    "treasury_donation": "0"
+  }
+}

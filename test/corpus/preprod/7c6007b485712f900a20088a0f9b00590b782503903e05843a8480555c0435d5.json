@@ -1,0 +1,40 @@
+{
+  "network": "preprod",
+  "note": "Byron output",
+  "cbor": "84a300d9010281825820e7e162d9f264d5bc329fd984ea80fd7fd3bcb64f2f7b68a6b281448f6a62cf7c01018282584f82d818584583581c93f3f675eaf76da14f0885896a4e74df849de0c0cd47fbc6ee7a6e87a201581e581ca77ffa049fbf56f5df635309d79f248781d6cac04fca6494e68479bf024101001af20feb351a0010602682581d6054ae63aee60690aaa34bb78390386cc88de602e6f7d10fee5e2f4eb51a010f91c1021a00028fc5a100d9010281825820476d0d88bbc11611e03cd4d690a87ba5df6bf492c1d3df98446f6e50649f36f058406e9ad8789a416e8bd8ce6e3fa0579296a743ef49a6bfe39e06f0a34f65b4abcde23c7d5de7600a2e74a99cca85654c8830bde0088800c7eeba4682fef6c76302f5f6",
+  "koios": {
+    "tx_hash": "7c6007b485712f900a20088a0f9b00590b782503903e05843a8480555c0435d5",
+    "fee": "167877",
+    "invalid_before": null,
+    "invalid_after": null,
+    "inputs": 1,
+    "collateral_inputs": 0,
+    "collateral_output": false,
+    "reference_inputs": 0,
+    "outputs": [
+      {
+        "address": "KjgoiXJS2coZWAcgztsJFosDAxRuMTeZyGWzAoTNUAc2Qcf6FKhHgR7KJyGyc1UACDV1VPtqJh1bRpLPBgXwkrdcmMrqozZPrxeHVbAbYGuz",
+        "value": "1073190",
+        "assets": [],
+        "datum": false,
+        "reference_script": false
+      },
+      {
+        "address": "addr_test1vp22ucawucrfp24rfwmc8ypcdnygmeszummazrlwtch5adg94x6ks",
+        "value": "17797569",
+        "assets": [],
+        "datum": false,
+        "reference_script": false
+      }
+    ],
+    "withdrawals": [],
+    "assets_minted": [],
+    "certificates": [],
+    "metadata_labels": null,
+    "message": null,
+    "metadata": null,
+    "votes": 0,
+    "proposals": 0,
+    "treasury_donation": "0"
+  }
+}

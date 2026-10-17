@@ -3,7 +3,7 @@
 GO ?= go
 FUZZTIME ?= 10s
 
-.PHONY: check fmt vet test boundaries fuzz live oracle
+.PHONY: check fmt vet test boundaries fuzz vuln live oracle corpus
 
 check: fmt vet test boundaries
 
@@ -29,6 +29,11 @@ fuzz:
 		done; \
 	done
 
+# Known vulnerabilities that our code reaches (section 11.2). The version is
+# fixed so every run checks the same way.
+vuln:
+	$(GO) run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
+
 # Tests against the public preprod network; not part of check.
 live:
 	$(GO) test -tags live -run Live -count=1 -v ./...
@@ -37,3 +42,8 @@ live:
 # from a separate module so Apollo never enters ours.
 oracle:
 	cd test/apollo-oracle && $(GO) run .
+
+# Refetches the real transactions of test/corpus/txs.txt from Koios, with what
+# Koios says they contain; the decoding tests compare against it.
+corpus:
+	$(GO) run test/corpus/record.go
