@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 
 GO ?= go
+FUZZTIME ?= 10s
 
-.PHONY: check fmt vet test boundaries
+.PHONY: check fmt vet test boundaries fuzz
 
 check: fmt vet test boundaries
 
@@ -17,3 +18,13 @@ test:
 
 boundaries:
 	$(GO) test -count=1 ./internal/archtest/...
+
+# Short fuzzing run of every fuzz target (section 11.2); go test fuzzes one
+# target at a time.
+fuzz:
+	@for pkg in $$($(GO) list ./...); do \
+		for f in $$($(GO) test -list '^Fuzz' $$pkg | grep '^Fuzz'); do \
+			echo "$$pkg $$f"; \
+			$(GO) test -run '^$$' -fuzz "^$$f$$" -fuzztime $(FUZZTIME) $$pkg || exit 1; \
+		done; \
+	done
