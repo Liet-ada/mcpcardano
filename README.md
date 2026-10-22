@@ -91,7 +91,10 @@ mcpcardano wallet create -label name | wallet restore -label name | wallet backu
 mcpcardano audit show [-from seq] | audit verify
 mcpcardano key add -name name | key remove -name name | key list
 mcpcardano recover start | recover status | recover cancel
+mcpcardano view                                     # the interactive view, in a terminal
 ```
+
+`mcpcardano view` follows the wallet as it changes: the wallets, their sessions and the approvals waiting, refreshed every two seconds. Enter reads an approval with the summary the wallet computed, `a` approves it with a registered key's touch, or the password when there is none, and `r` rejects it; `f` freezes every wallet at once, and `q` quits. It talks only to the admin socket, like every other command, and opens no port.
 
 A security key replaces the password for every authorization; changing policies, adding or removing keys and showing a recovery phrase also take its PIN. `key add` needs a key with a PIN set, and the password, or a registered key's touch once there is one: the CLI creates the credential on the new key, then asks for a registered one. Register a second key as a backup. With every key lost, `recover start` takes the password, freezes every wallet and, after 72 hours, removes the keys, so the password authorizes again; until then a registered key's touch cancels it, and every command warns of it. The CLI talks to the key over USB, through IOKit on macOS and hidraw on Linux, where the person's user needs access to the key's `/dev/hidraw*`.
 

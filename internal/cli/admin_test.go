@@ -18,6 +18,7 @@ import (
 
 	"github.com/Liet-ada/mcpcardano/internal/ipc"
 	"github.com/Liet-ada/mcpcardano/internal/model"
+	"github.com/Liet-ada/mcpcardano/test/softkey"
 	"github.com/Liet-ada/mcpcardano/test/walletkit"
 )
 
@@ -26,7 +27,16 @@ import (
 type person struct {
 	t    *testing.T
 	w    *walletkit.Wallet
-	slot *slot
+	slot *softkey.Slot
+}
+
+// keysIn reaches the keys of slot, never waiting for one and never opening a
+// real one.
+func keysIn(slot *softkey.Slot) keys {
+	if slot == nil {
+		slot = &softkey.Slot{}
+	}
+	return keys{open: slot.Open, wait: 0}
 }
 
 type result struct {
@@ -38,7 +48,7 @@ func (p person) run(input, command string, args ...string) result {
 	p.t.Helper()
 	full := append(strings.Fields(command), "-admin", p.w.Config.AdminSocket)
 	var out, errOut bytes.Buffer
-	code := runAdmin(context.Background(), append(full, args...), "test", strings.NewReader(input), &out, &errOut, p.slot.keys())
+	code := runAdmin(context.Background(), append(full, args...), "test", strings.NewReader(input), &out, &errOut, keysIn(p.slot))
 	return result{code, out.String(), errOut.String()}
 }
 

@@ -106,6 +106,7 @@ var commands = map[string]command{
 	"recover start":  {"", nil, 0, (*admin).recoverStart},
 	"recover status": {"", nil, 0, (*admin).recoverStatus},
 	"recover cancel": {"", nil, 0, (*admin).recoverCancel},
+	"view":           {"", nil, 0, (*admin).view},
 }
 
 func policyFlags(fs *flag.FlagSet, o *options) {
