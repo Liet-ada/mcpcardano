@@ -19,11 +19,13 @@ Requires Go 1.26.8 or newer.
 The server runs on its own and serves MCP on a Unix socket. An MCP client reaches it through `mcpcardano mcp`, a bridge it starts like any stdio server.
 
 ```
-go build -o bin/ ./cmd/...
+go build -trimpath -o bin/ ./cmd/...
 bin/mcpcardano-server -new-wallet-id          # an id for each wallet in config.json
 bin/mcpcardano-server -config config.json -check
 bin/mcpcardano-server -config config.json
 ```
+
+`-trimpath` keeps the paths of the build machine, and the user name in them, out of the binaries. `mcpcardano-server` still carries the path of the Go module cache in two strings: they come from assembly files of a dependency (gnark-crypto) that are `#include`d from another directory, and `-trimpath` does not rewrite those. Share only binaries built where that path names no one.
 
 See [internal/server/testdata/config.json](internal/server/testdata/config.json) for the format. The wallets of H-1 are hardware wallets (mode A): the server only knows their address and policy, and every payment is confirmed on the device. Amounts are lovelace as decimal strings; a limit at zero forbids.
 
@@ -35,15 +37,17 @@ claude mcp add mcpcardano -- /path/to/bin/mcpcardano mcp -socket /path/to/mcp.so
 
 ### Signing in mode A
 
-The person signs every payment of a mode A wallet on a hardware wallet, through [cardano-hw-cli](https://github.com/vacuumlabs/cardano-hw-cli). The agent calls `authorize_draft`; the signer takes the draft to the device, where the person checks destinations, amounts and fee, and confirms.
+The person signs every payment of a mode A wallet on a hardware wallet, through [cardano-hw-go](https://github.com/Liet-ada/cardano-hw-go), which takes the same commands as [cardano-hw-cli](https://github.com/vacuumlabs/cardano-hw-cli) and also speaks to the Trezor Safe 7. The agent calls `authorize_draft`; the signer takes the draft to the device, where the person checks destinations, amounts and fee, and confirms.
 
 ```
-bin/mcpcardano signer init -hw-cli /path/to/cardano-hw-cli   # once: exports the public keys, shows the address on the device
-bin/mcpcardano signer -socket /path/to/mcp.sock -hw-cli /path/to/cardano-hw-cli
+bin/mcpcardano signer init -hw-cli /path/to/cardano-hw-go   # once: exports the public keys, shows the address on the device
+bin/mcpcardano signer -socket /path/to/mcp.sock -hw-cli /path/to/cardano-hw-go
 bin/mcpcardano sign <draft_id> -socket ... -hw-cli ...        # by hand, when the signer is not running
 ```
 
-`signer init` prints the wallet's address, to add to `config.json`. The signer keeps only cardano-hw-cli's signing files, which hold public keys; the private keys never leave the device.
+`signer init` prints the wallet's address, to add to `config.json`. The signer keeps only cardano-hw-go's signing files, which hold public keys; the private keys never leave the device.
+
+When it starts, the signer asks the hardware wallet for its version once, so that whatever the device needs, a confirmation or the code of a first pairing, is asked then, at the terminal, and not in the middle of a payment. If the device is not ready, the signer logs it and goes on: each draft tries the device again.
 
 ## License
 

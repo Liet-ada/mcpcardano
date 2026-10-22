@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -54,10 +55,11 @@ func TestBaseAddress(t *testing.T) {
 // softDevice signs with a key held in memory, standing in for the hardware
 // wallet. reject makes the person say no.
 type softDevice struct {
-	key    ed25519.PrivateKey
-	reject bool
-	other  bool // sign another transaction
-	seen   []byte
+	key     ed25519.PrivateKey
+	reject  bool
+	other   bool // sign another transaction
+	missing bool // not connected
+	seen    []byte
 }
 
 func (d *softDevice) KeyGen(_ context.Context, dir string) error {
@@ -72,6 +74,13 @@ func (d *softDevice) KeyGen(_ context.Context, dir string) error {
 }
 
 func (d *softDevice) ShowAddress(context.Context, string) error { return nil }
+
+func (d *softDevice) Version(context.Context) (string, error) {
+	if d.missing {
+		return "", ErrNoDevice
+	}
+	return "Soft device 1.0.0", nil
+}
 
 func (d *softDevice) Witness(_ context.Context, _ model.Network, tx []byte, _ string) ([]byte, []byte, error) {
 	d.seen = tx
@@ -211,7 +220,21 @@ func TestSignRefuses(t *testing.T) {
 	}
 }
 
-// TestHWCLI runs the adapter against a stand-in cardano-hw-cli that checks
+func TestCheckDevice(t *testing.T) {
+	s, dev, _ := setup(t)
+	var log bytes.Buffer
+	s.Logger = slog.New(slog.NewTextHandler(&log, nil))
+	if err := s.CheckDevice(t.Context()); err != nil || !strings.Contains(log.String(), `device="Soft device 1.0.0"`) {
+		t.Errorf("connected: %v; log %s", err, log.String())
+	}
+	log.Reset()
+	dev.missing = true
+	if err := s.CheckDevice(t.Context()); !errors.Is(err, ErrNoDevice) || !strings.Contains(log.String(), "hardware wallet not ready") {
+		t.Errorf("missing: %v; log %s", err, log.String())
+	}
+}
+
+// TestHWCLI runs the adapter against a stand-in cardano-hw-go that checks
 // its arguments and answers as the real one does.
 func TestHWCLI(t *testing.T) {
 	dir := t.TempDir()
@@ -221,10 +244,11 @@ func TestHWCLI(t *testing.T) {
 	w, _ := codec().Marshal([]any{uint64(0), []any{[]byte(key.Public().(ed25519.PublicKey)), ed25519.Sign(key, id[:])}})
 	witness, _ := json.Marshal(envelope{Type: "TxWitness ConwayEra", Description: "Key Witness ShelleyEra", CBORHex: hex.EncodeToString(w)})
 	os.WriteFile(filepath.Join(dir, "witness.json"), witness, 0o600)
-	script := filepath.Join(dir, "cardano-hw-cli")
+	script := filepath.Join(dir, "cardano-hw-go")
 	os.WriteFile(script, []byte(`#!/bin/sh
 echo "$@" > "`+dir+`/args"
 if [ -f "`+dir+`/fail" ]; then cat "`+dir+`/fail" >&2; exit 1; fi
+if [ "$1 $2" = "device version" ]; then echo "Confirm on the Trezor." >&2; echo "Trezor app version 2.12.5"; exit 0; fi
 while [ $# -gt 0 ]; do
   if [ "$1" = "--out-file" ]; then cp "`+dir+`/witness.json" "$2"; fi
   if [ "$1" = "--tx-file" ]; then cp "$2" "`+dir+`/tx.json"; fi
@@ -232,6 +256,9 @@ while [ $# -gt 0 ]; do
 done
 `), 0o700)
 	h := HWCLI{Path: script}
+	if v, err := h.Version(t.Context()); err != nil || v != "Trezor app version 2.12.5" {
+		t.Errorf("version: %q, %v", v, err)
+	}
 	vkey, sig, err := h.Witness(t.Context(), model.Preprod, tx, "/keys")
 	if err != nil || !ed25519.Verify(vkey, id[:], sig) {
 		t.Fatalf("witness: %v", err)
@@ -248,13 +275,19 @@ done
 	if json.Unmarshal(txFile, &e) != nil || e.Type != "Unwitnessed Tx ConwayEra" || e.CBORHex != hex.EncodeToString(tx) {
 		t.Errorf("tx file %s", txFile)
 	}
-	// The failures, as cardano-hw-cli 1.19.1 prints them.
+	// The failures, as cardano-hw-go and cardano-hw-cli 1.19.1 print them.
 	for _, c := range []struct {
 		name, out string
 		want      error
 		has       string
 	}{
-		{"a rejection on the device", "Error: Failure_ActionCancelled: Action cancelled by user\n", ErrRejected, ""},
+		{"a rejection on a Trezor", "Error: Cancelled\n", ErrRejected, ""},
+		{"a rejection on a Trezor, by cardano-hw-cli", "Error: Failure_ActionCancelled: Action cancelled by user\n", ErrRejected, ""},
+		{"a rejection on a Ledger", `Error: The requested operation failed. Check that your Ledger device is connected, unlocked and with Cardano app running.
+Details: DeviceStatusError: Action rejected by user on device.
+`, ErrRejected, ""},
+		{"a Trezor not paired yet", "Error: this computer is not paired with the Trezor yet; run `cardano-hw-go device version` in a terminal once to pair it with the code the Trezor shows\n",
+			nil, "run `cardano-hw-go device version` in a terminal once to pair it with the code the Trezor shows"},
 		{"no device", "Error: Error occurred while trying to find hw transport, make sure Ledger or Trezor or Keystone is connected to your computer\n", ErrNoDevice, ""},
 		{"a Trezor Safe 7, taken as a Keystone", `Error: releaseInterface error: invalid state
     at WebUSBDevice._releaseInterface (/snapshot/cardano-hw-cli/node_modules/usb/dist/webusb/webusb-device.js:400:19)

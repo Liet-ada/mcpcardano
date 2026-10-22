@@ -23,9 +23,8 @@ import (
 // ErrRejected reports that the person rejected the action on the device.
 var ErrRejected = errors.New("signer: rejected on the hardware wallet")
 
-// ErrNoDevice reports that cardano-hw-cli found no hardware wallet it can use.
-var ErrNoDevice = errors.New("signer: no hardware wallet that cardano-hw-cli can use; connect and unlock a Ledger " +
-	"with the Cardano app open, or a Trezor Model T, Safe 3 or Safe 5 (cardano-hw-cli does not support the Trezor Safe 7)")
+// ErrNoDevice reports that cardano-hw-go found no hardware wallet.
+var ErrNoDevice = errors.New("signer: no hardware wallet found; connect and unlock a Ledger with the Cardano app open, or a Trezor")
 
 // deviceTimeout bounds one action on the device, which waits for the person.
 const deviceTimeout = 5 * time.Minute
@@ -42,6 +41,10 @@ type Device interface {
 	// Witness asks the device to sign an unsigned transaction with the keys
 	// in dir and returns the payment key's witness.
 	Witness(ctx context.Context, n model.Network, tx []byte, dir string) (vkey, signature []byte, err error)
+	// Version names the device and the version of its firmware or Cardano
+	// app. It may ask the person to confirm on the device, or, the first
+	// time with a Trezor that uses THP, for a pairing code on the terminal.
+	Version(ctx context.Context) (string, error)
 }
 
 // envelope is the JSON text envelope of cardano-cli files.
@@ -51,12 +54,20 @@ type envelope struct {
 	CBORHex     string `json:"cborHex"`
 }
 
-// HWCLI drives a hardware wallet through cardano-hw-cli (section 6.6).
+// HWCLI drives a hardware wallet through cardano-hw-go (section 6.6), or
+// through cardano-hw-cli, which takes the same arguments.
 type HWCLI struct {
-	Path string // the cardano-hw-cli executable
+	Path string // the cardano-hw-go executable
 }
 
 func (h HWCLI) run(ctx context.Context, args ...string) error {
+	_, err := h.output(ctx, args...)
+	return err
+}
+
+// output runs the program and returns what it printed, on stdout and
+// stderr.
+func (h HWCLI) output(ctx context.Context, args ...string) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, deviceTimeout)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, h.Path, args...)
@@ -66,21 +77,31 @@ func (h HWCLI) run(ctx context.Context, args ...string) error {
 		text := strings.TrimSpace(out.String())
 		low := strings.ToLower(text)
 		if strings.Contains(low, "reject") || strings.Contains(low, "cancel") || strings.Contains(low, "denied by user") {
-			return fmt.Errorf("%w: %s", ErrRejected, lastError(text))
+			return "", fmt.Errorf("%w: %s", ErrRejected, lastError(text))
 		}
-		// cardano-hw-cli finds no device, or falls back to its Keystone
+		// No device. cardano-hw-cli may instead fall back to its Keystone
 		// transport, which takes any device with the USB vendor ID Keystone
 		// shares with Trezor (0x1209) when Trezor Connect fails, as it does
 		// with the Safe 7. Its error then names a Keystone.
 		if strings.Contains(low, "find hw transport") || strings.Contains(low, "check that your keystone device is connected") {
-			return ErrNoDevice
+			return "", ErrNoDevice
 		}
-		return fmt.Errorf("signer: cardano-hw-cli %s: %v: %s", args[0]+" "+args[1], err, lastError(text))
+		return "", fmt.Errorf("signer: %s %s: %v: %s", filepath.Base(h.Path), args[0]+" "+args[1], err, lastError(text))
 	}
-	return nil
+	return strings.TrimSpace(out.String()), nil
 }
 
-// lastError returns cardano-hw-cli's last error in one line: from its last
+// Version implements Device: the last line the program prints, after
+// any request to confirm on the device.
+func (h HWCLI) Version(ctx context.Context) (string, error) {
+	out, err := h.output(ctx, "device", "version")
+	if err != nil {
+		return "", err
+	}
+	return out[strings.LastIndexByte(out, '\n')+1:], nil
+}
+
+// lastError returns the program's last error in one line: from its last
 // line that starts with "Error:" to the end, without stack frames.
 func lastError(s string) string {
 	lines := strings.Split(s, "\n")

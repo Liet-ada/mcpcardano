@@ -26,7 +26,7 @@ const (
 	ExitRejected = 3
 )
 
-// HWCLIEnv names the environment variable with the path of cardano-hw-cli.
+// HWCLIEnv names the environment variable with the path of cardano-hw-go.
 const HWCLIEnv = "MCPCARDANO_HW_CLI"
 
 // common are the flags of the signing commands.
@@ -38,10 +38,10 @@ func (c *common) flags(fs *flag.FlagSet) {
 	keys, _ := signer.DefaultKeysDir()
 	hw := os.Getenv(HWCLIEnv)
 	if hw == "" {
-		hw = "cardano-hw-cli"
+		hw = "cardano-hw-go"
 	}
 	fs.StringVar(&c.socket, "socket", DefaultSocket(), "the server's MCP socket (or set "+SocketEnv+")")
-	fs.StringVar(&c.hwCLI, "hw-cli", hw, "the cardano-hw-cli executable (or set "+HWCLIEnv+")")
+	fs.StringVar(&c.hwCLI, "hw-cli", hw, "the cardano-hw-go executable (or set "+HWCLIEnv+")")
 	fs.StringVar(&c.keys, "keys", keys, "where the hardware wallet's signing files are kept")
 }
 
@@ -100,6 +100,7 @@ func Signer(ctx context.Context, args []string, version string, out, errOut io.W
 	}
 	log := slog.New(slog.NewTextHandler(errOut, nil))
 	log.Info("signer started", "socket", c.socket, "keys", c.keys)
+	c.signer(nil, log).CheckDevice(ctx)
 	// Reconnect when the server restarts, until the person stops the signer.
 	for ctx.Err() == nil {
 		client, err := mcpclient.Dial(ctx, c.socket, version)

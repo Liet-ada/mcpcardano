@@ -2,7 +2,7 @@ module github.com/Liet-ada/mcpcardano
 
 go 1.26.8
 
-toolchain go1.27.2
+toolchain go1.27.3
 
 require (
 	github.com/blinklabs-io/gouroboros v0.213.4
