@@ -5,6 +5,7 @@ go 1.26.8
 toolchain go1.27.3
 
 require (
+	filippo.io/edwards25519 v1.2.0
 	github.com/blinklabs-io/gouroboros v0.213.4
 	github.com/fxamacker/cbor/v2 v2.9.6
 	github.com/google/jsonschema-go v0.4.3
@@ -13,7 +14,6 @@ require (
 )
 
 require (
-	filippo.io/edwards25519 v1.2.0 // indirect
 	github.com/bits-and-blooms/bitset v1.25.0 // indirect
 	github.com/blinklabs-io/plutigo v0.9.1 // indirect
 	github.com/btcsuite/btcd/btcec/v2 v2.5.0 // indirect
