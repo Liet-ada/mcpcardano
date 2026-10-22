@@ -39,7 +39,8 @@ func TestResolveExample(t *testing.T) {
 		t.Errorf("warnings %v", warnings)
 	}
 	w := s.Wallets[0]
-	if s.Socket != "/var/lib/mcpcardano-server/mcp.sock" || w.Mode != model.ModeA || w.Policy.Limits.PerTx != 100_000_000 ||
+	if s.Socket != "/var/lib/mcpcardano-server/mcp.sock" || s.WalletSocket != "/run/mcpcardano/wallet-service.sock" ||
+		w.Mode != model.ModeA || w.Policy.Limits.PerTx != 100_000_000 ||
 		w.Policy.UTxO.DustThreshold != 1_000_000 || len(w.Policy.Assets) != 1 {
 		t.Errorf("settings %+v", s)
 	}
@@ -47,13 +48,15 @@ func TestResolveExample(t *testing.T) {
 
 func TestResolveRejects(t *testing.T) {
 	cases := map[string]func(*Config){
-		"mainnet":           func(c *Config) { c.Network = "mainnet" },
-		"unknown network":   func(c *Config) { c.Network = "testnet" },
-		"relative data dir": func(c *Config) { c.DataDir = "data" },
-		"other source":      func(c *Config) { c.DataSource.Kind = "blockfrost" },
-		"long socket":       func(c *Config) { c.Socket = "/" + strings.Repeat("s", maxSocketPath) },
-		"bad wallet id":     func(c *Config) { c.Wallets[0].ID = "w_1" },
-		"no label":          func(c *Config) { c.Wallets[0].Label = "" },
+		"mainnet":                func(c *Config) { c.Network = "mainnet" },
+		"unknown network":        func(c *Config) { c.Network = "testnet" },
+		"relative data dir":      func(c *Config) { c.DataDir = "data" },
+		"other source":           func(c *Config) { c.DataSource.Kind = "blockfrost" },
+		"long socket":            func(c *Config) { c.Socket = "/" + strings.Repeat("s", maxSocketPath) },
+		"relative wallet socket": func(c *Config) { c.WalletSocket = "wallet.sock" },
+		"long wallet socket":     func(c *Config) { c.WalletSocket = "/" + strings.Repeat("s", maxSocketPath) },
+		"bad wallet id":          func(c *Config) { c.Wallets[0].ID = "w_1" },
+		"no label":               func(c *Config) { c.Wallets[0].Label = "" },
 		"mainnet address": func(c *Config) {
 			c.Wallets[0].Address = "addr1vpu5vlrf4xkxv2qpwngf6cjhtw542ayty80v8dyr49rf5eg0yu80w"
 		},
@@ -70,6 +73,20 @@ func TestResolveRejects(t *testing.T) {
 		if _, _, err := Resolve(c); !errors.Is(err, ErrConfig) {
 			t.Errorf("%s: %v", name, err)
 		}
+	}
+}
+
+// TestResolveWithoutWallets: a server with neither wallets nor a wallet
+// process only reads, and says so; with a wallet process alone it can pay.
+func TestResolveWithoutWallets(t *testing.T) {
+	c := exampleConfig(t)
+	c.Wallets = nil
+	if _, warnings, err := Resolve(c); err != nil || len(warnings) != 0 {
+		t.Errorf("only a wallet process: %v, %v", warnings, err)
+	}
+	c.WalletSocket = ""
+	if _, warnings, err := Resolve(c); err != nil || len(warnings) != 1 {
+		t.Errorf("nothing to pay with: %v, %v", warnings, err)
 	}
 }
 

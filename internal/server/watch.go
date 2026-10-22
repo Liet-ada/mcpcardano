@@ -27,7 +27,9 @@ const (
 
 // watcher follows the transactions the server sent until they are deep
 // enough, roll back or expire (section 3.4). Only the chain moves a draft
-// past submitted.
+// past submitted. It also follows what the wallet process holds: the
+// approvals the person gives, and the transactions it signed before the
+// server's last start (section 9.5).
 type watcher struct {
 	store *drafts.Store
 	src   datasource.Source
@@ -35,6 +37,7 @@ type watcher struct {
 	now   func() time.Time
 	depth uint32
 	log   *slog.Logger
+	srv   *mcp.Server
 }
 
 func (w *watcher) run(ctx context.Context, every time.Duration) {
@@ -45,6 +48,11 @@ func (w *watcher) run(ctx context.Context, every time.Duration) {
 		case <-ctx.Done():
 			return
 		case <-t.C:
+			if w.srv != nil {
+				w.srv.Sync(ctx)
+				w.srv.FollowApprovals(ctx)
+				w.srv.FollowOrphans(ctx, w.depth, ttlGrace)
+			}
 			w.once(ctx)
 		}
 	}

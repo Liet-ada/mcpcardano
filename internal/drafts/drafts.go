@@ -52,7 +52,8 @@ var (
 	ErrNoFreeUTxOs = errors.New("drafts: the free UTxOs are not enough")
 	// ErrMismatch reports a signature that does not belong to the draft.
 	ErrMismatch = errors.New("drafts: the signature does not match the draft")
-	// ErrModeNotAvailable reports a wallet mode milestone H-1 cannot sign.
+	// ErrModeNotAvailable reports an authorization of the wrong kind for the
+	// wallet's mode: the signer of mode A, or the wallet process of B and C.
 	ErrModeNotAvailable = errors.New("drafts: mode not available")
 )
 
@@ -79,11 +80,12 @@ type Draft struct {
 	Summary txdecode.Summary
 	Verdict policy.Verdict
 
-	State     State
-	ExpiresAt time.Time // when the TTL slot begins
-	Reason    string    // why it was cancelled, rejected or failed
-	Depth     uint32    // confirmations, once confirmed
-	Signed    []byte    // the signed transaction, from signed on
+	State      State
+	ExpiresAt  time.Time // when the TTL slot begins
+	Reason     string    // why it was cancelled, rejected or failed
+	Depth      uint32    // confirmations, once confirmed
+	Signed     []byte    // the signed transaction, from signed on
+	ApprovalID string    // the wallet's approval, in modes B and C
 
 	CreatedAt time.Time
 	UpdatedAt time.Time
@@ -109,6 +111,10 @@ type Request struct {
 	// Verified marks, in the summary, the tokens the person listed in the
 	// policy of any wallet (decision 84); nil marks none.
 	Verified func(model.AssetID) bool
+	// Usage is what the wallet process reports a wallet of mode B or C has
+	// spent, for the draft's verdict. The wallet decides again, with its own
+	// record, when it is asked to sign.
+	Usage policy.Usage
 }
 
 // Store holds the drafts of every wallet.
@@ -196,6 +202,7 @@ func (s *Store) Create(r Request) (Draft, error) {
 		Policy:      r.Policy,
 		View:        tx.Decoded.View(r.Wallet.Address),
 		CurrentSlot: clock.Slot(now),
+		Usage:       r.Usage,
 	})
 	if verdict.Status == policy.Blocked {
 		return Draft{}, &BlockedError{Verdict: verdict}
@@ -327,6 +334,50 @@ func (s *Store) Authorize(id model.DraftID) (Draft, error) {
 		}
 		return s.move(d, EventAskApproval)
 	})
+}
+
+// BeginAuthorize is authorize_draft in modes B and C: the draft moves to
+// authorizing, and the caller asks the wallet process to sign. A draft that
+// is authorizing already stays so, for the caller to ask again; one further
+// on comes back as it is (section 9.4).
+func (s *Store) BeginAuthorize(id model.DraftID) (Draft, error) {
+	return s.apply(id, func(d *Draft) error {
+		if d.Mode == model.ModeA {
+			return fmt.Errorf("%w: mode A", ErrModeNotAvailable)
+		}
+		if d.State != StateDraft {
+			if d.State.Final() {
+				return finalError(d, EventAuthorize)
+			}
+			return nil
+		}
+		return s.move(d, EventAuthorize)
+	})
+}
+
+// AwaitApproval records that the wallet process waits for the person's
+// approval of an authorizing draft.
+func (s *Store) AwaitApproval(id model.DraftID, approval string) (Draft, error) {
+	return s.apply(id, func(d *Draft) error {
+		if d.State == StatePendingApproval && d.ApprovalID == approval {
+			return nil
+		}
+		if err := s.move(d, EventAskApproval); err != nil {
+			return err
+		}
+		d.ApprovalID = approval
+		return nil
+	})
+}
+
+// Reject records that the wallet process, or the person, refused a draft.
+func (s *Store) Reject(id model.DraftID, reason string) (Draft, error) {
+	return s.event(id, EventReject, reason)
+}
+
+// Expire records that the wallet process let the approval of a draft expire.
+func (s *Store) Expire(id model.DraftID) (Draft, error) {
+	return s.event(id, EventExpire, "")
 }
 
 // RejectedByHardwareWallet is the reason the mode A signer gives when the

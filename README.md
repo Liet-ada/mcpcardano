@@ -51,7 +51,7 @@ When it starts, the signer asks the hardware wallet for its version once, so tha
 
 ### The wallet (milestone H-2, in progress)
 
-`mcpcardano-wallet` keeps the keys of the wallets of modes B and C and signs only what their policies and budgets allow. It runs as its own user, without network, and serves two Unix sockets: the service socket, for the server, and the admin socket, for the person's CLI. The server and the CLI learn to use it in the next steps of H-2.
+`mcpcardano-wallet` keeps the keys of the wallets of modes B and C and signs only what their policies and budgets allow. It runs as its own user, without network, and serves two Unix sockets: the service socket, for the server, and the admin socket, for the person's CLI. The person's commands arrive with the CLI in the next step of H-2.
 
 ```
 printf '%s\n' "$PASSWORD" | bin/mcpcardano-wallet -config wallet.json init   # once: creates the key store
@@ -71,6 +71,8 @@ bin/mcpcardano-wallet -config wallet.json
 ```
 
 `service_uid` and `admin_uid` are the users the kernel must certify at the other end of each socket: the server's and the person's. The wallet starts locked, and refuses to start if it can reach the network; `"development": true` skips that check, and its audit log records it. `"argon2_memory_mib"` lowers the memory of Argon2id from 256 to as little as 64 on small machines, before `init`.
+
+The server talks to the wallet when its `config.json` names the service socket in `"wallet_socket"`. Its wallets then appear in `list_wallets` next to those of mode A, and the agent can create one with `create_wallet`, which gets the person's template. `authorize_draft` asks the wallet to sign: in mode C it signs within the policy and the budget and the server sends the transaction at once; in mode B, above the approval threshold, the draft waits in `pending_approval` until the person approves it. While the wallet is locked, `authorize_draft` answers `WALLET_UNAVAILABLE` and the draft waits for the agent to ask again.
 
 ## License
 

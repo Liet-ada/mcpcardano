@@ -317,7 +317,7 @@ func (e *env) pay(lovelace string) map[string]any {
 
 func TestTools(t *testing.T) {
 	e := newEnv(t)
-	want := []string{"authorize_draft", "build_consolidation", "build_payment", "cancel_draft", "decode_transaction",
+	want := []string{"authorize_draft", "build_consolidation", "build_payment", "cancel_draft", "create_wallet", "decode_transaction",
 		"get_address_info", "get_asset_info", "get_draft", "get_network_status", "get_policy_status",
 		"get_protocol_parameters", "get_transaction", "get_transaction_status", "get_wallet_overview", "list_drafts",
 		"list_utxos", "list_wallets", "submit_signed_transaction"}
