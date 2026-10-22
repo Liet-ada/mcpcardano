@@ -11,6 +11,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -164,5 +165,23 @@ func TestHidrawReceive(t *testing.T) {
 	tr.Close()
 	if _, err := tr.Receive(ctx); err == nil {
 		t.Error("a report from a closed device")
+	}
+}
+
+// TestVisible: a device's name reaches the terminal with only its visible
+// characters.
+func TestVisible(t *testing.T) {
+	for in, want := range map[string]string{
+		"YubiKey FIDO+CCID":        "YubiKey FIDO+CCID",
+		"evil\x1b]0;owned\x07 key": "evil?]0;owned? key",
+		"bidi ‮yek":                "bidi ?yek",
+		"":                         "the security key",
+	} {
+		if got := visible(in); got != want {
+			t.Errorf("visible(%q) = %q, want %q", in, got, want)
+		}
+	}
+	if got := visible(strings.Repeat("a", 100)); len(got) != 64 {
+		t.Errorf("a long name kept %d bytes", len(got))
 	}
 }

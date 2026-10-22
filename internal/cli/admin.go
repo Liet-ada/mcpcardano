@@ -221,7 +221,8 @@ func report(errOut io.Writer, err error) int {
 	}
 	var e *ipc.Error
 	if !errors.As(err, &e) {
-		fmt.Fprintln(errOut, "mcpcardano:", err)
+		// The error may carry what a security key said about itself.
+		fmt.Fprintln(errOut, "mcpcardano:", ipc.Detail(err.Error()))
 		switch {
 		case errors.Is(err, errCancelled), errors.Is(err, errKeyRefused):
 			return ExitRejected

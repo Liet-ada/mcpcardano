@@ -16,6 +16,9 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	authn "github.com/go-authn/fido"
 )
@@ -85,7 +88,29 @@ type key struct {
 	info authn.Info
 }
 
-func (k *key) Name() string { return k.k.Name() }
+// Name is what the key calls itself, with only its visible characters: the
+// device chooses it, and it reaches the person's terminal.
+func (k *key) Name() string { return visible(k.k.Name()) }
+
+// visible keeps the letters, marks, numbers, punctuation, symbols and spaces
+// of s, at most 64 bytes, and puts "?" for anything else, such as the escape
+// sequences a hostile device could put in its name.
+func visible(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		if r != ' ' && (!unicode.IsGraphic(r) || unicode.IsSpace(r)) {
+			r = '?'
+		}
+		if b.Len()+utf8.RuneLen(r) > 64 {
+			break
+		}
+		b.WriteRune(r)
+	}
+	if b.Len() == 0 {
+		return "the security key"
+	}
+	return b.String()
+}
 
 func (k *key) Close() error { return k.k.Close() }
 
