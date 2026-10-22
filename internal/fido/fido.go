@@ -145,7 +145,7 @@ func (k *key) Register(ctx context.Context, rpID, pin string) ([]byte, error) {
 		Options:        map[string]bool{"rk": false},
 	}
 	if pin != "" {
-		t, err := k.token(ctx, pin, authn.PermMakeCredential, rpID)
+		t, err := k.token(ctx, pin)
 		if err != nil {
 			return nil, err
 		}
@@ -164,7 +164,7 @@ func (k *key) Assert(ctx context.Context, rpID string, clientDataHash []byte, al
 		r.Allow = append(r.Allow, authn.Credential{Type: "public-key", ID: id})
 	}
 	if pin != "" {
-		t, err := k.token(ctx, pin, authn.PermGetAssertion, rpID)
+		t, err := k.token(ctx, pin)
 		if err != nil {
 			return Assertion{}, err
 		}
@@ -185,12 +185,20 @@ func (k *key) Assert(ctx context.Context, rpID string, clientDataHash []byte, al
 	return Assertion{CredentialID: id, AuthenticatorData: a.AuthData, Signature: a.Signature}, nil
 }
 
-// token turns the PIN into a token for one command on rpID, with the newest
-// PIN protocol the key has.
-func (k *key) token(ctx context.Context, pin string, perms authn.Permissions, rpID string) (authn.Token, error) {
+// token turns the PIN into a token, with the newest PIN protocol the key
+// has. It asks with getPinToken, the exchange of CTAP 2.0, which a key of
+// CTAP 2.1 still answers with a token for creating credentials and signing
+// assertions. go-authn/fido v0.6.2 sends the permissions and the RP id of
+// the CTAP 2.1 exchange under the keys 0x07 and 0x08, where the
+// specification and libfido2 have 0x09 and 0x0A, and a YubiKey refuses it
+// with CTAP2_ERR_MISSING_PARAMETER (found in E5).
+func (k *key) token(ctx context.Context, pin string) (authn.Token, error) {
+	if k.info.Has("noMcGaPermissionsWithClientPin") {
+		return authn.Token{}, fmt.Errorf("fido: %s takes the PIN only with permissions, which this version cannot ask for", k.Name())
+	}
 	proto := authn.PINProtocolOne
 	if slices.Contains(k.info.PINProtocols, uint(authn.PINProtocolTwo)) {
 		proto = authn.PINProtocolTwo
 	}
-	return k.k.PINToken(ctx, pin, proto, perms, rpID)
+	return k.k.PINToken(ctx, pin, proto, 0, "")
 }
