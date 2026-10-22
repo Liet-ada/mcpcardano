@@ -31,6 +31,10 @@ const (
 	MaxSecret       = 1024 // bytes of a password or a recovery phrase
 	MaxSummaryLine  = 256
 	MaxSummaryLines = 200
+	MaxKeys         = 16   // registered FIDO2 keys
+	MaxCredentialID = 1023 // bytes of a credential id (WebAuthn, section 5.8.3)
+	MaxAuthData     = 2048 // bytes of a key's authenticator data
+	MaxSignature    = 128  // bytes of a key's signature; ES256 in DER has at most 72
 )
 
 // Wallet is a wallet of the wallet process (section 3.2), plus whether it is

@@ -70,7 +70,7 @@ bin/mcpcardano-wallet -config wallet.json
 }
 ```
 
-`service_uid` and `admin_uid` are the users the kernel must certify at the other end of each socket: the server's and the person's. The wallet starts locked, and refuses to start if it can reach the network; `"development": true` skips that check, and its audit log records it. `"argon2_memory_mib"` lowers the memory of Argon2id from 256 to as little as 64 on small machines, before `init`.
+`service_uid` and `admin_uid` are the users the kernel must certify at the other end of each socket: the server's and the person's. The wallet starts locked, and refuses to start if it can reach the network; `"development": true` skips that check, and its audit log records it. `"argon2_memory_mib"` lowers the memory of Argon2id from 256 to as little as 64 on small machines, before `init`. The wallet refuses FIDO2 credentials that may be synced to a cloud unless `"allow_synced_keys": true`, and `"recovery_wait_hours"` sets how long a recovery without keys keeps the wallets frozen before it removes the keys: 72 by default.
 
 The server talks to the wallet when its `config.json` names the service socket in `"wallet_socket"`. Its wallets then appear in `list_wallets` next to those of mode A, and the agent can create one with `create_wallet`, which gets the person's template. `authorize_draft` asks the wallet to sign: in mode C it signs within the policy and the budget and the server sends the transaction at once; in mode B, above the approval threshold, the draft waits in `pending_approval` until the person approves it. While the wallet is locked, `authorize_draft` answers `WALLET_UNAVAILABLE` and the draft waits for the agent to ask again.
 

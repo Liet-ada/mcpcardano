@@ -11,6 +11,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/Liet-ada/mcpcardano/internal/keystore"
 	"github.com/Liet-ada/mcpcardano/internal/model"
@@ -37,9 +38,26 @@ type Config struct {
 	// Argon2MemoryMiB is the memory of Argon2id for a key store created with
 	// this configuration: 256 by default, at least 64 (decision 104).
 	Argon2MemoryMiB uint32 `json:"argon2_memory_mib,omitempty"`
+	// AllowSyncedKeys accepts FIDO2 credentials that may be synced to a
+	// cloud, which the wallet refuses by default (paper, section 6.6).
+	AllowSyncedKeys bool `json:"allow_synced_keys,omitempty"`
+	// RecoveryWaitHours is how long a recovery without keys keeps the
+	// wallets frozen before it removes the keys: 72 by default.
+	RecoveryWaitHours uint32 `json:"recovery_wait_hours,omitempty"`
 	// Development skips the isolation check, and the audit log records that
 	// it did (section 10.3).
 	Development bool `json:"development,omitempty"`
+}
+
+// defaultRecoveryWait is the wait of a recovery without keys.
+const defaultRecoveryWait = 72 * time.Hour
+
+// recoveryWait returns the wait of a recovery without keys.
+func (c Config) recoveryWait() time.Duration {
+	if c.RecoveryWaitHours == 0 {
+		return defaultRecoveryWait
+	}
+	return time.Duration(c.RecoveryWaitHours) * time.Hour
 }
 
 // LoadConfig reads config.json strictly: an unknown field, or data after the
