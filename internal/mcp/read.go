@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/Liet-ada/mcpcardano/internal/chain"
+	"github.com/Liet-ada/mcpcardano/internal/ipc"
 	"github.com/Liet-ada/mcpcardano/internal/model"
 	"github.com/Liet-ada/mcpcardano/internal/txdecode"
 )
@@ -40,13 +41,13 @@ func (s *Server) registerRead() error {
 			description: "Protocol parameters of the current epoch: fee coefficients, sizes, cost per UTxO byte, deposits, execution prices and limits. Amounts are lovelace as decimal strings; prices are exact fractions."},
 			s.protocolParameters),
 		addTool(s, tool{name: "list_wallets", readOnly: true,
-			description: "The wallets this server manages, with wallet_id, label, signing mode, network, address and whether they are frozen. Mode A means the person signs every payment on a hardware wallet."},
+			description: "The wallets this server manages, with wallet_id, label, signing mode, network, address, who created them and whether they are frozen. In mode A the person signs every payment on a hardware wallet; in mode B the wallet process signs below an approval threshold and asks the person above it; in mode C it signs within a budget. The agent never sees the keys of any mode."},
 			s.listWallets),
 		addTool(s, tool{name: "get_wallet_overview", readOnly: true, openWorld: true,
 			description: "Balance of a wallet (lovelace and tokens), its UTxOs, what drafts hold, live drafts, and the health of its UTxOs with a suggestion. Amounts are lovelace or token units as decimal strings."},
 			s.walletOverview),
 		addTool(s, tool{name: "get_policy_status", readOnly: true,
-			description: "The policy of a wallet: mode, limits, allowed destinations and tokens, live drafts and whether it is frozen. The agent cannot change it. Amounts are lovelace as decimal strings."},
+			description: "The policy of a wallet: mode, limits, allowed destinations and tokens, live drafts and whether it is frozen; in modes B and C also what it spent in the last hour and day, the budget left and the open session, as the wallet process counts them. The agent cannot change it. Amounts are lovelace as decimal strings."},
 			s.policyStatus),
 		addTool(s, tool{name: "list_utxos", readOnly: true, openWorld: true,
 			description: "Unspent outputs of a wallet (wallet_id) or of any payment address (address), by pages of at most 100 with a cursor. Amounts are lovelace or token units as decimal strings."},
@@ -169,9 +170,14 @@ type walletList struct {
 	Wallets []walletView `json:"wallets"`
 }
 
-func (s *Server) listWallets(_ context.Context, _ noArgs) (walletList, error) {
+func (s *Server) listWallets(ctx context.Context, _ noArgs) (walletList, error) {
+	if err := s.refresh(ctx); err != nil {
+		// What the server knows is still the answer; the wallet process may
+		// be back later.
+		s.d.Logger.Warn("wallet process", "err", err)
+	}
 	out := walletList{Network: string(s.d.Network), Wallets: []walletView{}}
-	for _, w := range s.d.Wallets {
+	for _, w := range s.all() {
 		addr, err := chain.FormatAddress(w.Address)
 		if err != nil {
 			return walletList{}, err
@@ -216,7 +222,7 @@ type overview struct {
 }
 
 func (s *Server) walletOverview(ctx context.Context, a walletArg) (overview, error) {
-	w, err := s.wallet(a.WalletID)
+	w, err := s.wallet(ctx, a.WalletID)
 	if err != nil {
 		return overview{}, err
 	}
@@ -305,12 +311,33 @@ type policyStatus struct {
 	// SpendTracked says whether spending windows and budgets are counted. In
 	// mode A they are not: the person confirms every payment on the device.
 	SpendTracked bool `json:"spend_tracked"`
+	// In modes B and C, what the wallet process counts (section 3.9).
+	SpentHour       string       `json:"spent_hour,omitempty"`
+	SpentDay        string       `json:"spent_day,omitempty"`
+	BudgetRemaining string       `json:"budget_remaining,omitempty"`
+	Locked          string       `json:"locked,omitempty"`
+	Committed       string       `json:"committed,omitempty"`
+	Session         *sessionView `json:"session,omitempty"`
 }
 
-func (s *Server) policyStatus(_ context.Context, a walletArg) (policyStatus, error) {
-	w, err := s.wallet(a.WalletID)
+// sessionView is an open session: until when, and the lovelace it still
+// allows.
+type sessionView struct {
+	ExpiresAt string `json:"expires_at"`
+	Remaining string `json:"remaining_lovelace"`
+}
+
+func (s *Server) policyStatus(ctx context.Context, a walletArg) (policyStatus, error) {
+	w, err := s.wallet(ctx, a.WalletID)
 	if err != nil {
 		return policyStatus{}, err
+	}
+	var ps *ipc.PolicyStatus
+	if w.Mode != model.ModeA {
+		if ps, err = s.status(ctx, w.ID); err != nil {
+			return policyStatus{}, err
+		}
+		w.Mode, w.Policy = model.Mode(ps.Mode), ps.Policy.Model()
 	}
 	p, f := w.Policy, model.FormatAmount
 	out := policyStatus{
@@ -340,6 +367,14 @@ func (s *Server) policyStatus(_ context.Context, a walletArg) (policyStatus, err
 	}
 	for _, id := range sortedAssets(p.Assets) {
 		out.Assets = append(out.Assets, assetCap{Asset: id.String(), Cap: f(p.Assets[id])})
+	}
+	if ps != nil {
+		out.SpentHour, out.SpentDay, out.BudgetRemaining = f(ps.SpentHour), f(ps.SpentDay), f(ps.BudgetRemaining)
+		out.Locked, out.Committed = f(ps.Locked), f(ps.Committed)
+		if ps.Session != nil {
+			out.Session = &sessionView{ExpiresAt: time.Unix(ps.Session.ExpiresAt, 0).UTC().Format(time.RFC3339),
+				Remaining: f(ps.Session.Remaining)}
+		}
 	}
 	return out, nil
 }
@@ -382,7 +417,7 @@ func (s *Server) listUTxOs(ctx context.Context, a utxosArg) (utxoPage, error) {
 	var addr model.Address
 	held := map[chain.TxIn]bool{}
 	if a.WalletID != "" {
-		w, err := s.wallet(a.WalletID)
+		w, err := s.wallet(ctx, a.WalletID)
 		if err != nil {
 			return utxoPage{}, err
 		}

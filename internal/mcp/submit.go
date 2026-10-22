@@ -195,6 +195,11 @@ func (s *Server) transactionStatus(ctx context.Context, a statusArg) (statusView
 	}
 	d, err := s.d.Drafts.ByTx(id)
 	if err != nil {
+		// A transaction the wallet signed before the server's restart, which
+		// the watcher follows (section 9.5).
+		if o, ok := s.orphanOf(id); ok && o.expired && out.Status != "confirmed" {
+			out.Status = "expired"
+		}
 		return out, nil
 	}
 	out.DraftID = string(d.ID)

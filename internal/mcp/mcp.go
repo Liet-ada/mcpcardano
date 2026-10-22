@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"slices"
 	"time"
 
 	"github.com/google/jsonschema-go/jsonschema"
@@ -38,8 +39,9 @@ const (
 	callTimeout = 60 * time.Second
 )
 
-// Wallet is a wallet the server knows, with its policy. In milestone H-1
-// every wallet is in mode A and lives in the server's configuration.
+// Wallet is a wallet the server knows, with its policy: one of mode A, from
+// the server's configuration, or one of modes B and C, from the wallet
+// process, with the policy it last reported.
 type Wallet struct {
 	model.Wallet
 	Policy model.Policy
@@ -55,7 +57,10 @@ type Deps struct {
 	Network model.Network
 	Source  datasource.Source
 	Drafts  *drafts.Store
-	Wallets []Wallet
+	Wallets []Wallet // of mode A
+	// Wallet is the wallet process, which keeps and signs for the wallets
+	// of modes B and C; nil if the server has none.
+	Wallet  *WalletConn
 	Audit   Recorder
 	Logger  *slog.Logger
 	Now     func() time.Time
@@ -66,7 +71,8 @@ type Deps struct {
 type Server struct {
 	sdk     *sdk.Server
 	d       Deps
-	wallets map[model.WalletID]Wallet
+	wallets map[model.WalletID]Wallet // of mode A
+	ws      walletState
 	sends   sendState
 }
 
@@ -97,6 +103,9 @@ func New(d Deps) (*Server, error) {
 		return nil, err
 	}
 	if err := s.registerSubmit(); err != nil {
+		return nil, err
+	}
+	if err := s.registerWallets(); err != nil {
 		return nil, err
 	}
 	return s, nil
@@ -261,7 +270,7 @@ func (s *Server) record(ctx context.Context, entry map[string]any) {
 // person's list of verified tokens (decision 69). Every list of tokens shows
 // it (decision 84).
 func (s *Server) verified(id model.AssetID) bool {
-	for _, w := range s.d.Wallets {
+	for _, w := range s.all() {
 		if _, ok := w.Policy.Assets[id]; ok {
 			return true
 		}
@@ -269,14 +278,45 @@ func (s *Server) verified(id model.AssetID) bool {
 	return false
 }
 
-// wallet returns a configured wallet.
-func (s *Server) wallet(id string) (Wallet, error) {
-	w, ok := s.wallets[model.WalletID(id)]
-	if !ok {
-		if model.WalletID(id).Validate() != nil {
-			return Wallet{}, invalid("wallet_id %q is not a wallet id", id)
-		}
-		return Wallet{}, newError(CodeUnknownWallet, "no wallet %s", id)
+// wallet returns a wallet of the configuration or of the wallet process,
+// asking the wallet process again for one the server does not know: the
+// person may have created it since.
+func (s *Server) wallet(ctx context.Context, id string) (Wallet, error) {
+	if w, ok := s.wallets[model.WalletID(id)]; ok {
+		return w, nil
 	}
-	return w, nil
+	if model.WalletID(id).Validate() != nil {
+		return Wallet{}, invalid("wallet_id %q is not a wallet id", id)
+	}
+	for range 2 {
+		for _, w := range s.remote() {
+			if string(w.ID) == id {
+				return w, nil
+			}
+		}
+		if s.d.Wallet == nil {
+			break
+		}
+		if err := s.refresh(ctx); err != nil {
+			return Wallet{}, err
+		}
+	}
+	return Wallet{}, newError(CodeUnknownWallet, "no wallet %s", id)
+}
+
+// all returns every wallet: those of mode A, then those of the wallet
+// process.
+func (s *Server) all() []Wallet {
+	return append(slices.Clone(s.d.Wallets), s.remote()...)
+}
+
+// note records an event of the server's own, not a tool call, in the audit
+// log.
+func (s *Server) note(ctx context.Context, typ string, body map[string]any) {
+	if s.d.Audit == nil {
+		return
+	}
+	if err := s.d.Audit.Append(context.WithoutCancel(ctx), typ, body); err != nil {
+		s.d.Logger.Error("audit log", "err", err)
+	}
 }

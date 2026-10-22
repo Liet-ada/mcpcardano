@@ -31,7 +31,7 @@ import (
 	"github.com/Liet-ada/mcpcardano/internal/signer"
 )
 
-// ledger is a data source with one funded address, which keeps what is
+// ledger is a data source with funded addresses, which keeps what is
 // submitted and confirms it when told.
 type ledger struct {
 	mu        sync.Mutex
@@ -56,10 +56,16 @@ func (l *ledger) ProtocolParameters(context.Context) (chain.ProtocolParameters, 
 		MinFeeRefScriptByte: chain.Rational{Num: 15, Den: 1}, ProtocolMajor: 11,
 	}, nil
 }
-func (l *ledger) UTxOs(context.Context, model.Address) ([]chain.UTxO, error) {
+func (l *ledger) UTxOs(_ context.Context, a model.Address) ([]chain.UTxO, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	return l.utxos, nil
+	var out []chain.UTxO
+	for _, u := range l.utxos {
+		if u.Address.Equal(a) {
+			out = append(out, u)
+		}
+	}
+	return out, nil
 }
 func (l *ledger) Account(context.Context, string) (datasource.Account, error) {
 	return datasource.Account{}, datasource.ErrNotFound

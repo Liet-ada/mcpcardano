@@ -23,10 +23,13 @@ import (
 // strings, as in the tools; an empty amount is zero, and zero forbids
 // (decision 38).
 type Config struct {
-	Network    string           `json:"network"`
-	DataDir    string           `json:"data_dir"`
-	Socket     string           `json:"socket,omitempty"`
-	DataSource DataSourceConfig `json:"datasource"`
+	Network string `json:"network"`
+	DataDir string `json:"data_dir"`
+	Socket  string `json:"socket,omitempty"`
+	// WalletSocket is the service socket of the wallet process, which keeps
+	// and signs for the wallets of modes B and C; empty if there is none.
+	WalletSocket string           `json:"wallet_socket,omitempty"`
+	DataSource   DataSourceConfig `json:"datasource"`
 	// ConfirmationDepth is how many blocks make a transaction confirmed;
 	// zero means DefaultConfirmationDepth.
 	ConfirmationDepth uint32         `json:"confirmation_depth,omitempty"`
@@ -94,6 +97,7 @@ type Settings struct {
 	Network           model.Network
 	DataDir           string
 	Socket            string
+	WalletSocket      string
 	KoiosURL          string
 	ConfirmationDepth uint32
 	Wallets           []mcp.Wallet
@@ -153,7 +157,8 @@ func Resolve(c Config) (Settings, []string, error) {
 	case c.DataSource.Kind != "koios":
 		return fail("datasource.kind must be koios")
 	}
-	s := Settings{Network: n, DataDir: filepath.Clean(c.DataDir), Socket: c.Socket, KoiosURL: c.DataSource.URL, ConfirmationDepth: c.ConfirmationDepth}
+	s := Settings{Network: n, DataDir: filepath.Clean(c.DataDir), Socket: c.Socket, WalletSocket: c.WalletSocket,
+		KoiosURL: c.DataSource.URL, ConfirmationDepth: c.ConfirmationDepth}
 	if s.ConfirmationDepth == 0 {
 		s.ConfirmationDepth = DefaultConfirmationDepth
 	}
@@ -162,6 +167,9 @@ func Resolve(c Config) (Settings, []string, error) {
 	}
 	if !filepath.IsAbs(s.Socket) || len(s.Socket) > maxSocketPath {
 		return fail("socket must be an absolute path of at most %d bytes", maxSocketPath)
+	}
+	if s.WalletSocket != "" && (!filepath.IsAbs(s.WalletSocket) || len(s.WalletSocket) > maxSocketPath) {
+		return fail("wallet_socket must be an absolute path of at most %d bytes", maxSocketPath)
 	}
 	var warnings []string
 	seen := map[model.WalletID]bool{}
@@ -179,8 +187,8 @@ func Resolve(c Config) (Settings, []string, error) {
 			warnings = append(warnings, fmt.Sprintf("wallet %s: %s", w.ID, msg))
 		}
 	}
-	if len(s.Wallets) == 0 {
-		warnings = append(warnings, "no wallets: the agent can only read")
+	if len(s.Wallets) == 0 && s.WalletSocket == "" {
+		warnings = append(warnings, "no wallets and no wallet process: the agent can only read")
 	}
 	return s, warnings, nil
 }

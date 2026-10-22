@@ -10,6 +10,7 @@ import (
 	"github.com/Liet-ada/mcpcardano/internal/chain"
 	"github.com/Liet-ada/mcpcardano/internal/datasource"
 	"github.com/Liet-ada/mcpcardano/internal/drafts"
+	"github.com/Liet-ada/mcpcardano/internal/ipc"
 	"github.com/Liet-ada/mcpcardano/internal/model"
 	"github.com/Liet-ada/mcpcardano/internal/policy"
 	"github.com/Liet-ada/mcpcardano/internal/txbuild"
@@ -32,6 +33,9 @@ const (
 	CodePolicyBlocked         = "POLICY_BLOCKED"
 	CodeBudgetExceeded        = "BUDGET_EXCEEDED"
 	CodeWalletFrozen          = "WALLET_FROZEN"
+	CodeNeedsSession          = "NEEDS_SESSION"
+	CodeWalletUnavailable     = "WALLET_UNAVAILABLE"
+	CodeRateLimited           = "RATE_LIMITED"
 	CodeDatasourceUnavailable = "DATASOURCE_UNAVAILABLE"
 	CodeInternal              = "INTERNAL"
 )
@@ -52,6 +56,9 @@ var hints = map[string]string{
 	CodePolicyBlocked:         "The policy does not allow this; do not retry; tell the person.",
 	CodeBudgetExceeded:        "The policy does not allow this; do not retry; tell the person.",
 	CodeWalletFrozen:          "The person must unfreeze the wallet; do not retry.",
+	CodeNeedsSession:          "The person must open a session for the wallet; do not retry.",
+	CodeWalletUnavailable:     "The wallet process is locked or not running; tell the person, and call authorize_draft again once they unlock it.",
+	CodeRateLimited:           "Wait before retrying.",
 	CodeDatasourceUnavailable: "Retry later.",
 	CodeInternal:              "Tell the person.",
 }
@@ -125,12 +132,54 @@ func translate(err error) *Error {
 		return newError(CodeTooManyUTxOs, "the address has more than %d UTxOs", datasource.MaxUTxOs)
 	case errors.Is(err, datasource.ErrUnavailable), errors.Is(err, datasource.ErrInvalidResponse):
 		return newError(CodeDatasourceUnavailable, "the data source did not answer correctly")
+	case errors.Is(err, ErrWalletUnavailable):
+		return newError(CodeWalletUnavailable, "the wallet process does not answer")
+	}
+	var we *ipc.Error
+	if errors.As(err, &we) {
+		return walletFailure(we)
 	}
 	var se *drafts.StateError
 	if errors.As(err, &se) {
 		return invalid("a %s draft does not accept this", se.State)
 	}
 	return newError(CodeInternal, "internal error")
+}
+
+// walletFailure translates a failed answer of the wallet process (section
+// 5.6). What only a bug explains is INTERNAL, its detail kept in the audit
+// log.
+func walletFailure(e *ipc.Error) *Error {
+	switch e.Code {
+	case ipc.Locked:
+		return newError(CodeWalletUnavailable, "the wallet process is locked: the person must unlock it")
+	case ipc.UnknownWallet:
+		return newError(CodeUnknownWallet, "the wallet process has no such wallet")
+	case ipc.RateLimited:
+		return newError(CodeRateLimited, "the wallet process has too many requests waiting")
+	case ipc.NotFound:
+		return newError(CodeDraftNotFound, "the wallet process no longer has this approval")
+	}
+	return newError(CodeInternal, "internal error")
+}
+
+// rejectionError translates the wallet's refusal to sign: the rule and its
+// detail, as the wallet computed them (section 5.3). A body the wallet cannot
+// read is a bug of the server's builder.
+func rejectionError(r *ipc.Error) *Error {
+	switch r.Code {
+	case ipc.Frozen:
+		return newError(CodeWalletFrozen, "the wallet is frozen")
+	case ipc.NeedsSession:
+		return newError(CodeNeedsSession, "%s", r.Detail)
+	case ipc.BudgetExceeded:
+		return newError(CodeBudgetExceeded, "%s", r.Detail)
+	case ipc.TTLTooLong:
+		return invalid("%s; build the draft again with a shorter ttl_seconds", r.Detail)
+	case ipc.PolicyBlocked:
+		return newError(CodePolicyBlocked, "%s", r.Detail)
+	}
+	return newError(CodeInternal, "the wallet process cannot read the transaction")
 }
 
 // verdictError translates a blocked verdict. A TTL the policy does not allow
@@ -140,6 +189,8 @@ func verdictError(v policy.Verdict) *Error {
 	switch v.Code {
 	case policy.CodeFrozen:
 		e = newError(CodeWalletFrozen, "the wallet is frozen")
+	case policy.CodeNeedsSession:
+		e = newError(CodeNeedsSession, "%s: %s", v.Rule, v.Detail)
 	case policy.CodeNetworkMismatch:
 		e = newError(CodeNetworkMismatch, "%s: %s", v.Rule, v.Detail)
 	case policy.CodeBudgetExceeded:

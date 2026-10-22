@@ -438,3 +438,60 @@ func TestConcurrentCreates(t *testing.T) {
 	}
 	t.Logf("%d drafts over 20 UTxOs", n)
 }
+
+// TestWalletProcessFlow covers modes B and C: authorize_draft moves the draft
+// to authorizing until the wallet process answers, and the draft keeps the
+// wallet's approval while the person decides.
+func TestWalletProcessFlow(t *testing.T) {
+	f := newFixture(t)
+	a := f.create(ada(5), f.utxos(ada(100)))
+	if _, err := f.store.BeginAuthorize(a.ID); !errors.Is(err, ErrModeNotAvailable) {
+		t.Errorf("mode A through the wallet process: %v", err)
+	}
+	f.store.Cancel(a.ID, "")
+	f.wallet.Mode = model.ModeB
+	f.policy.Limits.PerHour, f.policy.Limits.PerDay, f.policy.Limits.TxPerHour = ada(1000), ada(1000), 10
+	f.policy.Limits.NewDestinationsPerHour, f.policy.Limits.NewDestinationsPerDay = 5, 5
+	d := f.create(ada(5), f.utxos(ada(100)))
+	if d.Verdict.Status != policy.NeedsApproval || d.Verdict.Rule != policy.RuleThreshold {
+		t.Errorf("verdict %+v", d.Verdict)
+	}
+	if _, err := f.store.Authorize(d.ID); !errors.Is(err, ErrModeNotAvailable) {
+		t.Errorf("mode B through the signer of mode A: %v", err)
+	}
+	for range 2 { // asking again leaves it authorizing
+		if got, err := f.store.BeginAuthorize(d.ID); err != nil || got.State != StateAuthorizing {
+			t.Fatalf("got %s, %v", got.State, err)
+		}
+	}
+	for range 2 {
+		if got, err := f.store.AwaitApproval(d.ID, "a_1"); err != nil || got.State != StatePendingApproval || got.ApprovalID != "a_1" {
+			t.Fatalf("got %+v, %v", got, err)
+		}
+	}
+	if got, err := f.store.BeginAuthorize(d.ID); err != nil || got.State != StatePendingApproval {
+		t.Errorf("authorize while pending: %s, %v", got.State, err)
+	}
+	if got, err := f.store.Reject(d.ID, "the person rejected it"); err != nil || got.State != StateRejected || f.reserved() != 0 {
+		t.Errorf("reject: %+v, %v, %d reserved", got, err, f.reserved())
+	}
+	if _, err := f.store.BeginAuthorize(d.ID); err == nil {
+		t.Error("a rejected draft was authorized")
+	}
+
+	// The wallet's own record makes the verdict: here the budget is spent.
+	f.wallet.Mode = model.ModeC
+	f.policy.Limits.Budget = ada(100)
+	r := f.request(ada(5), f.utxos(ada(100)))
+	r.Usage = policy.Usage{BudgetSpent: ada(99)}
+	var blocked *BlockedError
+	if _, err := f.store.Create(r); !errors.As(err, &blocked) || blocked.Verdict.Rule != policy.RuleBudget {
+		t.Errorf("a spent budget: %v", err)
+	}
+	e := f.create(ada(5), f.utxos(ada(100)))
+	f.store.BeginAuthorize(e.ID)
+	f.store.AwaitApproval(e.ID, "a_2")
+	if got, err := f.store.Expire(e.ID); err != nil || got.State != StateExpired {
+		t.Errorf("expire: %s, %v", got.State, err)
+	}
+}

@@ -1,6 +1,7 @@
 {
   "network": "preprod",
   "data_dir": "/var/lib/mcpcardano-server",
+  "wallet_socket": "/run/mcpcardano/wallet-service.sock",
   "datasource": {"kind": "koios"},
   "wallets": [
     {

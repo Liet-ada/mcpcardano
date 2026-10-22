@@ -23,6 +23,7 @@ import (
 	"github.com/Liet-ada/mcpcardano/internal/chain"
 	"github.com/Liet-ada/mcpcardano/internal/datasource"
 	"github.com/Liet-ada/mcpcardano/internal/drafts"
+	"github.com/Liet-ada/mcpcardano/internal/ipc"
 	"github.com/Liet-ada/mcpcardano/internal/mcp"
 )
 
@@ -91,14 +92,24 @@ func Run(ctx context.Context, s Settings, o Options) error {
 		log.Warn("the data source does not answer yet", "source", src.Name(), "err", err)
 	}
 
+	var wallet *mcp.WalletConn
+	if s.WalletSocket != "" {
+		wallet = &mcp.WalletConn{Path: s.WalletSocket,
+			Hello: ipc.Hello{Software: "mcpcardano-server " + o.Version, Network: string(s.Network)}}
+		defer wallet.Close()
+	}
 	store := drafts.New(o.Now, nil)
 	srv, err := mcp.New(mcp.Deps{
-		Network: s.Network, Source: src, Drafts: store,
-		Wallets: s.Wallets, Audit: rec, Logger: log, Now: o.Now, Version: o.Version,
+		Network: s.Network, Source: src, Drafts: store, Wallets: s.Wallets, Wallet: wallet,
+		Audit: rec, Logger: log, Now: o.Now, Version: o.Version,
 	})
 	if err != nil {
 		return err
 	}
+	// The wallets of the wallet process, and the transactions it signed that
+	// may still reach the chain (section 9.5). If it does not answer yet,
+	// the watcher tries again.
+	srv.Sync(ctx)
 	ln, err := listen(s.Socket)
 	if err != nil {
 		return err
@@ -109,7 +120,7 @@ func Run(ctx context.Context, s Settings, o Options) error {
 		return fmt.Errorf("server: audit log: %w", err)
 	}
 	log.Info("serving MCP", "socket", s.Socket, "network", s.Network, "wallets", len(s.Wallets))
-	w := &watcher{store: store, src: src, rec: rec, now: o.Now, depth: s.ConfirmationDepth, log: log}
+	w := &watcher{store: store, src: src, rec: rec, now: o.Now, depth: s.ConfirmationDepth, log: log, srv: srv}
 	every := o.WatchEvery
 	if every == 0 {
 		every = watchEvery

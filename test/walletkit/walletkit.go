@@ -89,14 +89,19 @@ func NewConfig(t testing.TB) walletd.Config {
 	}
 }
 
-// Start creates a key store and starts a wallet on it.
-func Start(t testing.TB) *Wallet {
+// Start creates a key store and starts a wallet on it, with a clock the
+// test moves.
+func Start(t testing.TB) *Wallet { return StartAt(t, NewClock()) }
+
+// StartAt is Start with the given clock: RealClock for a wallet that works
+// with a server, which takes its time from the system.
+func StartAt(t testing.TB, clock *Clock) *Wallet {
 	t.Helper()
 	cfg := NewConfig(t)
 	if err := walletd.Init(cfg, Password); err != nil {
 		t.Fatal(err)
 	}
-	w := &Wallet{Config: cfg, Clock: NewClock()}
+	w := &Wallet{Config: cfg, Clock: clock}
 	w.Run(t)
 	return w
 }
