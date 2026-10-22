@@ -158,7 +158,8 @@ func Admin(ctx context.Context, args []string, version string, in io.Reader, out
 	if c.flags != nil {
 		c.flags(fs, &o)
 	}
-	if err := fs.Parse(rest); err != nil || (c.nargs >= 0 && fs.NArg() != c.nargs) {
+	args, err := parseAnywhere(fs, rest)
+	if err != nil || (c.nargs >= 0 && len(args) != c.nargs) {
 		return usage()
 	}
 	client, err := ipc.Dial(ctx, *socket, ipc.Hello{Software: "mcpcardano " + version, Network: *network})
@@ -171,7 +172,7 @@ func Admin(ctx context.Context, args []string, version string, in io.Reader, out
 	}
 	defer client.Close()
 	a := &admin{ctx: ctx, client: client, codec: ipc.NewCodec(), in: in, out: out, errOut: errOut, network: *network}
-	err = c.run(a, &o, fs.Args())
+	err = c.run(a, &o, args)
 	if errors.Is(err, errUsage) {
 		if msg := strings.TrimPrefix(err.Error(), errUsage.Error()); msg != "" {
 			fmt.Fprintln(errOut, "mcpcardano"+msg)
@@ -179,6 +180,26 @@ func Admin(ctx context.Context, args []string, version string, in io.Reader, out
 		return usage()
 	}
 	return report(errOut, err)
+}
+
+// parseAnywhere parses the flags wherever they come among the arguments, as
+// in `mcpcardano approve <id> -admin path`, and returns the arguments; after
+// "--" everything is an argument.
+func parseAnywhere(fs *flag.FlagSet, args []string) ([]string, error) {
+	var out []string
+	for {
+		if err := fs.Parse(args); err != nil {
+			return nil, err
+		}
+		rest := fs.Args()
+		if len(rest) == 0 {
+			return out, nil
+		}
+		if n := len(args) - len(rest); n > 0 && args[n-1] == "--" {
+			return append(out, rest...), nil
+		}
+		out, args = append(out, rest[0]), rest[1:]
+	}
 }
 
 // usageError reports what is wrong with the arguments.
