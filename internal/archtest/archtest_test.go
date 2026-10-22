@@ -149,6 +149,7 @@ func TestExternalDependenciesStayEncapsulated(t *testing.T) {
 		"github.com/go-authn/fido":           internal("fido"),
 		"github.com/go-macos/":               internal("fido"),
 		"github.com/charmbracelet/":          internal("tui"),
+		"charm.land/":                        internal("tui"),
 	}
 	cmd := exec.Command("go", "list", "-json", "./...")
 	cmd.Dir = repoRoot(t)

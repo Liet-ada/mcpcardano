@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/Liet-ada/mcpcardano/internal/ipc"
 	"github.com/Liet-ada/mcpcardano/test/softkey"
@@ -84,18 +84,18 @@ func drive(t *testing.T, m Model, msg tea.Msg) Model {
 func press(t *testing.T, m Model, keys ...string) Model {
 	t.Helper()
 	for _, k := range keys {
-		var msg tea.KeyMsg
+		var msg tea.KeyPressMsg
 		switch k {
 		case "enter":
-			msg = tea.KeyMsg{Type: tea.KeyEnter}
+			msg = tea.KeyPressMsg{Code: tea.KeyEnter}
 		case "esc":
-			msg = tea.KeyMsg{Type: tea.KeyEsc}
+			msg = tea.KeyPressMsg{Code: tea.KeyEscape}
 		case "backspace":
-			msg = tea.KeyMsg{Type: tea.KeyBackspace}
+			msg = tea.KeyPressMsg{Code: tea.KeyBackspace}
 		case "down":
-			msg = tea.KeyMsg{Type: tea.KeyDown}
+			msg = tea.KeyPressMsg{Code: tea.KeyDown}
 		default:
-			msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(k)}
+			msg = tea.KeyPressMsg{Code: []rune(k)[0], Text: k}
 		}
 		m = drive(t, m, msg)
 	}
@@ -112,23 +112,23 @@ func start(t *testing.T, f *fakeWallet, slot *softkey.Slot) Model {
 func TestApproveWithPassword(t *testing.T) {
 	f := newFake(ipc.MethodPassword)
 	m := start(t, f, &softkey.Slot{})
-	if v := m.View(); !strings.Contains(v, approvalID) || !strings.Contains(v, "spends 4.000000 ADA") {
+	if v := m.content(); !strings.Contains(v, approvalID) || !strings.Contains(v, "spends 4.000000 ADA") {
 		t.Fatalf("the approvals:\n%s", v)
 	}
 	m = press(t, m, "enter")
-	if v := m.View(); !strings.Contains(v, "Pay 4.000000 ADA to addr_test1qz...") || !strings.Contains(v, "[a] approve (password)") {
+	if v := m.content(); !strings.Contains(v, "Pay 4.000000 ADA to addr_test1qz...") || !strings.Contains(v, "[a] approve (password)") {
 		t.Fatalf("the summary:\n%s", v)
 	}
 	m = press(t, m, "a", "s", "e", "c", "r", "x", "backspace", "e", "t")
-	if v := m.View(); strings.Contains(v, "secret") || !strings.Contains(v, "••••••") {
+	if v := m.content(); strings.Contains(v, "secret") || !strings.Contains(v, "••••••") {
 		t.Fatalf("while typing:\n%s", v)
 	}
 	m = press(t, m, "enter")
 	if len(f.completed) != 1 || string(f.completed[0].Password) != "secret" || f.completed[0].Assertion != nil {
 		t.Fatalf("completed %+v", f.completed)
 	}
-	if m.secret != nil || !strings.Contains(m.View(), "Approved") {
-		t.Errorf("after approving: %q\n%s", m.secret, m.View())
+	if m.secret != nil || !strings.Contains(m.content(), "Approved") {
+		t.Errorf("after approving: %q\n%s", m.secret, m.content())
 	}
 }
 
@@ -139,8 +139,8 @@ func TestWrongPassword(t *testing.T) {
 	f.refuse = &ipc.Error{Code: ipc.AuthFailed, Detail: "wrong password"}
 	m := start(t, f, &softkey.Slot{})
 	m = press(t, m, "enter", "a", "x", "enter")
-	if m.stage != reading || !strings.Contains(m.View(), "! ipc: AUTH_FAILED: wrong password") {
-		t.Errorf("after a wrong password, stage %d:\n%s", m.stage, m.View())
+	if m.stage != reading || !strings.Contains(m.content(), "! ipc: AUTH_FAILED: wrong password") {
+		t.Errorf("after a wrong password, stage %d:\n%s", m.stage, m.content())
 	}
 	m = press(t, m, "a", "y", "esc", "a", "enter")
 	if len(f.completed) != 1 || m.stage != reading {
@@ -162,8 +162,8 @@ func TestApproveWithKey(t *testing.T) {
 	slot.Insert(key)
 	m := start(t, f, slot)
 	m = press(t, m, "enter")
-	if !strings.Contains(m.View(), "[a] approve (touch of a registered key)") {
-		t.Fatalf("the summary:\n%s", m.View())
+	if !strings.Contains(m.content(), "[a] approve (touch of a registered key)") {
+		t.Fatalf("the summary:\n%s", m.content())
 	}
 	m = press(t, m, "a")
 	if len(f.completed) != 1 || f.completed[0].Password != nil || f.completed[0].Assertion == nil {
@@ -176,8 +176,8 @@ func TestApproveWithKey(t *testing.T) {
 		t.Errorf("with the PIN: %d completions, %d tries left", len(f.completed), key.Retries)
 	}
 	m = press(t, m, "enter", "a", "0", "0", "0", "0", "enter")
-	if len(f.completed) != 2 || m.stage != reading || !strings.Contains(m.View(), "PIN was wrong") {
-		t.Errorf("a wrong PIN: %d completions, stage %d\n%s", len(f.completed), m.stage, m.View())
+	if len(f.completed) != 2 || m.stage != reading || !strings.Contains(m.content(), "PIN was wrong") {
+		t.Errorf("a wrong PIN: %d completions, stage %d\n%s", len(f.completed), m.stage, m.content())
 	}
 }
 
@@ -189,13 +189,13 @@ func TestNoKey(t *testing.T) {
 	f.ch.Credentials = [][]byte{{1}}
 	m := start(t, f, &softkey.Slot{})
 	m = press(t, m, "enter")
-	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("a")})
-	if !strings.Contains(next.View(), "Insert and touch a registered security key") {
-		t.Errorf("while waiting:\n%s", next.View())
+	next, cmd := m.Update(tea.KeyPressMsg{Code: 'a', Text: "a"})
+	if !strings.Contains(next.(Model).content(), "Insert and touch a registered security key") {
+		t.Errorf("while waiting:\n%s", next.(Model).content())
 	}
 	m = drive(t, next.(Model), cmd())
-	if !strings.Contains(m.View(), "no security key was inserted") || len(f.completed) != 0 {
-		t.Errorf("after the wait:\n%s", m.View())
+	if !strings.Contains(m.content(), "no security key was inserted") || len(f.completed) != 0 {
+		t.Errorf("after the wait:\n%s", m.content())
 	}
 }
 
@@ -205,10 +205,10 @@ func TestRejectAndFreeze(t *testing.T) {
 	m := start(t, f, &softkey.Slot{})
 	m = press(t, m, "r")
 	m = press(t, m, "f")
-	if len(f.rejected) != 1 || f.rejected[0] != approvalID || f.frozen != 1 || !strings.Contains(m.View(), "Every wallet is frozen") {
-		t.Errorf("rejected %v, frozen %d\n%s", f.rejected, f.frozen, m.View())
+	if len(f.rejected) != 1 || f.rejected[0] != approvalID || f.frozen != 1 || !strings.Contains(m.content(), "Every wallet is frozen") {
+		t.Errorf("rejected %v, frozen %d\n%s", f.rejected, f.frozen, m.content())
 	}
-	if _, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("q")}); cmd == nil || cmd() != tea.Quit() {
+	if _, cmd := m.Update(tea.KeyPressMsg{Code: 'q', Text: "q"}); cmd == nil || cmd() != tea.Quit() {
 		t.Error("q does not quit")
 	}
 }
@@ -220,9 +220,9 @@ func TestVisible(t *testing.T) {
 	f.st.Wallets[0].Wallet.Label = "evil\x1b[2J\x1b]0;owned\x07"
 	f.ch.Summary = []string{"bidi \u202egnp.exe", "bell\x07"}
 	m := start(t, f, &softkey.Slot{})
-	views := m.View()
+	views := m.content()
 	m = press(t, m, "enter")
-	views += m.View()
+	views += m.content()
 	for _, bad := range []string{"\x1b", "\x07", "\u202e"} {
 		if strings.Contains(views, bad) {
 			t.Errorf("the view draws %q", bad)

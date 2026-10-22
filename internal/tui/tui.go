@@ -18,7 +18,7 @@ import (
 	"time"
 	"unicode"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/Liet-ada/mcpcardano/internal/fido"
 	"github.com/Liet-ada/mcpcardano/internal/ipc"
@@ -39,9 +39,11 @@ const refresh = 2 * time.Second
 
 // Run shows the view on a terminal until the person quits.
 func Run(ctx context.Context, w Wallet, keys fido.Opener, network string, in io.Reader, out io.Writer) error {
-	p := tea.NewProgram(New(ctx, w, keys, network), tea.WithContext(ctx), tea.WithInput(in), tea.WithOutput(out), tea.WithAltScreen())
+	p := tea.NewProgram(New(ctx, w, keys, network), tea.WithContext(ctx), tea.WithInput(in), tea.WithOutput(out))
 	_, err := p.Run()
-	if errors.Is(err, tea.ErrProgramKilled) {
+	// An interruption from outside, as Ctrl-C to the CLI, is a way to quit;
+	// anything else, a panic included, is an error to report.
+	if errors.Is(err, context.Canceled) {
 		return nil
 	}
 	return err
@@ -138,15 +140,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.stage, m.ch, m.approval = browsing, nil, ""
 		return m, m.fetch
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return m.key(msg)
 	}
 	return m, nil
 }
 
 // key handles what the person presses.
-func (m Model) key(k tea.KeyMsg) (tea.Model, tea.Cmd) {
-	if k.Type == tea.KeyCtrlC {
+func (m Model) key(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	if k.String() == "ctrl+c" {
 		m.forget()
 		return m, tea.Quit
 	}
@@ -232,17 +234,17 @@ func (m Model) approve() (tea.Model, tea.Cmd) {
 
 // typed collects the password or the PIN without drawing it. Enter sends
 // it; Esc, or Enter with nothing typed, declines.
-func (m Model) typed(k tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch k.Type {
-	case tea.KeyEsc:
+func (m Model) typed(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch k.String() {
+	case "esc":
 		m.forget()
 		m.stage = reading
-	case tea.KeyBackspace:
+	case "backspace":
 		if len(m.secret) > 0 {
 			m.secret[len(m.secret)-1] = 0
 			m.secret = m.secret[:len(m.secret)-1]
 		}
-	case tea.KeyEnter:
+	case "enter":
 		if len(m.secret) == 0 {
 			m.stage = reading
 			return m, nil
@@ -262,8 +264,8 @@ func (m Model) typed(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 		pin := string(secret)
 		clear(secret)
 		return m, m.touch(pin)
-	case tea.KeyRunes, tea.KeySpace:
-		m.secret = append(m.secret, string(k.Runes)...)
+	default:
+		m.secret = append(m.secret, k.Text...)
 	}
 	return m, nil
 }
@@ -313,7 +315,14 @@ func (m *Model) forget() {
 	m.secret = nil
 }
 
-func (m Model) View() string {
+// View draws the view on the terminal's alternate screen.
+func (m Model) View() tea.View {
+	v := tea.NewView(m.content())
+	v.AltScreen = true
+	return v
+}
+
+func (m Model) content() string {
 	var b strings.Builder
 	line := func(format string, args ...any) { b.WriteString(visible(fmt.Sprintf(format, args...)) + "\n") }
 	st := m.status

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/Liet-ada/mcpcardano/internal/ipc"
 	"github.com/Liet-ada/mcpcardano/test/softkey"
@@ -50,16 +50,16 @@ func TestViewApproves(t *testing.T) {
 	defer conn.Close()
 	m := New(ctx, conn, slot.Open, "preprod")
 	m = drive(t, m, m.Init()())
-	if !strings.Contains(m.View(), res.ApprovalID) {
-		t.Fatalf("the view:\n%s", m.View())
+	if !strings.Contains(m.content(), res.ApprovalID) {
+		t.Fatalf("the view:\n%s", m.content())
 	}
 	m = press(t, m, "enter")
-	if s := m.View(); !strings.Contains(s, "5.170000 ADA") || !strings.Contains(s, "touch of a registered key") {
+	if s := m.content(); !strings.Contains(s, "5.170000 ADA") || !strings.Contains(s, "touch of a registered key") {
 		t.Fatalf("the summary:\n%s", s)
 	}
 	m = press(t, m, "a")
-	if !strings.Contains(m.View(), "Approved") {
-		t.Fatalf("after the touch:\n%s", m.View())
+	if !strings.Contains(m.content(), "Approved") {
+		t.Fatalf("after the touch:\n%s", m.content())
 	}
 	var st ipc.ApprovalStatus
 	if err := service.Call(ctx, ipc.MsgGetApprovalStatus, &ipc.GetApprovalStatus{ApprovalID: res.ApprovalID}, &st); err != nil || st.Status != ipc.ApprovalApproved {
@@ -71,7 +71,7 @@ func TestViewApproves(t *testing.T) {
 		t.Fatal("the connection outlived the wallet")
 	}
 	m = drive(t, m, tea.Msg(tick{}))
-	if v := m.View(); !strings.Contains(v, "locked: unlock it with mcpcardano unlock") || strings.Contains(v, "! ") {
+	if v := m.content(); !strings.Contains(v, "locked: unlock it with mcpcardano unlock") || strings.Contains(v, "! ") {
 		t.Errorf("after the restart, the view did not connect again:\n%s", v)
 	}
 }
