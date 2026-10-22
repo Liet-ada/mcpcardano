@@ -13,8 +13,13 @@ fmt:
 vet:
 	$(GO) vet ./...
 
+# The wallet is built with purego (section 1.1), so its packages are also
+# tested that way: without assembly in edwards25519 or golang.org/x/crypto.
+WALLET_PKGS = ./internal/hdkey/... ./internal/keystore/... ./internal/authz/... ./internal/txcheck/...
+
 test:
 	$(GO) test -race ./...
+	$(GO) test -race -tags purego $(WALLET_PKGS)
 
 boundaries:
 	$(GO) test -count=1 ./internal/archtest/...
