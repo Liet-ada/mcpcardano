@@ -306,11 +306,35 @@ func TestAdminExitCodes(t *testing.T) {
 	if code := Admin(context.Background(), []string{"status", "-admin", filepath.Join(dir, "none.sock")}, "test", strings.NewReader(""), &out, &errOut); code != ExitUnavailable {
 		t.Errorf("no wallet: %d, %s", code, errOut.String())
 	}
+	// Wrong usage is wrong usage whether the wallet runs or not.
+	if code := Admin(context.Background(), []string{"approve", "d_notanapproval", "-admin", filepath.Join(dir, "none.sock")}, "test", strings.NewReader(""), &out, &errOut); code != ExitUsage {
+		t.Errorf("wrong usage, no wallet: %d", code)
+	}
 	if r := p.run("", "status", "-network", "preview"); r.code != ExitError || !strings.Contains(r.errOut, "-network") {
 		t.Errorf("another network: %+v", r)
 	}
 	if r := p.run("", "approve", "a_aaaaaaaaaaaaaaaaaaaaaaaaaa"); r.code != ExitError || !strings.Contains(r.errOut, "NOT_FOUND") {
 		t.Errorf("an approval that does not exist: %+v", r)
+	}
+	// Flags go anywhere among the arguments; after -- all is an argument.
+	for _, args := range [][]string{
+		{"approve", "a_aaaaaaaaaaaaaaaaaaaaaaaaaa", "-admin", w.Config.AdminSocket},
+		{"approve", "-admin", w.Config.AdminSocket, "--", "a_aaaaaaaaaaaaaaaaaaaaaaaaaa"},
+	} {
+		out.Reset()
+		errOut.Reset()
+		if code := Admin(context.Background(), args, "test", strings.NewReader(""), &out, &errOut); code != ExitError || !strings.Contains(errOut.String(), "NOT_FOUND") {
+			t.Errorf("%q: %d, %s", args, code, errOut.String())
+		}
+	}
+	errOut.Reset()
+	if code := Admin(context.Background(), []string{"approve", "-admin", w.Config.AdminSocket, "--", "-x"}, "test", strings.NewReader(""), &out, &errOut); code != ExitUsage || !strings.Contains(errOut.String(), `"-x" is not an approval id`) {
+		t.Errorf("an argument after --: %d, %s", code, errOut.String())
+	}
+	errOut.Reset()
+	release := []string{"budget", "release", "-admin", w.Config.AdminSocket, "-wallet", id, "--", strings.Repeat("ab", 32), "-x"}
+	if code := Admin(context.Background(), release, "test", strings.NewReader(""), &out, &errOut); code != ExitUsage || !strings.Contains(errOut.String(), `"-x" is not a transaction`) {
+		t.Errorf("arguments after --: %d, %s", code, errOut.String())
 	}
 
 	// policy set reads its file strictly and checks it before asking.

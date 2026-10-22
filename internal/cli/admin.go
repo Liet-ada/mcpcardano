@@ -26,16 +26,16 @@ const (
 	NetworkEnv     = "MCPCARDANO_NETWORK"
 )
 
-// DefaultAdminSocket is where the wallet's admin socket lives once installed
-// (section 5.1).
+// DefaultAdminSocket is where the wallet's admin socket lives once installed:
+// in the wallet's own runtime directory (section 5.1).
 func DefaultAdminSocket() string {
 	if s := os.Getenv(AdminSocketEnv); s != "" {
 		return s
 	}
 	if runtime.GOOS == "darwin" {
-		return "/private/var/run/mcpcardano/wallet-admin.sock"
+		return "/private/var/run/mcpcardano-wallet/admin.sock"
 	}
-	return "/run/mcpcardano/wallet-admin.sock"
+	return "/run/mcpcardano-wallet/admin.sock"
 }
 
 func defaultNetwork() string {
@@ -158,20 +158,14 @@ func Admin(ctx context.Context, args []string, version string, in io.Reader, out
 	if c.flags != nil {
 		c.flags(fs, &o)
 	}
-	if err := fs.Parse(rest); err != nil || (c.nargs >= 0 && fs.NArg() != c.nargs) {
+	args, err := parseAnywhere(fs, rest)
+	if err != nil || (c.nargs >= 0 && len(args) != c.nargs) {
 		return usage()
 	}
-	client, err := ipc.Dial(ctx, *socket, ipc.Hello{Software: "mcpcardano " + version, Network: *network})
-	if err != nil {
-		var e *ipc.Error
-		if !errors.As(err, &e) {
-			err = fmt.Errorf("%w at %s: %v", errUnreachable, *socket, err)
-		}
-		return report(errOut, err)
-	}
-	defer client.Close()
-	a := &admin{ctx: ctx, client: client, codec: ipc.NewCodec(), in: in, out: out, errOut: errOut, network: *network}
-	err = c.run(a, &o, fs.Args())
+	a := &admin{ctx: ctx, socket: *socket, hello: ipc.Hello{Software: "mcpcardano " + version, Network: *network},
+		codec: ipc.NewCodec(), in: in, out: out, errOut: errOut, network: *network}
+	defer a.close()
+	err = c.run(a, &o, args)
 	if errors.Is(err, errUsage) {
 		if msg := strings.TrimPrefix(err.Error(), errUsage.Error()); msg != "" {
 			fmt.Fprintln(errOut, "mcpcardano"+msg)
@@ -179,6 +173,26 @@ func Admin(ctx context.Context, args []string, version string, in io.Reader, out
 		return usage()
 	}
 	return report(errOut, err)
+}
+
+// parseAnywhere parses the flags wherever they come among the arguments, as
+// in `mcpcardano approve <id> -admin path`, and returns the arguments; after
+// "--" everything is an argument.
+func parseAnywhere(fs *flag.FlagSet, args []string) ([]string, error) {
+	var out []string
+	for {
+		if err := fs.Parse(args); err != nil {
+			return nil, err
+		}
+		rest := fs.Args()
+		if len(rest) == 0 {
+			return out, nil
+		}
+		if n := len(args) - len(rest); n > 0 && args[n-1] == "--" {
+			return append(out, rest...), nil
+		}
+		out, args = append(out, rest[0]), rest[1:]
+	}
 }
 
 // usageError reports what is wrong with the arguments.
@@ -219,9 +233,13 @@ func report(errOut io.Writer, err error) int {
 	return ExitError
 }
 
-// admin is a command's connection to the wallet's admin socket.
+// admin is a command's connection to the wallet's admin socket. It connects
+// at the first call, after the command has checked its arguments: wrong
+// usage is exit 2 whether the wallet runs or not.
 type admin struct {
 	ctx         context.Context
+	socket      string
+	hello       ipc.Hello
 	client      *ipc.Client
 	codec       *ipc.Codec
 	in          io.Reader
@@ -229,7 +247,26 @@ type admin struct {
 	network     string
 }
 
-func (a *admin) call(t string, req, resp ipc.Body) error { return a.client.Call(a.ctx, t, req, resp) }
+func (a *admin) call(t string, req, resp ipc.Body) error {
+	if a.client == nil {
+		c, err := ipc.Dial(a.ctx, a.socket, a.hello)
+		var e *ipc.Error
+		if err != nil && !errors.As(err, &e) {
+			err = fmt.Errorf("%w at %s: %v", errUnreachable, a.socket, err)
+		}
+		if err != nil {
+			return err
+		}
+		a.client = c
+	}
+	return a.client.Call(a.ctx, t, req, resp)
+}
+
+func (a *admin) close() {
+	if a.client != nil {
+		a.client.Close()
+	}
+}
 
 func (a *admin) printf(format string, args ...any) { fmt.Fprintf(a.out, format, args...) }
 

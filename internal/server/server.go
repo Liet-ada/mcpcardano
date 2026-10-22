@@ -205,9 +205,10 @@ func listen(path string) (net.Listener, error) {
 	if err != nil {
 		return nil, fmt.Errorf("server: %w", err)
 	}
-	// In H-1 the agent's bridge runs as the same user; H-2 opens the socket
-	// to the person's group (section 10.1).
-	if err := os.Chmod(path, 0o600); err != nil {
+	// The agent's bridge and the mode A signer run as the person, who is in
+	// the group of the server's process; its directory, 0750 under systemd,
+	// keeps everyone else out (section 10.2).
+	if err := os.Chmod(path, 0o660); err != nil {
 		ln.Close()
 		return nil, fmt.Errorf("server: %w", err)
 	}
