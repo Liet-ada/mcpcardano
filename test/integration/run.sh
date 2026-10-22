@@ -30,7 +30,7 @@ go build -trimpath -tags purego -o "$work/" ./cmd/mcpcardano-wallet
 sudo install -m 0755 "$work/mcpcardano" "$work/mcpcardano-server" "$work/mcpcardano-wallet" "$work/mcpcardano-it-load" /usr/local/bin/
 
 echo "== users, group and units"
-sudo systemd-sysusers deploy/sysusers.conf
+sudo systemd-sysusers "$PWD/deploy/sysusers.conf"
 sudo usermod -aG mcpcardano "$(id -un)"
 sudo install -m 0644 deploy/mcpcardano-wallet.service deploy/mcpcardano-server.service /etc/systemd/system/
 sudo systemctl daemon-reload
