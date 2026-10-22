@@ -99,8 +99,11 @@ func TestReserveSignAndReplay(t *testing.T) {
 	if !ok || !equal(got, want) {
 		t.Errorf("after reopening\n%+v\nwant\n%+v", got, want)
 	}
-	if again.Seq() != 3 {
-		t.Errorf("seq %d after reopening", again.Seq())
+	if again.Seq() != 3 || !again.LastTime().Equal(c.now()) {
+		t.Errorf("seq %d, last entry at %v after reopening", again.Seq(), again.LastTime())
+	}
+	if rs := again.Records(w); len(rs) != 1 || !equal(rs[0], want) || len(again.Records(walletID(t))) != 0 {
+		t.Errorf("records %+v", rs)
 	}
 }
 

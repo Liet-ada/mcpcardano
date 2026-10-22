@@ -4,7 +4,7 @@ A non-custodial MCP server that lets AI agents operate on Cardano within limits 
 
 The agent only prepares draft transactions. A separate, network-isolated wallet process re-checks every transaction against per-wallet policies and budgets before signing, and in mode A the person signs on their own hardware wallet.
 
-**Status:** under construction, milestone H-1 (read tools, payment and consolidation drafts, hardware-wallet signing on preprod). Not ready for real funds; mainnet is disabled.
+**Status:** under construction. Milestone H-1 is done (read tools, payment and consolidation drafts, hardware-wallet signing on preprod); milestone H-2, the wallet of modes B and C, is in progress. Not ready for real funds; mainnet is disabled.
 
 ## Build
 
@@ -48,6 +48,29 @@ bin/mcpcardano sign <draft_id> -socket ... -hw-cli ...        # by hand, when th
 `signer init` prints the wallet's address, to add to `config.json`. The signer keeps only cardano-hw-go's signing files, which hold public keys; the private keys never leave the device.
 
 When it starts, the signer asks the hardware wallet for its version once, so that whatever the device needs, a confirmation or the code of a first pairing, is asked then, at the terminal, and not in the middle of a payment. If the device is not ready, the signer logs it and goes on: each draft tries the device again.
+
+### The wallet (milestone H-2, in progress)
+
+`mcpcardano-wallet` keeps the keys of the wallets of modes B and C and signs only what their policies and budgets allow. It runs as its own user, without network, and serves two Unix sockets: the service socket, for the server, and the admin socket, for the person's CLI. The server and the CLI learn to use it in the next steps of H-2.
+
+```
+printf '%s\n' "$PASSWORD" | bin/mcpcardano-wallet -config wallet.json init   # once: creates the key store
+bin/mcpcardano-wallet -config wallet.json -check
+bin/mcpcardano-wallet -config wallet.json
+```
+
+```json
+{
+  "network": "preprod",
+  "data_dir": "/var/lib/mcpcardano-wallet",
+  "service_socket": "/run/mcpcardano/wallet-service.sock",
+  "admin_socket": "/run/mcpcardano/wallet-admin.sock",
+  "service_uid": 990,
+  "admin_uid": 1000
+}
+```
+
+`service_uid` and `admin_uid` are the users the kernel must certify at the other end of each socket: the server's and the person's. The wallet starts locked, and refuses to start if it can reach the network; `"development": true` skips that check, and its audit log records it. `"argon2_memory_mib"` lowers the memory of Argon2id from 256 to as little as 64 on small machines, before `init`.
 
 ## License
 
