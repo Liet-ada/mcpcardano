@@ -3,11 +3,11 @@
 
 // Package signer is the mode A signer (section 6.6 of the specification). It
 // finds the drafts that wait for the person, takes each to the hardware
-// wallet through cardano-hw-cli and hands the signature to the server, which
+// wallet through cardano-hw-go and hands the signature to the server, which
 // checks it belongs exactly to the draft. The device's screen is the check
 // that counts: it shows destinations, amounts and fee.
 //
-// For each wallet the signer keeps only cardano-hw-cli's signing files,
+// For each wallet the signer keeps only cardano-hw-go's signing files,
 // which name a derivation path and a public key; never a private key.
 package signer
 

@@ -234,7 +234,7 @@ func TestCheckDevice(t *testing.T) {
 	}
 }
 
-// TestHWCLI runs the adapter against a stand-in cardano-hw-cli that checks
+// TestHWCLI runs the adapter against a stand-in cardano-hw-go that checks
 // its arguments and answers as the real one does.
 func TestHWCLI(t *testing.T) {
 	dir := t.TempDir()
@@ -244,7 +244,7 @@ func TestHWCLI(t *testing.T) {
 	w, _ := codec().Marshal([]any{uint64(0), []any{[]byte(key.Public().(ed25519.PublicKey)), ed25519.Sign(key, id[:])}})
 	witness, _ := json.Marshal(envelope{Type: "TxWitness ConwayEra", Description: "Key Witness ShelleyEra", CBORHex: hex.EncodeToString(w)})
 	os.WriteFile(filepath.Join(dir, "witness.json"), witness, 0o600)
-	script := filepath.Join(dir, "cardano-hw-cli")
+	script := filepath.Join(dir, "cardano-hw-go")
 	os.WriteFile(script, []byte(`#!/bin/sh
 echo "$@" > "`+dir+`/args"
 if [ -f "`+dir+`/fail" ]; then cat "`+dir+`/fail" >&2; exit 1; fi
@@ -275,13 +275,19 @@ done
 	if json.Unmarshal(txFile, &e) != nil || e.Type != "Unwitnessed Tx ConwayEra" || e.CBORHex != hex.EncodeToString(tx) {
 		t.Errorf("tx file %s", txFile)
 	}
-	// The failures, as cardano-hw-cli 1.19.1 prints them.
+	// The failures, as cardano-hw-go and cardano-hw-cli 1.19.1 print them.
 	for _, c := range []struct {
 		name, out string
 		want      error
 		has       string
 	}{
-		{"a rejection on the device", "Error: Failure_ActionCancelled: Action cancelled by user\n", ErrRejected, ""},
+		{"a rejection on a Trezor", "Error: Cancelled\n", ErrRejected, ""},
+		{"a rejection on a Trezor, by cardano-hw-cli", "Error: Failure_ActionCancelled: Action cancelled by user\n", ErrRejected, ""},
+		{"a rejection on a Ledger", `Error: The requested operation failed. Check that your Ledger device is connected, unlocked and with Cardano app running.
+Details: DeviceStatusError: Action rejected by user on device.
+`, ErrRejected, ""},
+		{"a Trezor not paired yet", "Error: this computer is not paired with the Trezor yet; run `cardano-hw-go device version` in a terminal once to pair it with the code the Trezor shows\n",
+			nil, "run `cardano-hw-go device version` in a terminal once to pair it with the code the Trezor shows"},
 		{"no device", "Error: Error occurred while trying to find hw transport, make sure Ledger or Trezor or Keystone is connected to your computer\n", ErrNoDevice, ""},
 		{"a Trezor Safe 7, taken as a Keystone", `Error: releaseInterface error: invalid state
     at WebUSBDevice._releaseInterface (/snapshot/cardano-hw-cli/node_modules/usb/dist/webusb/webusb-device.js:400:19)
