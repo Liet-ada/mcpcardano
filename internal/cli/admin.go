@@ -162,16 +162,9 @@ func Admin(ctx context.Context, args []string, version string, in io.Reader, out
 	if err != nil || (c.nargs >= 0 && len(args) != c.nargs) {
 		return usage()
 	}
-	client, err := ipc.Dial(ctx, *socket, ipc.Hello{Software: "mcpcardano " + version, Network: *network})
-	if err != nil {
-		var e *ipc.Error
-		if !errors.As(err, &e) {
-			err = fmt.Errorf("%w at %s: %v", errUnreachable, *socket, err)
-		}
-		return report(errOut, err)
-	}
-	defer client.Close()
-	a := &admin{ctx: ctx, client: client, codec: ipc.NewCodec(), in: in, out: out, errOut: errOut, network: *network}
+	a := &admin{ctx: ctx, socket: *socket, hello: ipc.Hello{Software: "mcpcardano " + version, Network: *network},
+		codec: ipc.NewCodec(), in: in, out: out, errOut: errOut, network: *network}
+	defer a.close()
 	err = c.run(a, &o, args)
 	if errors.Is(err, errUsage) {
 		if msg := strings.TrimPrefix(err.Error(), errUsage.Error()); msg != "" {
@@ -240,9 +233,13 @@ func report(errOut io.Writer, err error) int {
 	return ExitError
 }
 
-// admin is a command's connection to the wallet's admin socket.
+// admin is a command's connection to the wallet's admin socket. It connects
+// at the first call, after the command has checked its arguments: wrong
+// usage is exit 2 whether the wallet runs or not.
 type admin struct {
 	ctx         context.Context
+	socket      string
+	hello       ipc.Hello
 	client      *ipc.Client
 	codec       *ipc.Codec
 	in          io.Reader
@@ -250,7 +247,26 @@ type admin struct {
 	network     string
 }
 
-func (a *admin) call(t string, req, resp ipc.Body) error { return a.client.Call(a.ctx, t, req, resp) }
+func (a *admin) call(t string, req, resp ipc.Body) error {
+	if a.client == nil {
+		c, err := ipc.Dial(a.ctx, a.socket, a.hello)
+		var e *ipc.Error
+		if err != nil && !errors.As(err, &e) {
+			err = fmt.Errorf("%w at %s: %v", errUnreachable, a.socket, err)
+		}
+		if err != nil {
+			return err
+		}
+		a.client = c
+	}
+	return a.client.Call(a.ctx, t, req, resp)
+}
+
+func (a *admin) close() {
+	if a.client != nil {
+		a.client.Close()
+	}
+}
 
 func (a *admin) printf(format string, args ...any) { fmt.Fprintf(a.out, format, args...) }
 

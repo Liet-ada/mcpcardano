@@ -306,6 +306,10 @@ func TestAdminExitCodes(t *testing.T) {
 	if code := Admin(context.Background(), []string{"status", "-admin", filepath.Join(dir, "none.sock")}, "test", strings.NewReader(""), &out, &errOut); code != ExitUnavailable {
 		t.Errorf("no wallet: %d, %s", code, errOut.String())
 	}
+	// Wrong usage is wrong usage whether the wallet runs or not.
+	if code := Admin(context.Background(), []string{"approve", "d_notanapproval", "-admin", filepath.Join(dir, "none.sock")}, "test", strings.NewReader(""), &out, &errOut); code != ExitUsage {
+		t.Errorf("wrong usage, no wallet: %d", code)
+	}
 	if r := p.run("", "status", "-network", "preview"); r.code != ExitError || !strings.Contains(r.errOut, "-network") {
 		t.Errorf("another network: %+v", r)
 	}
