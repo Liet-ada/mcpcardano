@@ -245,3 +245,78 @@ func TestBech32(t *testing.T) {
 		t.Errorf("Byron address: %s", got)
 	}
 }
+
+// TestParseAddress reads back the addresses of TestBech32 and those of
+// CIP-19, and refuses what is not a payment address of the network.
+func TestParseAddress(t *testing.T) {
+	cases := []struct {
+		n             Network
+		address, want string
+	}{
+		{Preprod, "addr_test1qrkk3gdqruhhn9ya44xcgqrkpe9fp737e7c9hgs06xturtqpkdqaf773t2wv0v2fdhxlequtxwq7gm66sfg5u630nvyq8l53zd",
+			"00ed68a1a01f2f79949dad4d8400760e4a90fa3ecfb05ba20fd197c1ac01b341d4fbd15a9cc7b1496dcdfc838b3381e46f5a82514e6a2f9b08"},
+		{Mainnet, "addr1qx2fxv2umyhttkxyxp8x0dlpdt3k6cwng5pxj3jhsydzer3n0d3vllmyqwsx5wktcd8cc3sq835lu7drv2xwl2wywfgse35a3x",
+			"019493315cd92eb5d8c4304e67b7e16ae36d61d34502694657811a2c8e337b62cfff6403a06a3acbc34f8c46003c69fe79a3628cefa9c47251"},
+		{Preview, "addr_test1vz2fxv2umyhttkxyxp8x0dlpdt3k6cwng5pxj3jhsydzerspjrlsz", "609493315cd92eb5d8c4304e67b7e16ae36d61d34502694657811a2c8e"},
+		{Preprod, "addr_test1gz2fxv2umyhttkxyxp8x0dlpdt3k6cwng5pxj3jhsydzer5pnz75xxcrdw5vky",
+			"409493315cd92eb5d8c4304e67b7e16ae36d61d34502694657811a2c8e8198bd431b03"},
+	}
+	for _, c := range cases {
+		a, err := ParseAddress(c.n, c.address)
+		if err != nil || hex.EncodeToString(a.Raw) != c.want || a.Bech32() != c.address {
+			t.Errorf("%s: %x, %v", c.address, a.Raw, err)
+		}
+	}
+	good := cases[0].address
+	for name, s := range map[string]string{
+		"other network":  cases[1].address,
+		"wrong checksum": good[:len(good)-1] + "q",
+		"uppercase":      strings.ToUpper(good),
+		"not bech32":     "addr_test1qrkk3gdqruhhn9ya44xcgqrkpe9fbio",
+		"no separator":   "addrtest",
+		"reward account": (Address{Raw: append([]byte{0xe0}, make([]byte, 28)...)}).Bech32(),
+		"short base":     Bech32("addr_test", append([]byte{0x00}, make([]byte, 28)...)),
+		"script hrp":     Bech32("stake_test", append([]byte{0x60}, make([]byte, 28)...)),
+		"mainnet id":     Bech32("addr_test", append([]byte{0x61}, make([]byte, 28)...)),
+		"padding":        padded(),
+		"empty":          "",
+	} {
+		if _, err := ParseAddress(Preprod, s); !errors.Is(err, ErrInvalidAddress) {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+}
+
+// padded is an enterprise address whose last 5-bit group carries a padding
+// bit set, with a valid checksum: BIP-173 requires the padding to be zero.
+func padded() string {
+	values := convertBits(append([]byte{0x60}, make([]byte, 28)...))
+	values[len(values)-1] |= 1
+	mod := polymod(append(append(hrpExpand("addr_test"), values...), 0, 0, 0, 0, 0, 0)) ^ 1
+	var b strings.Builder
+	b.WriteString("addr_test1")
+	for _, v := range values {
+		b.WriteByte(charset[v])
+	}
+	for i := range 6 {
+		b.WriteByte(charset[(mod>>(5*(5-i)))&31])
+	}
+	return b.String()
+}
+
+// FuzzParseAddress: any text either fails or is an address whose text form
+// is the same text.
+func FuzzParseAddress(f *testing.F) {
+	f.Add("addr_test1qrkk3gdqruhhn9ya44xcgqrkpe9fp737e7c9hgs06xturtqpkdqaf773t2wv0v2fdhxlequtxwq7gm66sfg5u630nvyq8l53zd")
+	f.Add("addr_test1gz2fxv2umyhttkxyxp8x0dlpdt3k6cwng5pxj3jhsydzer5pnz75xxcrdw5vky")
+	f.Add("addr_test1vz2fxv2umyhttkxyxp8x0dlpdt3k6cwng5pxj3jhsydzerspjrlsz")
+	f.Fuzz(func(t *testing.T, s string) {
+		a, err := ParseAddress(Preprod, s)
+		if err != nil {
+			return
+		}
+		if got := a.Bech32(); got != s {
+			t.Errorf("%q reads back as %q", s, got)
+		}
+	})
+}

@@ -20,10 +20,11 @@ import (
 
 // Exit codes of the CLI (section 6.5).
 const (
-	ExitOK       = 0
-	ExitError    = 1
-	ExitUsage    = 2
-	ExitRejected = 3
+	ExitOK          = 0
+	ExitError       = 1
+	ExitUsage       = 2
+	ExitRejected    = 3 // the authorization was refused, expired or declined
+	ExitUnavailable = 4 // the wallet does not answer, or is locked
 )
 
 // HWCLIEnv names the environment variable with the path of cardano-hw-go.
