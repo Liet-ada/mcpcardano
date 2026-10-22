@@ -177,7 +177,7 @@ func runAdmin(ctx context.Context, args []string, version string, in io.Reader, 
 		return usage()
 	}
 	a := &admin{ctx: ctx, socket: *socket, hello: ipc.Hello{Software: "mcpcardano " + version, Network: *network},
-		codec: ipc.NewCodec(), in: in, out: out, errOut: errOut, network: *network, keys: k}
+		codec: ipc.NewCodec(), in: in, out: out, errOut: errOut, network: *network, keys: k, command: name}
 	defer a.close()
 	err = c.run(a, &o, args)
 	if errors.Is(err, errUsage) {
@@ -260,6 +260,7 @@ type admin struct {
 	out, errOut io.Writer
 	network     string
 	keys        keys
+	command     string            // the command's name, as "recover status"
 	st          *ipc.StatusReport // the status when the command connected
 }
 

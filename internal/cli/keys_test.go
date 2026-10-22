@@ -155,11 +155,16 @@ func TestKeyCommands(t *testing.T) {
 	// A recovery with the password: every command warns of it, and the
 	// key cancels it.
 	p.slot.insert()
-	if r := p.must(password, "recover start"); !strings.Contains(r.out, "every wallet is frozen") {
-		t.Errorf("recover start:\n%s", r.out)
+	if r := p.must(password, "recover start"); !strings.Contains(r.out, "every wallet is frozen") ||
+		!strings.Contains(r.errOut, "after 72 hours the registered key is removed") {
+		t.Errorf("recover start:\n%s%s", r.errOut, r.out)
 	}
-	if r := p.must("", "recover status"); !strings.Contains(r.out, "the registered keys will be removed") || !strings.Contains(r.errOut, "mcpcardano recover cancel") {
-		t.Errorf("recover status:\n%s%s", r.errOut, r.out)
+	if r := p.must("", "recover status"); !strings.Contains(r.out, "the registered keys will be removed") ||
+		!strings.Contains(r.out, "mcpcardano recover cancel") || r.errOut != "" {
+		t.Errorf("recover status, which says it once:\n%s%s", r.errOut, r.out)
+	}
+	if r := p.must("", "key list"); !strings.Contains(r.errOut, "If you did not start it, cancel it now") {
+		t.Errorf("another command during the recovery:\n%s", r.errOut)
 	}
 	p.slot.insert(backup)
 	p.must("", "recover cancel")

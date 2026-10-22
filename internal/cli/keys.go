@@ -7,6 +7,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/Liet-ada/mcpcardano/internal/fido"
@@ -106,6 +107,9 @@ func (a *admin) assert(ch *ipc.Challenge) (*ipc.Assertion, error) {
 // warnRecovery says, at every use of the CLI, that a recovery without keys
 // is waiting, and how to cancel it (decision 123).
 func (a *admin) warnRecovery(st *ipc.StatusReport) {
+	if strings.HasPrefix(a.command, "recover ") {
+		return // the recover commands say it themselves
+	}
 	if r := st.Recovery; r != nil {
 		fmt.Fprintf(a.errOut, "A recovery without keys is waiting: at %s the registered keys will be removed and the password will authorize again.\n"+
 			"If you did not start it, cancel it now with a registered key: mcpcardano recover cancel\n", clock(r.EndsAt))
@@ -247,8 +251,9 @@ func (a *admin) recoverStatus(*options, []string) error {
 		a.printf("No recovery is waiting.\n")
 		return nil
 	}
-	a.printf("A recovery started at %s; at %s the registered keys will be removed.\n",
+	a.printf("A recovery started at %s; at %s the registered keys will be removed and the password will authorize again.\n",
 		clock(st.Recovery.StartedAt), clock(st.Recovery.EndsAt))
+	a.printf("If you did not start it, cancel it now with a registered key: mcpcardano recover cancel\n")
 	return nil
 }
 
