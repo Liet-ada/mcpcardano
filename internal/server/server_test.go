@@ -39,7 +39,7 @@ func TestResolveExample(t *testing.T) {
 		t.Errorf("warnings %v", warnings)
 	}
 	w := s.Wallets[0]
-	if s.Socket != "/var/lib/mcpcardano-server/mcp.sock" || s.WalletSocket != "/run/mcpcardano/wallet-service.sock" ||
+	if s.Socket != "/var/lib/mcpcardano-server/mcp.sock" || s.WalletSocket != "/run/mcpcardano-wallet/service.sock" ||
 		w.Mode != model.ModeA || w.Policy.Limits.PerTx != 100_000_000 ||
 		w.Policy.UTxO.DustThreshold != 1_000_000 || len(w.Policy.Assets) != 1 {
 		t.Errorf("settings %+v", s)
@@ -243,7 +243,7 @@ func TestRun(t *testing.T) {
 		t.Fatalf("an unavailable source: %v", res)
 	}
 	info, err := os.Stat(s.Socket)
-	if err != nil || info.Mode().Perm() != 0o600 {
+	if err != nil || info.Mode().Perm() != 0o660 {
 		t.Errorf("socket mode %v, %v", info.Mode().Perm(), err)
 	}
 	if err := Run(ctx, s, Options{Source: source{}}); err == nil || !strings.Contains(err.Error(), "another server") {

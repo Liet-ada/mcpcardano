@@ -19,17 +19,17 @@ import (
 // SocketEnv names the environment variable that overrides the socket path.
 const SocketEnv = "MCPCARDANO_SOCKET"
 
-// DefaultSocket is where the server's MCP socket lives once installed
-// (section 10.1). On the development Mac of H-1 the path comes from
-// MCPCARDANO_SOCKET or -socket.
+// DefaultSocket is where the server's MCP socket lives once installed: in the
+// server's own runtime directory (section 10.2). In development the path
+// comes from MCPCARDANO_SOCKET or -socket.
 func DefaultSocket() string {
 	if s := os.Getenv(SocketEnv); s != "" {
 		return s
 	}
 	if runtime.GOOS == "darwin" {
-		return "/private/var/run/mcpcardano/mcp.sock"
+		return "/private/var/run/mcpcardano-server/mcp.sock"
 	}
-	return "/run/mcpcardano/mcp.sock"
+	return "/run/mcpcardano-server/mcp.sock"
 }
 
 // Bridge joins an MCP client's standard input and output to the server's MCP

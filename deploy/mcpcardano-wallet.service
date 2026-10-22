@@ -1,0 +1,47 @@
+# SPDX-License-Identifier: Apache-2.0
+# The wallet (section 10.3): the keys of the wallets of modes B and C, with
+# its own user and no network. Its sockets live in /run/mcpcardano-wallet,
+# 0750 with the group mcpcardano; the kernel certifies the user at the other
+# end of each. It starts locked: the person unlocks it with mcpcardano unlock.
+# Create its key store once, before the first start (see deploy/README.md).
+[Unit]
+Description=mcpcardano wallet
+Before=mcpcardano-server.service
+
+[Service]
+Type=simple
+User=mcpcardano-wallet
+Group=mcpcardano
+ExecStart=/usr/local/bin/mcpcardano-wallet -config /etc/mcpcardano-wallet/config.json
+Restart=on-failure
+StateDirectory=mcpcardano-wallet
+StateDirectoryMode=0700
+RuntimeDirectory=mcpcardano-wallet
+RuntimeDirectoryMode=0750
+UMask=0077
+
+PrivateNetwork=yes
+RestrictAddressFamilies=AF_UNIX
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+MemoryDenyWriteExecute=yes
+SystemCallFilter=@system-service
+SystemCallArchitectures=native
+LimitCORE=0
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+
+[Install]
+WantedBy=multi-user.target

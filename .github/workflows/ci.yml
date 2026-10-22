@@ -26,3 +26,15 @@ jobs:
         run: |
           bad=$(git log --format='%H %ae' | awk '$2 != "343741453+Liet-ada@users.noreply.github.com"')
           if [ -n "$bad" ]; then echo "$bad"; exit 1; fi
+
+  # The services as deploy/ installs them, each with its own user, under
+  # systemd (section 11.1).
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: test/integration/run.sh
