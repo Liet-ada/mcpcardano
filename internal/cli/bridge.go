@@ -2,7 +2,8 @@
 // Copyright 2026 Liet-ada
 
 // Package cli holds the commands of the mcpcardano CLI (section 6.1 of the
-// specification). Milestone H-1 starts with the MCP bridge.
+// specification): the MCP bridge, the mode A signer, and the person's
+// commands on the wallet's admin socket.
 package cli
 
 import (

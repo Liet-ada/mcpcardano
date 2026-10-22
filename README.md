@@ -51,7 +51,7 @@ When it starts, the signer asks the hardware wallet for its version once, so tha
 
 ### The wallet (milestone H-2, in progress)
 
-`mcpcardano-wallet` keeps the keys of the wallets of modes B and C and signs only what their policies and budgets allow. It runs as its own user, without network, and serves two Unix sockets: the service socket, for the server, and the admin socket, for the person's CLI. The person's commands arrive with the CLI in the next step of H-2.
+`mcpcardano-wallet` keeps the keys of the wallets of modes B and C and signs only what their policies and budgets allow. It runs as its own user, without network, and serves two Unix sockets: the service socket, for the server, and the admin socket, for the person's CLI. The person runs the wallet with `mcpcardano`, below.
 
 ```
 printf '%s\n' "$PASSWORD" | bin/mcpcardano-wallet -config wallet.json init   # once: creates the key store
@@ -73,6 +73,25 @@ bin/mcpcardano-wallet -config wallet.json
 `service_uid` and `admin_uid` are the users the kernel must certify at the other end of each socket: the server's and the person's. The wallet starts locked, and refuses to start if it can reach the network; `"development": true` skips that check, and its audit log records it. `"argon2_memory_mib"` lowers the memory of Argon2id from 256 to as little as 64 on small machines, before `init`.
 
 The server talks to the wallet when its `config.json` names the service socket in `"wallet_socket"`. Its wallets then appear in `list_wallets` next to those of mode A, and the agent can create one with `create_wallet`, which gets the person's template. `authorize_draft` asks the wallet to sign: in mode C it signs within the policy and the budget and the server sends the transaction at once; in mode B, above the approval threshold, the draft waits in `pending_approval` until the person approves it. While the wallet is locked, `authorize_draft` answers `WALLET_UNAVAILABLE` and the draft waits for the agent to ask again.
+
+### The person's commands
+
+`mcpcardano` talks to the wallet's admin socket (`-admin`, or `MCPCARDANO_ADMIN_SOCKET`) on its network (`-network`, or `MCPCARDANO_NETWORK`; preprod by default). What lowers the risk needs nothing; what raises what can be spent shows the summary the wallet computed and asks for the password, without echo.
+
+```
+mcpcardano unlock                                   # after each start of the wallet
+mcpcardano status                                   # wallets, sessions, approvals waiting
+mcpcardano approve <approval_id> | reject <approval_id>
+mcpcardano freeze [-wallet id] | unfreeze -wallet id
+mcpcardano session open -wallet id -for 1h -max 50000000 | session close -wallet id
+mcpcardano policy show -wallet id > policy.json     # or -template
+mcpcardano policy set -wallet id policy.json        # or -template; mode B or C
+mcpcardano budget pending | budget release -wallet id [transaction ...]
+mcpcardano wallet create -label name | wallet restore -label name | wallet backup -wallet id
+mcpcardano audit show [-from seq] | audit verify
+```
+
+`policy show` writes the policy in the JSON of the server's `config.json`, with the mode, `session_required` and `structure` besides; edit it and give it to `policy set`. Freezing is not in it: `freeze` and `unfreeze` change it. Amounts are lovelace. Exit codes: 0 done, 1 error, 2 wrong usage, 3 authorization refused, expired or declined, 4 the wallet does not answer or is locked.
 
 ## License
 
