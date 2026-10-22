@@ -27,6 +27,11 @@ const cip20Label = 674
 type DecodedTx struct {
 	ID     [32]byte
 	Inputs []TxIn
+	// Body and AuxData are the body, whose hash is the ID, and the auxiliary
+	// data, nil if there is none, as they appear in the transaction. The
+	// wallet receives them apart (section 5.3).
+	Body    []byte
+	AuxData []byte
 	// View is the transaction as policy sees it (section 3.5). No output is
 	// marked as own: only the caller knows the wallet.
 	View model.TxView
@@ -56,7 +61,10 @@ func DecodeTransaction(raw []byte) (*DecodedTx, error) {
 		return nil, fmt.Errorf("%w: %v", ErrInvalidTransaction, err)
 	}
 	b := &tx.Body
-	d := &DecodedTx{ID: [32]byte(tx.Id())}
+	d := &DecodedTx{ID: [32]byte(tx.Id()), Body: b.Cbor()}
+	if aux := tx.AuxiliaryData(); aux != nil {
+		d.AuxData = aux.Cbor()
+	}
 	for _, in := range tx.Inputs() {
 		d.Inputs = append(d.Inputs, TxIn{TxID: [32]byte(in.Id()), Index: in.Index()})
 	}
