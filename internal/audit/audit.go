@@ -224,56 +224,65 @@ func Read(ctx context.Context, path string, opts Options) ([]Entry, Recovery, er
 // incomplete last entry; any other damage is an error wrapping
 // ErrBrokenChain, and the log stays untouched.
 func Open(ctx context.Context, path string, opts Options) (*Log, Recovery, error) {
+	l, _, rec, err := OpenEntries(ctx, path, opts)
+	return l, rec, err
+}
+
+// OpenEntries is Open that also returns the verified entries, header
+// included, for a log whose state is rebuilt from them, such as the wallet's
+// spending record.
+func OpenEntries(ctx context.Context, path string, opts Options) (*Log, []Entry, Recovery, error) {
 	opts = opts.withDefaults()
 	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0o600)
 	if err != nil {
-		return nil, Recovery{}, err
+		return nil, nil, Recovery{}, err
 	}
-	l, rec, err := open(ctx, f, path, opts)
+	l, entries, rec, err := open(ctx, f, path, opts)
 	if err != nil {
 		f.Close()
-		return nil, Recovery{}, err
+		return nil, nil, Recovery{}, err
 	}
-	return l, rec, nil
+	return l, entries, rec, nil
 }
 
-func open(ctx context.Context, f *os.File, path string, opts Options) (*Log, Recovery, error) {
+func open(ctx context.Context, f *os.File, path string, opts Options) (*Log, []Entry, Recovery, error) {
 	c := newCodec()
 	st, err := scan(ctx, f, c, opts)
 	if err != nil {
-		return nil, Recovery{}, err
+		return nil, nil, Recovery{}, err
 	}
 	var rec Recovery
 	if st.partial {
 		size, err := f.Seek(0, io.SeekEnd)
 		if err != nil {
-			return nil, Recovery{}, err
+			return nil, nil, Recovery{}, err
 		}
 		rec.Discarded = size - st.good
 		if err := f.Truncate(st.good); err != nil {
-			return nil, Recovery{}, fmt.Errorf("audit: cutting an incomplete entry: %w", err)
+			return nil, nil, Recovery{}, fmt.Errorf("audit: cutting an incomplete entry: %w", err)
 		}
 		if err := f.Sync(); err != nil {
-			return nil, Recovery{}, err
+			return nil, nil, Recovery{}, err
 		}
 	}
 	if _, err := f.Seek(st.good, io.SeekStart); err != nil {
-		return nil, Recovery{}, err
+		return nil, nil, Recovery{}, err
 	}
 	l := &Log{f: f, codec: c, opts: opts, last: make([]byte, sha256.Size)}
 	if n := len(st.entries); n > 0 {
 		l.seq = st.entries[n-1].Seq
 		l.last = st.entries[n-1].Hash
-		return l, rec, nil
+		return l, st.entries, rec, nil
 	}
 	// A new log, or one that crashed before its header was complete.
-	if _, err := l.append(HeaderType, header{V: FormatVersion, Kind: opts.Kind}); err != nil {
-		return nil, Recovery{}, err
+	h, err := l.append(HeaderType, header{V: FormatVersion, Kind: opts.Kind})
+	if err != nil {
+		return nil, nil, Recovery{}, err
 	}
 	if err := syncDir(filepath.Dir(path)); err != nil {
-		return nil, Recovery{}, err
+		return nil, nil, Recovery{}, err
 	}
-	return l, rec, nil
+	return l, []Entry{h}, rec, nil
 }
 
 func syncDir(dir string) error {
