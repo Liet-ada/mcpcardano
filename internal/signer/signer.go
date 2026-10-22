@@ -193,6 +193,22 @@ func (s *Signer) walletAddress(ctx context.Context, walletID string) (model.Netw
 	return "", "", fmt.Errorf("signer: the server has no wallet %s", walletID)
 }
 
+// CheckDevice asks the hardware wallet for its version, so that the person
+// meets what it asks for, a confirmation or a pairing code, at the start
+// and at the terminal, not in the middle of a payment. It logs the outcome;
+// a failure does not stop the signer, which tries the device again with
+// each draft.
+func (s *Signer) CheckDevice(ctx context.Context) error {
+	s.log().Info("checking the hardware wallet; confirm on it if it asks")
+	v, err := s.Device.Version(ctx)
+	if err != nil {
+		s.log().Warn("hardware wallet not ready", "err", err)
+		return err
+	}
+	s.log().Info("hardware wallet ready", "device", v)
+	return nil
+}
+
 // Run looks for drafts waiting for the person every `every` and signs them
 // one at a time, until ctx ends. It takes each draft to the device once; a
 // draft whose signing failed waits for `mcpcardano sign`.

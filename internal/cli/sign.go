@@ -100,6 +100,7 @@ func Signer(ctx context.Context, args []string, version string, out, errOut io.W
 	}
 	log := slog.New(slog.NewTextHandler(errOut, nil))
 	log.Info("signer started", "socket", c.socket, "keys", c.keys)
+	c.signer(nil, log).CheckDevice(ctx)
 	// Reconnect when the server restarts, until the person stops the signer.
 	for ctx.Err() == nil {
 		client, err := mcpclient.Dial(ctx, c.socket, version)

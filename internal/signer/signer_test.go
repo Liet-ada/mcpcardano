@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -54,10 +55,11 @@ func TestBaseAddress(t *testing.T) {
 // softDevice signs with a key held in memory, standing in for the hardware
 // wallet. reject makes the person say no.
 type softDevice struct {
-	key    ed25519.PrivateKey
-	reject bool
-	other  bool // sign another transaction
-	seen   []byte
+	key     ed25519.PrivateKey
+	reject  bool
+	other   bool // sign another transaction
+	missing bool // not connected
+	seen    []byte
 }
 
 func (d *softDevice) KeyGen(_ context.Context, dir string) error {
@@ -72,6 +74,13 @@ func (d *softDevice) KeyGen(_ context.Context, dir string) error {
 }
 
 func (d *softDevice) ShowAddress(context.Context, string) error { return nil }
+
+func (d *softDevice) Version(context.Context) (string, error) {
+	if d.missing {
+		return "", ErrNoDevice
+	}
+	return "Soft device 1.0.0", nil
+}
 
 func (d *softDevice) Witness(_ context.Context, _ model.Network, tx []byte, _ string) ([]byte, []byte, error) {
 	d.seen = tx
@@ -211,6 +220,20 @@ func TestSignRefuses(t *testing.T) {
 	}
 }
 
+func TestCheckDevice(t *testing.T) {
+	s, dev, _ := setup(t)
+	var log bytes.Buffer
+	s.Logger = slog.New(slog.NewTextHandler(&log, nil))
+	if err := s.CheckDevice(t.Context()); err != nil || !strings.Contains(log.String(), `device="Soft device 1.0.0"`) {
+		t.Errorf("connected: %v; log %s", err, log.String())
+	}
+	log.Reset()
+	dev.missing = true
+	if err := s.CheckDevice(t.Context()); !errors.Is(err, ErrNoDevice) || !strings.Contains(log.String(), "hardware wallet not ready") {
+		t.Errorf("missing: %v; log %s", err, log.String())
+	}
+}
+
 // TestHWCLI runs the adapter against a stand-in cardano-hw-cli that checks
 // its arguments and answers as the real one does.
 func TestHWCLI(t *testing.T) {
@@ -225,6 +248,7 @@ func TestHWCLI(t *testing.T) {
 	os.WriteFile(script, []byte(`#!/bin/sh
 echo "$@" > "`+dir+`/args"
 if [ -f "`+dir+`/fail" ]; then cat "`+dir+`/fail" >&2; exit 1; fi
+if [ "$1 $2" = "device version" ]; then echo "Confirm on the Trezor." >&2; echo "Trezor app version 2.12.5"; exit 0; fi
 while [ $# -gt 0 ]; do
   if [ "$1" = "--out-file" ]; then cp "`+dir+`/witness.json" "$2"; fi
   if [ "$1" = "--tx-file" ]; then cp "$2" "`+dir+`/tx.json"; fi
@@ -232,6 +256,9 @@ while [ $# -gt 0 ]; do
 done
 `), 0o700)
 	h := HWCLI{Path: script}
+	if v, err := h.Version(t.Context()); err != nil || v != "Trezor app version 2.12.5" {
+		t.Errorf("version: %q, %v", v, err)
+	}
 	vkey, sig, err := h.Witness(t.Context(), model.Preprod, tx, "/keys")
 	if err != nil || !ed25519.Verify(vkey, id[:], sig) {
 		t.Fatalf("witness: %v", err)

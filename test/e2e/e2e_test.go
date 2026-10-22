@@ -106,6 +106,8 @@ func (d device) KeyGen(_ context.Context, dir string) error {
 
 func (d device) ShowAddress(context.Context, string) error { return nil }
 
+func (d device) Version(context.Context) (string, error) { return "e2e device", nil }
+
 func (d device) Witness(_ context.Context, _ model.Network, tx []byte, _ string) ([]byte, []byte, error) {
 	c, _ := cborx.New(cborx.Limits{MaxDepth: 64, MaxArrayElements: 1 << 16, MaxMapPairs: 1 << 16, AllowTags: true})
 	var parts []cborx.Raw

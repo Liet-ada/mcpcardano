@@ -45,6 +45,8 @@ bin/mcpcardano sign <draft_id> -socket ... -hw-cli ...        # by hand, when th
 
 `signer init` prints the wallet's address, to add to `config.json`. The signer keeps only cardano-hw-cli's signing files, which hold public keys; the private keys never leave the device.
 
+When it starts, the signer asks the hardware wallet for its version once, so that whatever the device needs, a confirmation or the code of a first pairing, is asked then, at the terminal, and not in the middle of a payment. If the device is not ready, the signer logs it and goes on: each draft tries the device again.
+
 ## License
 
 Apache-2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
