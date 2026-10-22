@@ -19,11 +19,13 @@ Requires Go 1.26.8 or newer.
 The server runs on its own and serves MCP on a Unix socket. An MCP client reaches it through `mcpcardano mcp`, a bridge it starts like any stdio server.
 
 ```
-go build -o bin/ ./cmd/...
+go build -trimpath -o bin/ ./cmd/...
 bin/mcpcardano-server -new-wallet-id          # an id for each wallet in config.json
 bin/mcpcardano-server -config config.json -check
 bin/mcpcardano-server -config config.json
 ```
+
+`-trimpath` keeps the paths of the build machine, and the user name in them, out of the binaries. `mcpcardano-server` still carries the path of the Go module cache in two strings: they come from assembly files of a dependency (gnark-crypto) that are `#include`d from another directory, and `-trimpath` does not rewrite those. Share only binaries built where that path names no one.
 
 See [internal/server/testdata/config.json](internal/server/testdata/config.json) for the format. The wallets of H-1 are hardware wallets (mode A): the server only knows their address and policy, and every payment is confirmed on the device. Amounts are lovelace as decimal strings; a limit at zero forbids.
 
