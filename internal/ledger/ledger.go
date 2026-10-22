@@ -110,6 +110,7 @@ type Record struct {
 // state is what the entries say, rebuilt on opening.
 type state struct {
 	seq     uint64
+	last    time.Time // of the last entry
 	records map[[32]byte]*Record
 	wallets map[model.WalletID]*wallet
 }
@@ -168,7 +169,7 @@ func Open(ctx context.Context, path string, now func() time.Time) (*Ledger, audi
 		}
 	}
 	if n := len(entries); n > 0 {
-		st.seq = entries[n-1].Seq
+		st.seq, st.last = entries[n-1].Seq, time.Unix(entries[n-1].Time, 0)
 	}
 	return &Ledger{log: log, codec: c, st: st}, rec, nil
 }
@@ -308,8 +309,29 @@ func (l *Ledger) append(ctx context.Context, typ string, body any) error {
 		l.log.Close()
 		return err
 	}
-	l.st.seq = e.Seq
+	l.st.seq, l.st.last = e.Seq, time.Unix(e.Time, 0)
 	return nil
+}
+
+// LastTime returns the time of the last entry, which `mcpcardano status`
+// shows so the person notices a copy restored by mistake (section 7.7).
+func (l *Ledger) LastTime() time.Time {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.st.last
+}
+
+// Records returns the reservations of a wallet, in record order.
+func (l *Ledger) Records(w model.WalletID) []Record {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	var out []Record
+	if wl := l.st.wallets[w]; wl != nil {
+		for _, r := range wl.records {
+			out = append(out, *r)
+		}
+	}
+	return out
 }
 
 // Pending returns the reservations of a wallet whose TTL has passed by the

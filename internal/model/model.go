@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
 )
 
 // Network is a Cardano network.
@@ -37,6 +38,37 @@ func (n Network) AddressID() uint8 {
 		return 1
 	}
 	return 0
+}
+
+// SlotClock converts between slots and time on a network. After the Byron
+// era every network uses one-second slots.
+type SlotClock struct {
+	ShelleySlot uint64 // first slot of the Shelley era
+	ShelleyTime int64  // Unix time of that slot
+}
+
+// Clock returns the slot clock of n, from its genesis files. The wallet
+// computes the current slot with it and its own clock, never with the tip the
+// server reports (section 9.3).
+func (n Network) Clock() SlotClock {
+	switch n {
+	case Mainnet:
+		return SlotClock{ShelleySlot: 4_492_800, ShelleyTime: 1_596_059_091}
+	case Preprod:
+		return SlotClock{ShelleySlot: 86_400, ShelleyTime: 1_655_769_600}
+	default: // preview has no Byron era
+		return SlotClock{ShelleySlot: 0, ShelleyTime: 1_666_656_000}
+	}
+}
+
+// Time returns the start of a Shelley-era slot.
+func (c SlotClock) Time(slot uint64) time.Time {
+	return time.Unix(c.ShelleyTime+int64(slot-c.ShelleySlot), 0).UTC()
+}
+
+// Slot returns the slot that contains t, which must be in the Shelley era.
+func (c SlotClock) Slot(t time.Time) uint64 {
+	return c.ShelleySlot + uint64(t.Unix()-c.ShelleyTime)
 }
 
 // Mode is how a wallet signs (paper, section 2.3).
