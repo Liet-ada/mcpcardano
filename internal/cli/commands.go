@@ -268,6 +268,7 @@ func (a *admin) walletCreate(o *options, _ []string) error {
 	}
 	a.printWallet(w)
 	a.printf("Write down its recovery phrase with: mcpcardano wallet backup -wallet %s\n", w.ID)
+	a.suggestKey()
 	return nil
 }
 
@@ -285,6 +286,7 @@ func (a *admin) walletRestore(o *options, _ []string) error {
 		return err
 	}
 	a.printWallet(w)
+	a.suggestKey()
 	return nil
 }
 
