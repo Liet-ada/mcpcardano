@@ -26,16 +26,16 @@ const (
 	NetworkEnv     = "MCPCARDANO_NETWORK"
 )
 
-// DefaultAdminSocket is where the wallet's admin socket lives once installed
-// (section 5.1).
+// DefaultAdminSocket is where the wallet's admin socket lives once installed:
+// in the wallet's own runtime directory (section 5.1).
 func DefaultAdminSocket() string {
 	if s := os.Getenv(AdminSocketEnv); s != "" {
 		return s
 	}
 	if runtime.GOOS == "darwin" {
-		return "/private/var/run/mcpcardano/wallet-admin.sock"
+		return "/private/var/run/mcpcardano-wallet/admin.sock"
 	}
-	return "/run/mcpcardano/wallet-admin.sock"
+	return "/run/mcpcardano-wallet/admin.sock"
 }
 
 func defaultNetwork() string {

@@ -51,7 +51,7 @@ When it starts, the signer asks the hardware wallet for its version once, so tha
 
 ### The wallet (milestone H-2, in progress)
 
-`mcpcardano-wallet` keeps the keys of the wallets of modes B and C and signs only what their policies and budgets allow. It runs as its own user, without network, and serves two Unix sockets: the service socket, for the server, and the admin socket, for the person's CLI. The person runs the wallet with `mcpcardano`, below.
+`mcpcardano-wallet` keeps the keys of the wallets of modes B and C and signs only what their policies and budgets allow. It runs as its own user, without network, and serves two Unix sockets: the service socket, for the server, and the admin socket, for the person's CLI. The person runs the wallet with `mcpcardano`, below. On Linux both run as services of systemd, each with its own user: see [deploy/README.md](deploy/README.md).
 
 ```
 printf '%s\n' "$PASSWORD" | bin/mcpcardano-wallet -config wallet.json init   # once: creates the key store
@@ -63,8 +63,8 @@ bin/mcpcardano-wallet -config wallet.json
 {
   "network": "preprod",
   "data_dir": "/var/lib/mcpcardano-wallet",
-  "service_socket": "/run/mcpcardano/wallet-service.sock",
-  "admin_socket": "/run/mcpcardano/wallet-admin.sock",
+  "service_socket": "/run/mcpcardano-wallet/service.sock",
+  "admin_socket": "/run/mcpcardano-wallet/admin.sock",
   "service_uid": 990,
   "admin_uid": 1000
 }

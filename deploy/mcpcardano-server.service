@@ -1,0 +1,47 @@
+# SPDX-License-Identifier: Apache-2.0
+# The server (section 10.3): the agent's MCP server, with its own user and
+# the network its data source needs. Its MCP socket lives in
+# /run/mcpcardano-server, 0750 with the group mcpcardano, where the person's
+# bridge reaches it (section 10.2). It talks to the wallet through the
+# wallet's service socket.
+[Unit]
+Description=mcpcardano server
+After=mcpcardano-wallet.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=mcpcardano-server
+Group=mcpcardano
+ExecStart=/usr/local/bin/mcpcardano-server -config /etc/mcpcardano-server/config.json
+Restart=on-failure
+StateDirectory=mcpcardano-server
+StateDirectoryMode=0700
+RuntimeDirectory=mcpcardano-server
+RuntimeDirectoryMode=0750
+UMask=0077
+
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+MemoryDenyWriteExecute=yes
+SystemCallFilter=@system-service
+SystemCallArchitectures=native
+LimitCORE=0
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+
+[Install]
+WantedBy=multi-user.target
