@@ -63,10 +63,26 @@ type Params struct {
 	Threads   uint8  `cbor:"threads"`
 }
 
-// DefaultParams are the second recommended option of RFC 9106, for limited
-// memory: 3 passes over 64 MiB with 4 lanes. The wallet unlocks once at start,
-// so it can afford them.
-func DefaultParams() Params { return Params{Time: 3, MemoryKiB: 64 << 10, Threads: 4} }
+// DefaultParams are 3 passes over 256 MiB with 4 lanes: the second
+// recommended option of RFC 9106 with four times its memory. The wallet
+// unlocks once at start and Argon2id runs again only when the person
+// authorizes something, so it can afford them; what they cost is the memory
+// of an attacker who tries passwords against a stolen master.key.
+func DefaultParams() Params { return Params{Time: 3, MemoryKiB: 256 << 10, Threads: 4} }
+
+// MinMemoryKiB is the least memory the wallet's configuration may set, for
+// small machines: the 64 MiB of RFC 9106's second option.
+const MinMemoryKiB = 64 << 10
+
+// Check reports whether p may be configured: at least one pass and one lane,
+// and at least MinMemoryKiB. A store is never lowered once written, so a
+// small machine sets them before the store is created.
+func (p Params) Check() error {
+	if p.Time < 1 || p.Threads < 1 || p.MemoryKiB < MinMemoryKiB {
+		return fmt.Errorf("keystore: Argon2id needs at least 1 pass, 1 lane and %d MiB", MinMemoryKiB>>10)
+	}
+	return nil
+}
 
 // weaker reports whether p falls short of q in any parameter.
 func (p Params) weaker(q Params) bool {

@@ -36,9 +36,17 @@ func newStore(t *testing.T) (string, *Store) {
 }
 
 func TestDefaultParams(t *testing.T) {
-	// RFC 9106, section 4, second recommended option.
-	if p := DefaultParams(); p != (Params{Time: 3, MemoryKiB: 65536, Threads: 4}) {
+	// RFC 9106, section 4, second recommended option, with 256 MiB.
+	if p := DefaultParams(); p != (Params{Time: 3, MemoryKiB: 262144, Threads: 4}) || p.Check() != nil {
 		t.Errorf("DefaultParams = %+v", p)
+	}
+	for _, p := range []Params{{3, 65535, 4}, {0, 65536, 4}, {3, 65536, 0}, fast} {
+		if p.Check() == nil {
+			t.Errorf("%+v passes Check", p)
+		}
+	}
+	if (Params{Time: 1, MemoryKiB: 65536, Threads: 1}).Check() != nil {
+		t.Error("the minimum fails Check")
 	}
 	for _, id := range []model.WalletID{walletA, walletB} {
 		if id.Validate() != nil {
