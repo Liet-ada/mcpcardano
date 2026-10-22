@@ -131,7 +131,7 @@ func TestTransaction(t *testing.T) {
 	tx := e.ok("get_transaction", map[string]any{"tx_id": id})
 	md := tx["metadata_unverified"].(map[string]any)
 	if tx["status"] != "confirmed" || tx["confirmations"] != 10.0 || tx["summary"].(map[string]any)["tx_id"] != id ||
-		len(tx["input_refs"].([]any)) == 0 || md["721"] == nil {
+		len(tx["summary"].(map[string]any)["inputs"].([]any)) == 0 || md["721"] == nil {
 		t.Errorf("transaction %v", tx)
 	}
 	if u := e.ok("get_transaction", map[string]any{"tx_id": strings.Repeat("0", 64)}); u["status"] != "unknown" || u["summary"] != nil {
