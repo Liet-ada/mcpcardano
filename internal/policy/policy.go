@@ -6,9 +6,11 @@
 // no I/O, no clock, no state, so it behaves the same in the server and in
 // the wallet and is tested without network or disk.
 //
-// Milestone H-1 implements the rules that mode A uses. The rules that need
-// the spending record (session, windows, budget and threshold) come with the
-// wallet in H-2; until then modes B and C are always blocked.
+// The rules that look at past spending (session, windows, new destinations,
+// budget and threshold) apply to modes B and C, whose signer is the wallet:
+// it computes their Usage from its spending record. In mode A the person
+// confirms every transaction on the hardware wallet, and the server keeps no
+// record.
 package policy
 
 import (
@@ -33,6 +35,7 @@ type Code string
 
 const (
 	CodeFrozen          Code = "FROZEN"
+	CodeNeedsSession    Code = "NEEDS_SESSION"
 	CodeNetworkMismatch Code = "NETWORK_MISMATCH"
 	CodePolicyBlocked   Code = "POLICY_BLOCKED"
 	CodeBudgetExceeded  Code = "BUDGET_EXCEEDED"
@@ -47,6 +50,7 @@ const (
 	RuleOverflow         Rule = "overflow"
 	RuleFrozen           Rule = "frozen"
 	RuleNetwork          Rule = "network"
+	RuleSession          Rule = "session"
 	RuleCertificates     Rule = "structure.certificates"
 	RuleWithdrawals      Rule = "structure.withdrawals"
 	RuleMint             Rule = "structure.mint"
@@ -61,6 +65,13 @@ const (
 	RulePerTx            Rule = "limits.per_tx"
 	RuleMaxFee           Rule = "limits.max_fee"
 	RuleTTL              Rule = "limits.ttl"
+	RulePerHour          Rule = "limits.per_hour"
+	RulePerDay           Rule = "limits.per_day"
+	RuleTxPerHour        Rule = "limits.tx_per_hour"
+	RuleNewPerHour       Rule = "limits.new_destinations_per_hour"
+	RuleNewPerDay        Rule = "limits.new_destinations_per_day"
+	RuleBudget           Rule = "limits.budget"
+	RuleThreshold        Rule = "limits.approval_threshold"
 	RuleModeA            Rule = "mode.a"
 	RuleModeNotAvailable Rule = "mode.not_available"
 )
@@ -73,6 +84,37 @@ type Input struct {
 	// CurrentSlot comes from the evaluating process's own clock, never from
 	// the other process (section 9.3).
 	CurrentSlot uint64
+	// Usage is what modes B and C compare the transaction with.
+	Usage Usage
+}
+
+// Usage is the open session and the spend of the wallet's record at the
+// moment of the evaluation, computed by the wallet with its own clock
+// (sections 3.9 and 8.5).
+type Usage struct {
+	// Session is the open session, nil if there is none or it ended.
+	Session *Session
+	// Hour and Day cover the last 60 minutes and the last 24 hours, rolling
+	// (decision 20).
+	Hour, Day Window
+	// BudgetSpent counts against the budget of mode C: the spend since the
+	// person set the budget, minus what they released (section 9.2).
+	BudgetSpent uint64
+	// Known reports whether an address already appears in the wallet's
+	// record; any other destination is new. Nil knows none.
+	Known func(model.Address) bool
+}
+
+// Window is the spend of one rolling window.
+type Window struct {
+	Lovelace        uint64
+	Transactions    uint32
+	NewDestinations uint32
+}
+
+// Session is an open session (section 6.1): what it still allows.
+type Session struct {
+	Remaining uint64 // lovelace
 }
 
 // Verdict is the result of Evaluate. Spend is filled in whenever it could be
@@ -157,27 +199,39 @@ func Evaluate(in Input) Verdict {
 	if err != nil {
 		return Verdict{Status: Blocked, Rule: RuleOverflow, Code: CodePolicyBlocked, Detail: "amounts overflow"}
 	}
-	checks := []func(Input, Spend) *failure{
-		checkFrozen,
-		checkNetwork,
-		// The session check goes here (H-2).
-		checkStructure,
-		checkDestinationsAndAssets,
-		checkPerTx,
-		// Windows, budget and threshold go here (H-2).
+	mode := in.Wallet.Mode
+	if !mode.Valid() {
+		return Verdict{Status: Blocked, Rule: RuleModeNotAvailable, Code: CodePolicyBlocked,
+			Detail: fmt.Sprintf("mode %q is not available", mode), Spend: spend}
+	}
+	checks := []func(Input, Spend) *failure{checkFrozen, checkNetwork}
+	if mode != model.ModeA {
+		checks = append(checks, checkSession)
+	}
+	checks = append(checks, checkStructure, checkDestinationsAndAssets, checkPerTx)
+	if mode != model.ModeA {
+		checks = append(checks, checkWindows)
+	}
+	if mode == model.ModeC {
+		checks = append(checks, checkBudget)
 	}
 	for _, check := range checks {
 		if f := check(in, spend); f != nil {
 			return Verdict{Status: Blocked, Rule: f.rule, Code: f.code, Detail: f.detail, Spend: spend}
 		}
 	}
-	switch in.Wallet.Mode {
+	switch mode {
 	case model.ModeA:
 		// The person always confirms on the hardware wallet.
 		return Verdict{Status: NeedsApproval, Rule: RuleModeA, Detail: "sign on the hardware wallet", Spend: spend}
+	case model.ModeB:
+		if t := in.Policy.Limits.ApprovalThreshold; spend.Lovelace > t {
+			return Verdict{Status: NeedsApproval, Rule: RuleThreshold, Spend: spend,
+				Detail: fmt.Sprintf("spend of %d lovelace is above the approval threshold of %d", spend.Lovelace, t)}
+		}
+		return Verdict{Status: Allowed, Rule: RuleThreshold, Detail: "within the approval threshold", Spend: spend}
 	default:
-		return Verdict{Status: Blocked, Rule: RuleModeNotAvailable, Code: CodePolicyBlocked,
-			Detail: fmt.Sprintf("mode %q is not available yet", in.Wallet.Mode), Spend: spend}
+		return Verdict{Status: Allowed, Rule: RuleBudget, Detail: "within the budget", Spend: spend}
 	}
 }
 
@@ -207,6 +261,28 @@ func checkNetwork(in Input, _ Spend) *failure {
 		if o.Address.NetworkID != id {
 			return fail(RuleNetwork, CodeNetworkMismatch, "output %d is an address of network id %d", i, o.Address.NetworkID)
 		}
+	}
+	// A reward account is an address too: its header carries the network.
+	for i, w := range in.View.Withdrawals {
+		if len(w.Account) == 0 || w.Account[0]&0x0f != id {
+			return fail(RuleNetwork, CodeNetworkMismatch, "withdrawal %d is from an account of another network", i)
+		}
+	}
+	return nil
+}
+
+// checkSession applies session_required: the person opens a session for a
+// time and an amount, and the wallet signs only within it.
+func checkSession(in Input, spend Spend) *failure {
+	if !in.Policy.SessionRequired {
+		return nil
+	}
+	s := in.Usage.Session
+	if s == nil {
+		return fail(RuleSession, CodeNeedsSession, "the wallet requires an open session")
+	}
+	if spend.Lovelace > s.Remaining {
+		return fail(RuleSession, CodeNeedsSession, "spend of %d lovelace exceeds the %d the session allows", spend.Lovelace, s.Remaining)
 	}
 	return nil
 }
@@ -299,4 +375,47 @@ func checkPerTx(in Input, spend Spend) *failure {
 		return fail(RuleTTL, CodeTTLTooLong, "the TTL slot %d is beyond the maximum of %d", *ttl, maxTTL)
 	}
 	return nil
+}
+
+// checkWindows applies the limits of the last hour and the last day: spend,
+// transactions and new destinations (M-14). A sum that overflows exceeds any
+// limit.
+func checkWindows(in Input, spend Spend) *failure {
+	l, u := in.Policy.Limits, in.Usage
+	if over(u.Hour.Lovelace, spend.Lovelace, l.PerHour) {
+		return fail(RulePerHour, CodeBudgetExceeded, "%d lovelace spent in the last hour plus %d exceed the limit of %d", u.Hour.Lovelace, spend.Lovelace, l.PerHour)
+	}
+	if over(u.Day.Lovelace, spend.Lovelace, l.PerDay) {
+		return fail(RulePerDay, CodeBudgetExceeded, "%d lovelace spent in the last day plus %d exceed the limit of %d", u.Day.Lovelace, spend.Lovelace, l.PerDay)
+	}
+	if over(uint64(u.Hour.Transactions), 1, uint64(l.TxPerHour)) {
+		return fail(RuleTxPerHour, CodeBudgetExceeded, "%d transactions in the last hour reach the limit of %d", u.Hour.Transactions, l.TxPerHour)
+	}
+	var n uint64
+	for _, d := range spend.Destinations {
+		if u.Known == nil || !u.Known(d) {
+			n++
+		}
+	}
+	if over(uint64(u.Hour.NewDestinations), n, uint64(l.NewDestinationsPerHour)) {
+		return fail(RuleNewPerHour, CodeBudgetExceeded, "%d new destinations after %d in the last hour exceed the limit of %d", n, u.Hour.NewDestinations, l.NewDestinationsPerHour)
+	}
+	if over(uint64(u.Day.NewDestinations), n, uint64(l.NewDestinationsPerDay)) {
+		return fail(RuleNewPerDay, CodeBudgetExceeded, "%d new destinations after %d in the last day exceed the limit of %d", n, u.Day.NewDestinations, l.NewDestinationsPerDay)
+	}
+	return nil
+}
+
+// checkBudget applies the total budget of mode C.
+func checkBudget(in Input, spend Spend) *failure {
+	if b := in.Policy.Limits.Budget; over(in.Usage.BudgetSpent, spend.Lovelace, b) {
+		return fail(RuleBudget, CodeBudgetExceeded, "%d lovelace spent of the budget plus %d exceed the budget of %d", in.Usage.BudgetSpent, spend.Lovelace, b)
+	}
+	return nil
+}
+
+// over reports whether used + more goes beyond limit, overflow included.
+func over(used, more, limit uint64) bool {
+	s, err := model.Add(used, more)
+	return err != nil || s > limit
 }

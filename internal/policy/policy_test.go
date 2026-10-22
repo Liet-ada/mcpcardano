@@ -26,6 +26,9 @@ var (
 	other   = model.Address{Raw: []byte{0x60, 8}, Type: 6, NetworkID: 0}
 	mainnet = model.Address{Raw: []byte{0x61, 7}, Type: 6, NetworkID: 1}
 
+	// A reward account of preprod.
+	reward = append([]byte{0xe0}, make([]byte, 28)...)
+
 	token    = mustAsset("ab", "01")
 	stranger = mustAsset("cd", "01")
 )
@@ -93,11 +96,15 @@ func TestEvaluate(t *testing.T) {
 			in.View.Certificates = []model.Certificate{{Kind: "stake_delegation"}}
 			in.Policy.Structure.Certificates = true
 		}, NeedsApproval, RuleModeA, ""},
-		{"withdrawal rejected", func(in *Input) { in.View.Withdrawals = []model.Withdrawal{{Amount: 1}} }, Blocked, RuleWithdrawals, CodePolicyBlocked},
+		{"withdrawal rejected", func(in *Input) { in.View.Withdrawals = []model.Withdrawal{{Account: reward, Amount: 1}} }, Blocked, RuleWithdrawals, CodePolicyBlocked},
 		{"withdrawal allowed", func(in *Input) {
-			in.View.Withdrawals = []model.Withdrawal{{Amount: 1}}
+			in.View.Withdrawals = []model.Withdrawal{{Account: reward, Amount: 1}}
 			in.Policy.Structure.Withdrawals = true
 		}, NeedsApproval, RuleModeA, ""},
+		{"withdrawal from another network", func(in *Input) {
+			in.View.Withdrawals = []model.Withdrawal{{Account: append([]byte{0xe1}, reward[1:]...), Amount: 1}}
+			in.Policy.Structure.Withdrawals = true
+		}, Blocked, RuleNetwork, CodeNetworkMismatch},
 		{"mint rejected", func(in *Input) { in.View.Mint = map[model.AssetID]int64{token: 1} }, Blocked, RuleMint, CodePolicyBlocked},
 		{"burn rejected", func(in *Input) { in.View.Mint = map[model.AssetID]int64{token: -1} }, Blocked, RuleMint, CodePolicyBlocked},
 		{"mint allowed", func(in *Input) {
@@ -148,9 +155,12 @@ func TestEvaluate(t *testing.T) {
 		{"TTL beyond the maximum (M-11)", func(in *Input) { in.View.TTL = u64(slot + 7201) }, Blocked, RuleTTL, CodeTTLTooLong},
 
 		{"overflow", func(in *Input) { in.View.Outputs[0].Value.Lovelace = math.MaxUint64 }, Blocked, RuleOverflow, CodePolicyBlocked},
-		{"mode B not available yet", func(in *Input) { in.Wallet.Mode = model.ModeB }, Blocked, RuleModeNotAvailable, CodePolicyBlocked},
-		{"mode C not available yet", func(in *Input) { in.Wallet.Mode = model.ModeC }, Blocked, RuleModeNotAvailable, CodePolicyBlocked},
 		{"unknown mode", func(in *Input) { in.Wallet.Mode = "" }, Blocked, RuleModeNotAvailable, CodePolicyBlocked},
+		// Mode A has no record: the person confirms every transaction.
+		{"mode A ignores session and windows", func(in *Input) {
+			in.Policy.SessionRequired = true
+			in.Usage.Hour = Window{Lovelace: math.MaxUint64, Transactions: math.MaxUint32}
+		}, NeedsApproval, RuleModeA, ""},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -250,5 +260,177 @@ func TestDeterministicAssetRule(t *testing.T) {
 	}
 	if !strings.Contains(first, strings.Repeat("00", 28)) {
 		t.Errorf("expected the lowest token first, got %q", first)
+	}
+}
+
+// baseC is a mode C wallet paying 5 ADA to a new destination, within every
+// limit, with an empty record.
+func baseC() Input {
+	in := base()
+	in.Wallet.Mode = model.ModeC
+	in.Policy.Destinations = model.Destinations{Any: true}
+	in.Policy.Limits = model.Limits{
+		PerTx: 10_000_000, PerHour: 20_000_000, PerDay: 50_000_000, Budget: 100_000_000,
+		ApprovalThreshold: 5_200_000, MaxFee: 1_000_000, TxPerHour: 4,
+		NewDestinationsPerHour: 2, NewDestinationsPerDay: 5, MaxTTLSeconds: 7200,
+	}
+	return in
+}
+
+const spend = 5_200_000 // the 5 ADA and the fee of baseC
+
+func knows(addrs ...model.Address) func(model.Address) bool {
+	return func(a model.Address) bool {
+		for _, x := range addrs {
+			if x.Equal(a) {
+				return true
+			}
+		}
+		return false
+	}
+}
+
+func TestModesBC(t *testing.T) {
+	modeB := func(in *Input) { in.Wallet.Mode = model.ModeB }
+	cases := []struct {
+		name   string
+		mutate func(*Input)
+		status Status
+		rule   Rule
+		code   Code
+	}{
+		{"mode C within every limit", func(*Input) {}, Allowed, RuleBudget, ""},
+
+		{"mode B at the threshold", modeB, Allowed, RuleThreshold, ""},
+		{"mode B above the threshold", func(in *Input) {
+			modeB(in)
+			in.Policy.Limits.ApprovalThreshold = spend - 1
+		}, NeedsApproval, RuleThreshold, ""},
+		{"mode B, threshold zero", func(in *Input) {
+			modeB(in)
+			in.Policy.Limits.ApprovalThreshold = 0
+		}, NeedsApproval, RuleThreshold, ""},
+		{"mode B has no budget", func(in *Input) {
+			modeB(in)
+			in.Usage.BudgetSpent = math.MaxUint64
+		}, Allowed, RuleThreshold, ""},
+
+		{"session required, none open", func(in *Input) { in.Policy.SessionRequired = true }, Blocked, RuleSession, CodeNeedsSession},
+		{"session covers the spend", func(in *Input) {
+			in.Policy.SessionRequired = true
+			in.Usage.Session = &Session{Remaining: spend}
+		}, Allowed, RuleBudget, ""},
+		{"session too small", func(in *Input) {
+			in.Policy.SessionRequired = true
+			in.Usage.Session = &Session{Remaining: spend - 1}
+		}, Blocked, RuleSession, CodeNeedsSession},
+		{"a session that is not required does not limit", func(in *Input) { in.Usage.Session = &Session{} }, Allowed, RuleBudget, ""},
+
+		{"hour at the limit", func(in *Input) { in.Usage.Hour.Lovelace = 20_000_000 - spend }, Allowed, RuleBudget, ""},
+		{"hour over the limit", func(in *Input) { in.Usage.Hour.Lovelace = 20_000_000 - spend + 1 }, Blocked, RulePerHour, CodeBudgetExceeded},
+		{"hour overflows", func(in *Input) { in.Usage.Hour.Lovelace = math.MaxUint64 }, Blocked, RulePerHour, CodeBudgetExceeded},
+		{"day at the limit", func(in *Input) { in.Usage.Day.Lovelace = 50_000_000 - spend }, Allowed, RuleBudget, ""},
+		{"day over the limit", func(in *Input) { in.Usage.Day.Lovelace = 50_000_000 - spend + 1 }, Blocked, RulePerDay, CodeBudgetExceeded},
+		{"last transaction of the hour", func(in *Input) { in.Usage.Hour.Transactions = 3 }, Allowed, RuleBudget, ""},
+		{"one transaction too many", func(in *Input) { in.Usage.Hour.Transactions = 4 }, Blocked, RuleTxPerHour, CodeBudgetExceeded},
+		{"zero transactions per hour prohibits", func(in *Input) { in.Policy.Limits.TxPerHour = 0 }, Blocked, RuleTxPerHour, CodeBudgetExceeded},
+
+		{"last new destination of the hour", func(in *Input) { in.Usage.Hour.NewDestinations = 1 }, Allowed, RuleBudget, ""},
+		{"new destination over the hour (M-14)", func(in *Input) { in.Usage.Hour.NewDestinations = 2 }, Blocked, RuleNewPerHour, CodeBudgetExceeded},
+		{"known destination at the limit", func(in *Input) {
+			in.Usage.Hour.NewDestinations = 2
+			in.Usage.Known = knows(shop)
+		}, Allowed, RuleBudget, ""},
+		{"two new destinations at once", func(in *Input) {
+			in.Usage.Hour.NewDestinations = 1
+			in.View.Outputs = append(in.View.Outputs, model.Output{Address: other, Value: model.Value{Lovelace: 1}})
+		}, Blocked, RuleNewPerHour, CodeBudgetExceeded},
+		{"new destination over the day", func(in *Input) { in.Usage.Day.NewDestinations = 5 }, Blocked, RuleNewPerDay, CodeBudgetExceeded},
+		{"a consolidation has no destination", func(in *Input) {
+			in.View.Outputs = in.View.Outputs[1:]
+			in.Usage.Hour.NewDestinations = 2
+			in.Usage.Day.NewDestinations = 5
+		}, Allowed, RuleBudget, ""},
+
+		{"budget at the limit", func(in *Input) { in.Usage.BudgetSpent = 100_000_000 - spend }, Allowed, RuleBudget, ""},
+		{"budget exceeded", func(in *Input) { in.Usage.BudgetSpent = 100_000_000 - spend + 1 }, Blocked, RuleBudget, CodeBudgetExceeded},
+		{"zero budget prohibits", func(in *Input) { in.Policy.Limits.Budget = 0 }, Blocked, RuleBudget, CodeBudgetExceeded},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			in := baseC()
+			tc.mutate(&in)
+			v := Evaluate(in)
+			if v.Status != tc.status || v.Rule != tc.rule || v.Code != tc.code {
+				t.Fatalf("got %s/%s/%s (%s), want %s/%s/%s", v.Status, v.Rule, v.Code, v.Detail, tc.status, tc.rule, tc.code)
+			}
+			if v.Detail == "" || v.Spend.Lovelace == 0 {
+				t.Errorf("verdict without detail or spend: %+v", v)
+			}
+		})
+	}
+}
+
+// TestOrderBC follows section 3.6 through the rules of modes B and C.
+func TestOrderBC(t *testing.T) {
+	in := baseC()
+	in.Policy.SessionRequired = true
+	in.View.Certificates = []model.Certificate{{}}
+	in.Policy.Limits.PerTx = 1
+	in.Usage.Hour.Lovelace = math.MaxUint64
+	in.Usage.BudgetSpent = math.MaxUint64
+	want := []Rule{RuleSession, RuleCertificates, RulePerTx, RulePerHour, RuleBudget, RuleBudget}
+	for i, rule := range want {
+		if got := Evaluate(in).Rule; got != rule {
+			t.Fatalf("step %d: got %s, want %s", i, got, rule)
+		}
+		switch i {
+		case 0:
+			in.Usage.Session = &Session{Remaining: math.MaxUint64}
+		case 1:
+			in.View.Certificates = nil
+		case 2:
+			in.Policy.Limits.PerTx = 10_000_000
+		case 3:
+			in.Usage.Hour.Lovelace = 0
+		case 4:
+			in.Usage.BudgetSpent = 0
+		}
+	}
+	if v := Evaluate(in); v.Status != Allowed {
+		t.Fatalf("got %+v", v)
+	}
+}
+
+func TestDefaultTemplate(t *testing.T) {
+	tpl := DefaultTemplate(model.Preprod)
+	p, l := tpl.Policy, tpl.Policy.Limits
+	if tpl.Mode != model.ModeC || !p.Destinations.Any || p.SessionRequired || p.Frozen {
+		t.Errorf("mode %s, destinations %+v, session %v", tpl.Mode, p.Destinations, p.SessionRequired)
+	}
+	if len(p.Networks) != 1 || p.Networks[0] != model.Preprod {
+		t.Errorf("networks %v", p.Networks)
+	}
+	// Decision 96.
+	if l.Budget != 100_000_000 || l.PerTx != l.Budget/5 || l.NewDestinationsPerHour != 2 || l.NewDestinationsPerDay != 5 {
+		t.Errorf("limits %+v", l)
+	}
+	// A zero limit prohibits (decision 38): every limit of mode C has a
+	// value, and nothing beyond plain outputs is allowed.
+	for name, v := range map[string]uint64{
+		"per_tx": l.PerTx, "per_hour": l.PerHour, "per_day": l.PerDay, "max_fee": l.MaxFee,
+		"tx_per_hour": uint64(l.TxPerHour), "max_live_drafts": uint64(l.MaxLiveDrafts), "max_ttl_seconds": uint64(l.MaxTTLSeconds),
+	} {
+		if v == 0 {
+			t.Errorf("%s is zero", name)
+		}
+	}
+	if p.Structure != (model.Structure{}) || len(p.Assets) != 0 {
+		t.Errorf("structure %+v, assets %v", p.Structure, p.Assets)
+	}
+	// Each call gives its own policy.
+	DefaultTemplate(model.Preprod).Policy.Networks[0] = model.Mainnet
+	if DefaultTemplate(model.Preprod).Policy.Networks[0] != model.Preprod {
+		t.Error("templates share their networks")
 	}
 }

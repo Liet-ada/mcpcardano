@@ -9,6 +9,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 
@@ -334,4 +335,27 @@ func FuzzScan(f *testing.F) {
 			prev = e.Hash
 		}
 	})
+}
+
+// TestOpenEntries: a new log gives its header, and an existing one every
+// entry, as Read does.
+func TestOpenEntries(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "ledger.log")
+	l, entries, _, err := OpenEntries(ctx, path, opts())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 || entries[0].Type != HeaderType {
+		t.Fatalf("a new log gives %+v", entries)
+	}
+	l.Append(ctx, "x", map[string]uint64{"n": 1})
+	l.Close()
+	l, entries, _, err = OpenEntries(ctx, path, opts())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	if want := read(t, path); len(entries) != 2 || !reflect.DeepEqual(entries, want) {
+		t.Errorf("got %+v, want %+v", entries, want)
+	}
 }
