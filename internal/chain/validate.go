@@ -21,34 +21,12 @@ import (
 // ErrPhase1 reports a transaction that the Conway phase-1 rules reject.
 var ErrPhase1 = errors.New("chain: phase-1 validation failed")
 
-// SlotClock converts between slots and time on a network. After the Byron
-// era every network uses one-second slots.
-type SlotClock struct {
-	ShelleySlot uint64 // first slot of the Shelley era
-	ShelleyTime int64  // Unix time of that slot
-}
+// SlotClock converts between slots and time on a network. It lives in model,
+// so the wallet, which has no network, keeps the same clock.
+type SlotClock = model.SlotClock
 
-// Clock returns the slot clock of a network, from its genesis files.
-func Clock(n model.Network) SlotClock {
-	switch n {
-	case model.Mainnet:
-		return SlotClock{ShelleySlot: 4_492_800, ShelleyTime: 1_596_059_091}
-	case model.Preprod:
-		return SlotClock{ShelleySlot: 86_400, ShelleyTime: 1_655_769_600}
-	default: // preview has no Byron era
-		return SlotClock{ShelleySlot: 0, ShelleyTime: 1_666_656_000}
-	}
-}
-
-// Time returns the start of a Shelley-era slot.
-func (c SlotClock) Time(slot uint64) time.Time {
-	return time.Unix(c.ShelleyTime+int64(slot-c.ShelleySlot), 0).UTC()
-}
-
-// Slot returns the slot that contains t, which must be in the Shelley era.
-func (c SlotClock) Slot(t time.Time) uint64 {
-	return c.ShelleySlot + uint64(t.Unix()-c.ShelleyTime)
-}
+// Clock returns the slot clock of a network.
+func Clock(n model.Network) SlotClock { return n.Clock() }
 
 // Spent is an input of a transaction with the output it consumes, in CBOR.
 type Spent struct {

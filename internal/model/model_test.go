@@ -5,10 +5,12 @@ package model
 
 import (
 	"bytes"
+	"encoding/hex"
 	"errors"
 	"math"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestIDs(t *testing.T) {
@@ -192,5 +194,54 @@ func TestDestinations(t *testing.T) {
 	}
 	if (Destinations{}).Permits(a) {
 		t.Error("the zero value must allow nobody")
+	}
+}
+
+// TestClock checks the start of the Shelley era of each network, from its
+// genesis files: mainnet at 2020-07-29T21:44:51Z, preprod at
+// 2022-06-21T00:00:00Z after 4 Byron epochs, preview from its first slot.
+func TestClock(t *testing.T) {
+	cases := []struct {
+		n    Network
+		slot uint64
+		at   string
+	}{
+		{Mainnet, 4_492_800, "2020-07-29T21:44:51Z"},
+		{Preprod, 86_400, "2022-06-21T00:00:00Z"},
+		{Preview, 0, "2022-10-25T00:00:00Z"},
+	}
+	for _, c := range cases {
+		at, _ := time.Parse(time.RFC3339, c.at)
+		clock := c.n.Clock()
+		if got := clock.Time(c.slot); !got.Equal(at) {
+			t.Errorf("%s: slot %d at %v, want %v", c.n, c.slot, got, at)
+		}
+		later := at.Add(36*time.Hour + 500*time.Millisecond)
+		if got := clock.Slot(later); got != c.slot+36*3600 {
+			t.Errorf("%s: %v is slot %d", c.n, later, got)
+		}
+	}
+}
+
+// TestBech32 checks the text form of addresses against bytes decoded by an
+// independent bech32 implementation (the vectors of the signer's test).
+func TestBech32(t *testing.T) {
+	cases := []struct{ address, hex string }{
+		{"addr_test1qrkk3gdqruhhn9ya44xcgqrkpe9fp737e7c9hgs06xturtqpkdqaf773t2wv0v2fdhxlequtxwq7gm66sfg5u630nvyq8l53zd",
+			"00ed68a1a01f2f79949dad4d8400760e4a90fa3ecfb05ba20fd197c1ac01b341d4fbd15a9cc7b1496dcdfc838b3381e46f5a82514e6a2f9b08"},
+		{"addr1qx2fxv2umyhttkxyxp8x0dlpdt3k6cwng5pxj3jhsydzer3n0d3vllmyqwsx5wktcd8cc3sq835lu7drv2xwl2wywfgse35a3x",
+			"019493315cd92eb5d8c4304e67b7e16ae36d61d34502694657811a2c8e337b62cfff6403a06a3acbc34f8c46003c69fe79a3628cefa9c47251"},
+	}
+	for _, c := range cases {
+		raw, _ := hex.DecodeString(c.hex)
+		if got := (Address{Raw: raw}).Bech32(); got != c.address {
+			t.Errorf("got %s, want %s", got, c.address)
+		}
+	}
+	if got := (Address{Raw: append([]byte{0xe0}, make([]byte, 28)...)}).Bech32(); !strings.HasPrefix(got, "stake_test1u") {
+		t.Errorf("reward account: %s", got)
+	}
+	if got := (Address{Raw: []byte{0x82, 1}}).Bech32(); got != "8201" {
+		t.Errorf("Byron address: %s", got)
 	}
 }

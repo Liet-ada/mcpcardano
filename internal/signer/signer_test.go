@@ -38,7 +38,7 @@ func TestBaseAddress(t *testing.T) {
 		if raw[0]&0x0f == 1 {
 			hrp = "addr"
 		}
-		if got := bech32(hrp, raw); got != c.address {
+		if got := model.Bech32(hrp, raw); got != c.address {
 			t.Errorf("got %s, want %s", got, c.address)
 		}
 	}
