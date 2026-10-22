@@ -4,6 +4,7 @@
 package mcp
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
@@ -161,10 +162,12 @@ func (s *Server) fetch(ctx context.Context, iw ipc.Wallet) (Wallet, error) {
 }
 
 // status asks the wallet process for a wallet's policy and spending, and
-// keeps the policy.
-func (s *Server) status(ctx context.Context, id model.WalletID) (*ipc.PolicyStatus, error) {
+// which of the destinations asked about its record knows, and keeps the
+// policy.
+func (s *Server) status(ctx context.Context, id model.WalletID, asked ...[]byte) (*ipc.PolicyStatus, error) {
 	var ps ipc.PolicyStatus
-	if err := s.d.Wallet.Call(ctx, ipc.MsgGetPolicyStatus, &ipc.GetPolicyStatus{WalletID: string(id)}, &ps); err != nil {
+	req := &ipc.GetPolicyStatus{WalletID: string(id), Destinations: asked}
+	if err := s.d.Wallet.Call(ctx, ipc.MsgGetPolicyStatus, req, &ps); err != nil {
 		return nil, err
 	}
 	s.ws.mu.Lock()
@@ -178,16 +181,42 @@ func (s *Server) status(ctx context.Context, id model.WalletID) (*ipc.PolicyStat
 }
 
 // usage is what a policy status says a wallet has spent, for the verdict of
-// a draft. The wallet decides with its own record when asked to sign.
+// a draft: lovelace, transactions and new destinations, with the
+// destinations its record knows. The wallet decides with its own record when
+// asked to sign.
 func usage(ps *ipc.PolicyStatus) policy.Usage {
-	u := policy.Usage{Hour: policy.Window{Lovelace: ps.SpentHour}, Day: policy.Window{Lovelace: ps.SpentDay}}
+	u := policy.Usage{
+		Hour: policy.Window{Lovelace: ps.SpentHour, Transactions: ps.TxHour, NewDestinations: ps.NewDestinationsHour},
+		Day:  policy.Window{Lovelace: ps.SpentDay, NewDestinations: ps.NewDestinationsDay},
+	}
 	if b := ps.Policy.Limits.Budget; ps.BudgetRemaining <= b {
 		u.BudgetSpent = b - ps.BudgetRemaining
 	}
 	if ps.Session != nil {
 		u.Session = &policy.Session{Remaining: ps.Session.Remaining}
 	}
+	known := make(map[string]bool, len(ps.Known))
+	for _, a := range ps.Known {
+		known[string(a)] = true
+	}
+	u.Known = func(a model.Address) bool { return known[string(a.Raw)] }
 	return u
+}
+
+// destinations are the addresses a draft of the intent pays that are not the
+// wallet's, raw and in order, as GetPolicyStatus asks about them. The change
+// goes back to the wallet and is never a destination.
+func destinations(w model.Address, intent model.Intent) [][]byte {
+	var out [][]byte
+	if intent.Payment != nil {
+		for _, o := range intent.Payment.Outputs {
+			if !o.Address.Equal(w) {
+				out = append(out, o.Address.Raw)
+			}
+		}
+	}
+	slices.SortFunc(out, bytes.Compare)
+	return slices.CompactFunc(out, bytes.Equal)
 }
 
 // Sync reads, once, the transactions the wallet process signed and that may

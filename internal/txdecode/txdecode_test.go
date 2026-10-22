@@ -262,9 +262,20 @@ func TestSummaryNetEffect(t *testing.T) {
 	if s.Outputs[0].Assets[0].NameUnverified != "MC" || s.Outputs[0].Assets[0].Fingerprint[:6] != "asset1" {
 		t.Errorf("asset %+v", s.Outputs[0].Assets[0])
 	}
-	// Without the spent outputs there is no net effect.
-	if s, _ := tx.Summary(Options{Wallet: &wallet}); s.NetEffect != nil {
+	// Each input shows the output it spends.
+	ref := hex.EncodeToString(bytes.Repeat([]byte{0xee}, 32)) + "#0"
+	if in := s.Inputs; len(in) != 1 || in[0].Ref != ref || in[0].Own == nil || !*in[0].Own || in[0].Lovelace != "50000000" ||
+		len(in[0].Assets) != 1 || in[0].Assets[0].Quantity != "100" {
+		t.Errorf("inputs %+v", s.Inputs)
+	}
+	// Without the spent outputs there is no net effect, and the inputs are
+	// only references.
+	s, _ = tx.Summary(Options{Wallet: &wallet})
+	if s.NetEffect != nil {
 		t.Errorf("net effect %+v without the inputs", s.NetEffect)
+	}
+	if in := s.Inputs; len(in) != 1 || in[0].Ref != ref || in[0].Own != nil || in[0].Lovelace != "" || in[0].Assets != nil {
+		t.Errorf("inputs %+v without the spent outputs", s.Inputs)
 	}
 }
 
@@ -353,9 +364,17 @@ func TestSummaryLimits(t *testing.T) {
 	for range MaxOutputs + 10 {
 		outs = append(outs, out(shop, model.Value{Lovelace: 1_000_000}))
 	}
-	s, err := decode(t, draft{outs: outs}.bytes(t)).Summary(Options{})
+	var ins []any
+	for i := range MaxInputs + 5 {
+		ins = append(ins, []any{append([]byte{byte(i)}, bytes.Repeat([]byte{0xee}, 31)...), uint64(0)})
+	}
+	extra := map[uint64]any{0: cborx.Tag{Number: 258, Content: ins}}
+	s, err := decode(t, draft{outs: outs, extra: extra}.bytes(t)).Summary(Options{})
 	if err != nil {
 		t.Fatal(err)
+	}
+	if len(s.Inputs) != MaxInputs || s.InputsCount != MaxInputs+5 {
+		t.Errorf("%d inputs shown of %d", len(s.Inputs), s.InputsCount)
 	}
 	if len(s.Outputs) != MaxOutputs || s.OutputsCount != MaxOutputs+11 {
 		t.Errorf("%d outputs shown of %d", len(s.Outputs), s.OutputsCount)
