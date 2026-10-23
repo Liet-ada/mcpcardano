@@ -62,26 +62,21 @@ The sockets are `0660`. The wallet also checks the user the kernel certifies at 
 
 On a machine with a TPM2, the wallet can start unlocked, without your password (decision 132). A key of the machine, 32 random bytes that nobody sees, is sealed by systemd with the TPM2 and the host's key, and wraps the wallet's data key in `master.key` next to the wrapping by your password. A copy of the wallet's directory, or its disk in another machine, still opens only with the password, and the password always opens. Without a TPM2, skip this: the host's key alone lives on the same disk and adds nothing.
 
-1. Check that there is a TPM2, and seal the key of the machine with it:
+It needs systemd 254 or later, for `ImportCredential=` in the wallet's unit: systemd hands the key to the wallet if the credential exists, and skips it if it is missing or does not decrypt, for instance after the TPM2 is cleared. The wallet then starts locked, as without it.
+
+1. Check that there is a TPM2, seal the key of the machine with it, and restart the wallet:
 
    ```
    systemd-analyze has-tpm2        # systemd-creds has-tpm2 before systemd 257
    sudo install -d -m 0700 /etc/credstore.encrypted
-   head -c 32 /dev/urandom | sudo systemd-creds encrypt --with-key=tpm2+host --name=unlock - /etc/credstore.encrypted/mcpcardano-wallet.unlock
-   ```
-
-2. Hand it to the wallet, and restart it:
-
-   ```
-   sudo install -D -m 0644 deploy/mcpcardano-wallet-unlock.conf /etc/systemd/system/mcpcardano-wallet.service.d/unlock.conf
-   sudo systemctl daemon-reload
+   head -c 32 /dev/urandom | sudo systemd-creds encrypt --with-key=tpm2+host --name=mcpcardano-wallet.unlock - /etc/credstore.encrypted/mcpcardano-wallet.unlock
    sudo systemctl restart mcpcardano-wallet
    ```
 
-3. Unlock once with your password: that binds the key store to the key of the machine. From the next start on, the wallet starts unlocked.
+2. Unlock once with your password: that binds the key store to the key of the machine. From the next start on, the wallet starts unlocked.
 
    ```
    mcpcardano unlock
    ```
 
-To undo it, remove `unlock.conf` and the credential, reload systemd, restart the wallet and unlock it with your password: an unlock without the key of the machine removes its wrapping from `master.key`.
+To undo it, remove the credential, restart the wallet and unlock it with your password: an unlock without the key of the machine removes its wrapping from `master.key`.

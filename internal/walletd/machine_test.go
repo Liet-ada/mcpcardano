@@ -22,7 +22,7 @@ import (
 func TestUnlockByMachine(t *testing.T) {
 	w := walletkit.Start(t)
 	w.Credentials = t.TempDir()
-	key := filepath.Join(w.Credentials, "unlock")
+	key := filepath.Join(w.Credentials, "mcpcardano-wallet.unlock")
 	setKey := func(k []byte) {
 		t.Helper()
 		if k == nil {

@@ -15,9 +15,11 @@ import (
 
 // machineCredential is the name of the systemd credential that holds the key
 // of the machine: 32 random bytes that systemd-creds sealed with the TPM2
-// and the host's key, and that the unit hands over with
-// LoadCredentialEncrypted (decision 132).
-const machineCredential = "unlock"
+// and the host's key, in /etc/credstore.encrypted, and that the unit
+// imports with ImportCredential (decision 132). systemd skips it if it is
+// missing or does not decrypt, as with another TPM2: the wallet then waits
+// for the password.
+const machineCredential = "mcpcardano-wallet.unlock"
 
 // machineKey reads the key of the machine from the credentials that systemd
 // hands over, or returns nil if there is none: the person did not choose the
