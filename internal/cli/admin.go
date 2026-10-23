@@ -288,6 +288,9 @@ func (a *admin) authorize(action string, params, result ipc.Body) error {
 	if err := a.call(ipc.MsgBeginAuthorization, &ipc.BeginAuthorization{Action: action, Params: raw}, &ch); err != nil {
 		return err
 	}
+	if ch.Methods[0] != ipc.MethodPassword {
+		return errors.New("the wallet asks for a touch of a registered security key, which this command cannot use yet")
+	}
 	fmt.Fprintln(a.errOut, "The wallet asks you to confirm:")
 	for _, line := range ch.Summary {
 		fmt.Fprintln(a.errOut, "  "+line)

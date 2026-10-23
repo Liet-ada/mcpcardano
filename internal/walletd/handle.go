@@ -43,7 +43,7 @@ func (d *Daemon) handle(ctx context.Context, sock ipc.Socket, req ipc.Request) (
 
 	// The admin socket (section 6.7).
 	case ipc.MsgStatus:
-		return d.status(), nil
+		return d.status()
 	case ipc.MsgUnlock:
 		return &ipc.Empty{}, d.unlock(body.(*ipc.Unlock))
 	case ipc.MsgBeginAuthorization:
@@ -101,6 +101,7 @@ func (d *Daemon) update(change func(st *state) error) error {
 	next := d.st
 	next.Wallets = slices.Clone(d.st.Wallets)
 	next.Created = maps.Clone(d.st.Created)
+	next.Keys = slices.Clone(d.st.Keys)
 	if err := change(&next); err != nil {
 		return err
 	}

@@ -22,6 +22,7 @@ import (
 	"github.com/Liet-ada/mcpcardano/internal/ipc"
 	"github.com/Liet-ada/mcpcardano/internal/model"
 	"github.com/Liet-ada/mcpcardano/internal/walletd"
+	"github.com/Liet-ada/mcpcardano/test/fidokit"
 )
 
 // Password is the password of every test wallet.
@@ -193,24 +194,75 @@ func Unlock(t testing.TB, admin *ipc.Client) {
 // CompleteAuthorization with the password. It returns the summary the wallet
 // showed, and decodes the action's result into result.
 func Authorize(admin *ipc.Client, action string, params, result ipc.Body) ([]string, error) {
-	ctx := context.Background()
-	c := ipc.NewCodec()
-	raw, err := c.Encode(params)
+	return AuthorizeWith(admin, action, params, result, WithPassword)
+}
+
+// An Answer completes a challenge: with the password or a key's assertion.
+type Answer func(*ipc.Challenge) *ipc.CompleteAuthorization
+
+// WithPassword answers with the password.
+func WithPassword(ch *ipc.Challenge) *ipc.CompleteAuthorization {
+	return &ipc.CompleteAuthorization{AuthID: ch.AuthID, Password: Password}
+}
+
+// Touch answers with a touch of a software key, and its PIN if the challenge
+// asks for it.
+func Touch(k *fidokit.Key) Answer {
+	return func(ch *ipc.Challenge) *ipc.CompleteAuthorization {
+		return WithKey(k, fidokit.Options{PIN: ch.PIN})(ch)
+	}
+}
+
+// WithKey answers with an assertion of a software key under exactly the
+// options o, which may make it misbehave.
+func WithKey(k *fidokit.Key, o fidokit.Options) Answer {
+	return func(ch *ipc.Challenge) *ipc.CompleteAuthorization {
+		a := k.GetAssertion(ch.ClientDataHash, o)
+		return &ipc.CompleteAuthorization{AuthID: ch.AuthID,
+			Assertion: &ipc.Assertion{CredentialID: a.CredentialID, AuthenticatorData: a.AuthenticatorData, Signature: a.Signature}}
+	}
+}
+
+// AuthorizeWith runs an action and answers its challenge with answer. It
+// returns the challenge, and decodes the action's result into result.
+func AuthorizeWith(admin *ipc.Client, action string, params, result ipc.Body, answer Answer) ([]string, error) {
+	ch, err := Begin(admin, action, params)
+	if err != nil {
+		return nil, err
+	}
+	return ch.Summary, Complete(admin, answer(ch), result)
+}
+
+// Begin opens an authorization of action.
+func Begin(admin *ipc.Client, action string, params ipc.Body) (*ipc.Challenge, error) {
+	raw, err := ipc.NewCodec().Encode(params)
 	if err != nil {
 		return nil, err
 	}
 	var ch ipc.Challenge
-	if err := admin.Call(ctx, ipc.MsgBeginAuthorization, &ipc.BeginAuthorization{Action: action, Params: raw}, &ch); err != nil {
+	if err := admin.Call(context.Background(), ipc.MsgBeginAuthorization, &ipc.BeginAuthorization{Action: action, Params: raw}, &ch); err != nil {
 		return nil, err
 	}
+	return &ch, nil
+}
+
+// Complete completes an authorization and decodes the action's result into
+// result.
+func Complete(admin *ipc.Client, c *ipc.CompleteAuthorization, result ipc.Body) error {
 	var done ipc.Completed
-	if err := admin.Call(ctx, ipc.MsgCompleteAuthorization, &ipc.CompleteAuthorization{AuthID: ch.AuthID, Password: Password}, &done); err != nil {
-		return ch.Summary, err
+	if err := admin.Call(context.Background(), ipc.MsgCompleteAuthorization, c, &done); err != nil {
+		return err
 	}
 	if result == nil {
 		result = &ipc.Empty{}
 	}
-	return ch.Summary, c.DecodeBody(done.Result, result)
+	return ipc.NewCodec().DecodeBody(done.Result, result)
+}
+
+// AddKey registers a software key named name, authorized with answer.
+func AddKey(admin *ipc.Client, k *fidokit.Key, name string, answer Answer) error {
+	_, err := AuthorizeWith(admin, ipc.ActAddKey, &ipc.AddKey{Name: name, AuthenticatorData: k.MakeCredential(fidokit.Options{})}, nil, answer)
+	return err
 }
 
 // CreateWallet creates a wallet with the template, as the server does for
