@@ -140,6 +140,16 @@ func TestIsolation(t *testing.T) {
 			t.Errorf("%s does not run as %s:\n%s", unit, name, status)
 		}
 	}
+	// The wallet's memory is locked out of swap: all of it, since it locks
+	// what it maps later too.
+	status := sudo(t, "cat", "/proc/"+mainPID(t, "mcpcardano-wallet")+"/status")
+	locked := regexp.MustCompile(`(?m)^VmLck:\s+(\d+) kB`).FindStringSubmatch(status)
+	rss := regexp.MustCompile(`(?m)^VmRSS:\s+(\d+) kB`).FindStringSubmatch(status)
+	if locked == nil || rss == nil || locked[1] == "0" {
+		t.Errorf("the wallet's memory is not locked:\n%s", status)
+	} else {
+		t.Logf("the wallet has %s kB locked and %s kB resident", locked[1], rss[1])
+	}
 	var ifaces []string
 	for _, line := range strings.Split(sudo(t, "cat", "/proc/"+mainPID(t, "mcpcardano-wallet")+"/net/dev"), "\n")[2:] {
 		if name, _, ok := strings.Cut(line, ":"); ok {

@@ -603,10 +603,17 @@ func TestPolicyConversion(t *testing.T) {
 	}
 }
 
-func TestRestoreWalletWipe(t *testing.T) {
-	r := &RestoreWallet{Label: "Savings", Phrase: model.Secret("abandon abandon about")}
-	r.Wipe()
-	if !bytes.Equal(r.Phrase, make([]byte, len(r.Phrase))) {
-		t.Error("the phrase is not wiped")
+// TestWipe: the bodies that carry a secret wipe it through model.Wipe.
+func TestWipe(t *testing.T) {
+	restore := &RestoreWallet{Label: "Savings", Phrase: model.Secret("abandon abandon about")}
+	shown := &RecoveryPhrase{Phrase: model.Secret("abandon abandon about")}
+	completed := &Completed{Result: cborx.Raw("abandon abandon about")}
+	for _, b := range []Body{restore, shown, completed} {
+		model.Wipe(b)
+	}
+	for _, secret := range [][]byte{restore.Phrase, shown.Phrase, completed.Result} {
+		if !bytes.Equal(secret, make([]byte, len(secret))) {
+			t.Errorf("not wiped: %q", secret)
+		}
 	}
 }

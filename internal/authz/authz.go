@@ -70,7 +70,7 @@ type Authorization struct {
 	ID      [IDSize]byte
 	Action  string
 	Wallet  model.WalletID // empty for actions of no wallet
-	Params  any            // what the action will run with, as the caller gave it; see Wipe
+	Params  any            // what the action will run with, as the caller gave it
 	Message []byte         // the canonical message, encoded
 	Expires time.Time
 }
@@ -109,8 +109,8 @@ func New(network model.Network) *Authorizer {
 // Begin opens a challenge for action on wallet (empty if the action is of no
 // wallet). det is the detail of the action in the canonical message (section
 // 6.3), nil for the actions whose detail is empty; params travel with the
-// authorization to be run when it completes, and are wiped if it is dropped
-// unrun.
+// authorization to be run when it completes, and are wiped (model.Wipe) if
+// it is dropped unrun.
 func (a *Authorizer) Begin(action string, wallet model.WalletID, det, params any) (*Authorization, error) {
 	if det == nil {
 		det = map[string]any{}
@@ -183,18 +183,8 @@ func (a *Authorizer) open(id [IDSize]byte) bool {
 // drop removes an open challenge that will not run, and wipes its params.
 func (a *Authorizer) drop(id [IDSize]byte) {
 	if au, ok := a.pending[id]; ok {
-		Wipe(au.Params)
+		model.Wipe(au.Params)
 		delete(a.pending, id)
-	}
-}
-
-// Wipe overwrites the secret that params hold, if they have a Wipe method, as
-// those of restore_wallet do for the recovery phrase. The Authorizer calls it
-// for a challenge it drops unrun; the caller, for params that never reach
-// Begin.
-func Wipe(params any) {
-	if w, ok := params.(interface{ Wipe() }); ok {
-		w.Wipe()
 	}
 }
 

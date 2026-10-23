@@ -121,6 +121,7 @@ func (c *Client) Call(ctx context.Context, t string, req, resp Body) error {
 	if err != nil {
 		return err
 	}
+	defer clear(frame) // a request may carry a password or a recovery phrase
 
 	deadline := time.Now().Add(DefaultCallTimeout)
 	if d, ok := ctx.Deadline(); ok && d.Before(deadline) {
@@ -137,6 +138,7 @@ func (c *Client) Call(ctx context.Context, t string, req, resp Body) error {
 	if err != nil {
 		return c.fail(ctx, err)
 	}
+	defer clear(payload) // and a response, the recovery phrase
 	return c.codec.DecodeResponse(payload, id, resp)
 }
 

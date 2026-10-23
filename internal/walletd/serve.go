@@ -13,6 +13,7 @@ import (
 	"sync"
 
 	"github.com/Liet-ada/mcpcardano/internal/ipc"
+	"github.com/Liet-ada/mcpcardano/internal/model"
 )
 
 // maxAdminConns bounds the connections of the admin socket, as section 5.5
@@ -127,28 +128,38 @@ func (d *Daemon) serveConn(ctx context.Context, c *net.UnixConn, sock ipc.Socket
 			}
 			return
 		}
-		req, err := d.codec.DecodeRequest(sock, frame)
-		if err != nil {
-			d.send(c, limits, req.ID, nil, asError(err))
+		if !d.serveFrame(ctx, c, sock, limits, frame, &greeted) {
 			return
 		}
-		if !greeted && req.T != ipc.MsgHello {
-			d.send(c, limits, req.ID, nil, &ipc.Error{Code: ipc.Malformed, Detail: "Hello comes first"})
-			return
-		}
-		resp, err := d.handle(ctx, sock, req)
-		if err != nil {
-			e := d.failure(req.T, err)
-			if !d.send(c, limits, req.ID, nil, e) || req.T == ipc.MsgHello {
-				return
-			}
-			continue
-		}
-		if !d.send(c, limits, req.ID, resp, nil) {
-			return
-		}
-		greeted = true
 	}
+}
+
+// serveFrame answers one request and reports whether the connection goes on.
+// It wipes the request and the response when done: on the admin socket they
+// may carry a password or a recovery phrase.
+func (d *Daemon) serveFrame(ctx context.Context, c net.Conn, sock ipc.Socket, limits ipc.ConnLimits, frame []byte, greeted *bool) bool {
+	defer clear(frame)
+	req, err := d.codec.DecodeRequest(sock, frame)
+	defer clear(req.B)
+	if err != nil {
+		d.send(c, limits, req.ID, nil, asError(err))
+		return false
+	}
+	if !*greeted && req.T != ipc.MsgHello {
+		d.send(c, limits, req.ID, nil, &ipc.Error{Code: ipc.Malformed, Detail: "Hello comes first"})
+		return false
+	}
+	resp, err := d.handle(ctx, sock, req)
+	if err != nil {
+		e := d.failure(req.T, err)
+		return d.send(c, limits, req.ID, nil, e) && req.T != ipc.MsgHello
+	}
+	defer model.Wipe(resp)
+	if !d.send(c, limits, req.ID, resp, nil) {
+		return false
+	}
+	*greeted = true
+	return true
 }
 
 // send writes a response, or the error of a failed one.
@@ -162,6 +173,7 @@ func (d *Daemon) send(c net.Conn, limits ipc.ConnLimits, id []byte, body ipc.Bod
 	}
 	if err == nil {
 		err = ipc.WriteFrame(c, frame, limits)
+		clear(frame)
 	}
 	if err != nil {
 		d.log.Error("write response", "err", err)
