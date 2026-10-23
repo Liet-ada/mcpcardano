@@ -57,18 +57,23 @@ func Phrase(entropy []byte) (model.Secret, error) {
 		return nil, ErrEntropy
 	}
 	sum := sha256.Sum256(entropy)
-	bits := append(slices.Clone(entropy), sum[0]) // the checksum has at most 8 bits
-	defer clear(bits)
+	var b [33]byte // on the stack: the entropy and its checksum, at most 8 bits
+	defer clear(b[:])
+	bits := b[:n+1]
+	copy(bits, entropy)
+	bits[n] = sum[0]
 	words := (n*8 + n/4) / 11
 	list := wordlist()
-	var out bytes.Buffer
+	// One allocation that never grows, so no copy of a part of the phrase is
+	// left behind: a word has at most 8 letters.
+	out := make(model.Secret, 0, words*9)
 	for w := range words {
 		if w > 0 {
-			out.WriteByte(' ')
+			out = append(out, ' ')
 		}
-		out.WriteString(list[bitsAt(bits, w*11)])
+		out = append(out, list[bitsAt(bits, w*11)]...)
 	}
-	return model.Secret(out.Bytes()), nil
+	return out, nil
 }
 
 // bitsAt reads 11 bits of b starting at bit off, most significant first.
@@ -83,7 +88,8 @@ func bitsAt(b []byte, off int) int {
 
 // Entropy reads a recovery phrase back into its entropy. The phrase has 12,
 // 15, 18, 21 or 24 words of the English list, in lowercase, separated by
-// white space, and its checksum must match.
+// white space (any Unicode space, as bytes.Fields reads it), and its checksum
+// must match.
 func Entropy(phrase []byte) (model.Secret, error) {
 	fields := bytes.Fields(phrase)
 	words := len(fields)

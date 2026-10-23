@@ -92,6 +92,37 @@ func TestCompleteOnce(t *testing.T) {
 	}
 }
 
+// secret stands for params that hold a secret, like restore_wallet's.
+type secret struct{ wiped bool }
+
+func (s *secret) Wipe() { s.wiped = true }
+
+// TestUnrunParamsAreWiped: the params of a challenge that expires are wiped,
+// wherever the Authorizer notices; those of one that completes are left for
+// the action to run with.
+func TestUnrunParamsAreWiped(t *testing.T) {
+	a, c := newAuthorizer()
+	run, opened, checked, swept := &secret{}, &secret{}, &secret{}, &secret{}
+	au, _ := a.Begin("restore_wallet", "", nil, run)
+	if _, err := a.Complete(au.ID, attempt(a, password(true))); err != nil || run.wiped {
+		t.Fatalf("completed: %v, wiped %v", err, run.wiped)
+	}
+	au, _ = a.Begin("restore_wallet", "", nil, checked)
+	expire := func(*Authorization) error { c.advance(DefaultTTL); return nil }
+	if _, err := a.Complete(au.ID, expire); !errors.Is(err, ErrExpired) || !checked.wiped {
+		t.Errorf("expired during the check: %v, wiped %v", err, checked.wiped)
+	}
+	au, _ = a.Begin("restore_wallet", "", nil, opened)
+	a.Begin("restore_wallet", "", nil, swept)
+	c.advance(DefaultTTL)
+	if _, err := a.Complete(au.ID, attempt(a, password(true))); !errors.Is(err, ErrExpired) || !opened.wiped {
+		t.Errorf("expired: %v, wiped %v", err, opened.wiped)
+	}
+	if a.Begin("unfreeze", wallet, nil, nil); !swept.wiped {
+		t.Error("swept by Begin, not wiped")
+	}
+}
+
 func TestWrongPasswordDoublesTheWait(t *testing.T) {
 	a, c := newAuthorizer()
 	au, _ := a.Begin("unfreeze", wallet, nil, nil)

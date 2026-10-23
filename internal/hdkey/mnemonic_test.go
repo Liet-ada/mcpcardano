@@ -52,6 +52,20 @@ func TestWordList(t *testing.T) {
 	if len(l) != 2048 || !slices.IsSorted(l) || len(slices.Compact(slices.Clone(l))) != 2048 {
 		t.Fatalf("%d words, sorted %v", len(l), slices.IsSorted(l))
 	}
+	// Phrase sizes its buffer on words of at most 8 letters.
+	if slices.ContainsFunc(l, func(w string) bool { return len(w) > 8 }) {
+		t.Fatal("a word has more than 8 letters")
+	}
+}
+
+// TestPhraseAllocatesOnce: the phrase is built in one allocation that never
+// grows, and the entropy is copied only to the stack, so no copy of either is
+// left behind unwiped.
+func TestPhraseAllocatesOnce(t *testing.T) {
+	e := make([]byte, EntropySize)
+	if n := testing.AllocsPerRun(10, func() { Phrase(e) }); n != 1 {
+		t.Errorf("Phrase allocates %v times", n)
+	}
 }
 
 func TestBIP39Vectors(t *testing.T) {
@@ -92,9 +106,12 @@ func TestBadPhrases(t *testing.T) {
 			t.Errorf("the error quotes %q: %v", w, err)
 		}
 	}
-	// White space around and between the words is allowed.
-	if _, err := Entropy([]byte("  " + strings.ReplaceAll(good, " ", " \n\t") + "\n")); err != nil {
-		t.Errorf("white space: %v", err)
+	// White space around and between the words is allowed, Unicode's too: a
+	// no-break space, an ideographic space, a thin space and a next line.
+	for _, sp := range []string{" \n\t", "\u00a0", "\u3000", "\u2009", "\u0085"} {
+		if _, err := Entropy([]byte(sp + strings.ReplaceAll(good, " ", sp) + "\n")); err != nil {
+			t.Errorf("white space %q: %v", sp, err)
+		}
 	}
 	for _, n := range []int{0, 15, 33, 18} {
 		if _, err := Phrase(make([]byte, n)); !errors.Is(err, ErrEntropy) {

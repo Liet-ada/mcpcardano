@@ -45,9 +45,23 @@ var ErrEntropy = errors.New("hdkey: entropy must be 16 to 32 bytes, in steps of 
 
 // XPrv is an extended private key of BIP32-Ed25519: the scalar kL, the key kR
 // that makes the signature nonces, and the chain code. However it is printed
-// or logged, it shows [REDACTED].
+// or logged, it shows [REDACTED]. Formatter is not enough on its own: fmt
+// prints by reflection, without asking it, for %p, %w and the verbs it does
+// not expect, and for an XPrv in an unexported field of another struct. So
+// the key lives behind a func, which fmt prints as an address, whatever the
+// verb and however deep. Copies of an XPrv share the key.
 type XPrv struct {
+	key func() *xkey
+}
+
+type xkey struct {
 	kl, kr, cc [32]byte
+}
+
+// newXPrv returns a zeroed key and its bytes.
+func newXPrv() (*XPrv, *xkey) {
+	k := new(xkey)
+	return &XPrv{func() *xkey { return k }}, k
 }
 
 // Root derives the root key of a wallet from the entropy of its recovery
@@ -67,14 +81,14 @@ func icarus(entropy, passphrase []byte) (*XPrv, error) {
 	if err != nil {
 		return nil, fmt.Errorf("hdkey: %w", err)
 	}
-	x := new(XPrv)
-	copy(x.kl[:], k[:32])
-	copy(x.kr[:], k[32:64])
-	copy(x.cc[:], k[64:])
-	clear(k)
-	x.kl[0] &= 0b1111_1000
-	x.kl[31] &= 0b0001_1111
-	x.kl[31] |= 0b0100_0000
+	x, xk := newXPrv()
+	copy(xk.kl[:], k[:32])
+	copy(xk.kr[:], k[32:64])
+	copy(xk.cc[:], k[64:])
+	clear(k[:cap(k)]) // PBKDF2 makes whole blocks: 128 bytes, of which it returns 96
+	xk.kl[0] &= 0b1111_1000
+	xk.kl[31] &= 0b0001_1111
+	xk.kl[31] |= 0b0100_0000
 	return x, nil
 }
 
@@ -88,17 +102,18 @@ func icarus(entropy, passphrase []byte) (*XPrv, error) {
 //
 // The integers are little-endian. x is left unchanged.
 func (x *XPrv) Child(i uint32) *XPrv {
+	p := x.key()
 	var idx [4]byte
 	binary.LittleEndian.PutUint32(idx[:], i)
-	z := hmac.New(sha512.New, x.cc[:])
-	c := hmac.New(sha512.New, x.cc[:])
+	z := hmac.New(sha512.New, p.cc[:])
+	c := hmac.New(sha512.New, p.cc[:])
 	if i >= Hardened {
 		z.Write([]byte{0x00})
-		z.Write(x.kl[:])
-		z.Write(x.kr[:])
+		z.Write(p.kl[:])
+		z.Write(p.kr[:])
 		c.Write([]byte{0x01})
-		c.Write(x.kl[:])
-		c.Write(x.kr[:])
+		c.Write(p.kl[:])
+		c.Write(p.kr[:])
 	} else {
 		a := x.PublicKey()
 		z.Write([]byte{0x02})
@@ -110,21 +125,28 @@ func (x *XPrv) Child(i uint32) *XPrv {
 	c.Write(idx[:])
 	zs, cs := z.Sum(nil), c.Sum(nil)
 
-	child := new(XPrv)
+	// kL' = kL + 8*Z[0:28]. The paper discards a child whose kL' is a
+	// multiple of the group order, and that cannot happen: kL' is a multiple
+	// of 8 and, along any path of fewer than 2^26 steps, between 2^254 and
+	// 2^255, where no multiple of the order is one of 8. So nothing is
+	// checked, as in ed25519-bip32, and the last carry is always 0. The
+	// paper's rule on the third highest bit of kL is for the root key, which
+	// icarus clears instead.
+	child, ck := newXPrv()
 	var carry uint
 	for n := range 32 {
-		s := uint(x.kl[n]) + carry
+		s := uint(p.kl[n]) + carry
 		if n < 28 {
 			s += uint(zs[n]) << 3
 		}
-		child.kl[n], carry = byte(s), s>>8
+		ck.kl[n], carry = byte(s), s>>8
 	}
 	carry = 0
 	for n := range 32 {
-		s := uint(x.kr[n]) + uint(zs[32+n]) + carry
-		child.kr[n], carry = byte(s), s>>8
+		s := uint(p.kr[n]) + uint(zs[32+n]) + carry
+		ck.kr[n], carry = byte(s), s>>8
 	}
-	copy(child.cc[:], cs[32:])
+	copy(ck.cc[:], cs[32:])
 	clear(zs)
 	clear(cs)
 	return child
@@ -133,7 +155,8 @@ func (x *XPrv) Child(i uint32) *XPrv {
 // Derive follows a path from x. x is left unchanged, and the keys in between
 // are wiped.
 func (x *XPrv) Derive(path ...uint32) *XPrv {
-	k := &XPrv{kl: x.kl, kr: x.kr, cc: x.cc}
+	k, kk := newXPrv()
+	*kk = *x.key()
 	for _, i := range path {
 		next := k.Child(i)
 		k.Wipe()
@@ -157,7 +180,7 @@ func scalar(kl *[32]byte) *edwards25519.Scalar {
 
 // PublicKey returns the verification key A = kL*B.
 func (x *XPrv) PublicKey() []byte {
-	return new(edwards25519.Point).ScalarBaseMult(scalar(&x.kl)).Bytes()
+	return new(edwards25519.Point).ScalarBaseMult(scalar(&x.key().kl)).Bytes()
 }
 
 // Sign signs msg with the extended key. It is RFC 8032 Ed25519 with kL as the
@@ -171,7 +194,7 @@ func (x *XPrv) Sign(msg []byte) []byte {
 	a := x.PublicKey()
 	var d [64]byte
 	h := sha512.New()
-	h.Write(x.kr[:])
+	h.Write(x.key().kr[:])
 	h.Write(msg)
 	h.Sum(d[:0])
 	r, err := edwards25519.NewScalar().SetUniformBytes(d[:])
@@ -189,15 +212,20 @@ func (x *XPrv) Sign(msg []byte) []byte {
 		panic(err)
 	}
 	clear(d[:])
-	s := edwards25519.NewScalar().MultiplyAdd(k, scalar(&x.kl), r)
+	s := edwards25519.NewScalar().MultiplyAdd(k, scalar(&x.key().kl), r)
 	return append(rb, s.Bytes()...)
 }
 
-// Wipe overwrites the key with zeros.
+// Wipe overwrites the key with zeros. A nil key is left alone, so that the
+// zero Keys can be wiped too.
 func (x *XPrv) Wipe() {
-	clear(x.kl[:])
-	clear(x.kr[:])
-	clear(x.cc[:])
+	if x == nil || x.key == nil {
+		return
+	}
+	k := x.key()
+	clear(k.kl[:])
+	clear(k.kr[:])
+	clear(k.cc[:])
 }
 
 const redacted = "[REDACTED]"
@@ -243,7 +271,8 @@ func (k Keys) Wipe() {
 const KeyHashSize = 28
 
 // KeyHash returns the hash of a verification key, which addresses and
-// required signers carry.
+// required signers carry. A verification key is 32 bytes, as PublicKey
+// returns it; KeyHash hashes whatever it is given.
 func KeyHash(vkey []byte) [KeyHashSize]byte {
 	h, err := blake2b.New(KeyHashSize, nil)
 	if err != nil {
@@ -256,7 +285,8 @@ func KeyHash(vkey []byte) [KeyHashSize]byte {
 }
 
 // BaseAddress returns the base address (CIP-19 type 0) of a payment and a
-// stake verification key on network n.
+// stake verification key on network n. Like KeyHash, it does not check that
+// the keys are 32 bytes.
 func BaseAddress(n model.Network, payment, stake []byte) model.Address {
 	pay, stk := KeyHash(payment), KeyHash(stake)
 	raw := make([]byte, 0, 1+2*KeyHashSize)

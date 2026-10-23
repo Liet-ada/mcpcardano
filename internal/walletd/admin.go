@@ -117,10 +117,12 @@ func (d *Daemon) begin(b *ipc.BeginAuthorization) (*ipc.Challenge, error) {
 	}
 	p, err := d.prepare(b.Action, params)
 	if err != nil {
+		authz.Wipe(params)
 		return nil, err
 	}
 	au, err := d.authz.Begin(b.Action, model.WalletID(p.wallet), p.det, params)
 	if err != nil {
+		authz.Wipe(params)
 		return nil, authError(err)
 	}
 	d.record("authorization.begun", map[string]any{"action": b.Action, "wallet_id": p.wallet})
