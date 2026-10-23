@@ -36,6 +36,26 @@ func newStore(t *testing.T) (string, *Store) {
 	return dir, s
 }
 
+// TestParamsBounds: a store is never created, nor opened to be raised, with
+// parameters that a master.key may not hold. With no passes, Argon2id panics.
+func TestParamsBounds(t *testing.T) {
+	dir, _ := newStore(t)
+	for _, p := range []Params{{0, 64, 1}, {MaxTime + 1, 64, 1}, {1, 31, 4}, {1, MaxMemoryKiB + 1, 1}, {1, 64, 0}} {
+		if err := Create(filepath.Join(t.TempDir(), "keystore"), model.Secret("correct horse"), p); !errors.Is(err, ErrParams) {
+			t.Errorf("Create with %+v: %v", p, err)
+		}
+		if _, err := Open(dir, p); !errors.Is(err, ErrParams) {
+			t.Errorf("Open with %+v: %v", p, err)
+		}
+	}
+}
+
+// unlock unlocks s with the password, on a machine without a key.
+func unlock(s *Store, password string) error {
+	_, err := s.Unlock(model.Secret(password), nil)
+	return err
+}
+
 func TestDefaultParams(t *testing.T) {
 	// RFC 9106, section 4, second recommended option, with 256 MiB.
 	if p := DefaultParams(); p != (Params{Time: 3, MemoryKiB: 262144, Threads: 4}) || p.Check() != nil {
@@ -68,10 +88,10 @@ func TestUnlockAndSeeds(t *testing.T) {
 	if _, err := s.Seed(walletA); !errors.Is(err, ErrLocked) {
 		t.Errorf("seed while locked: %v", err)
 	}
-	if err := s.Unlock(model.Secret("wrong horse")); !errors.Is(err, ErrWrongPassword) {
+	if err := unlock(s, "wrong horse"); !errors.Is(err, ErrWrongPassword) {
 		t.Errorf("wrong password: %v", err)
 	}
-	if err := s.Unlock(model.Secret("correct horse")); err != nil {
+	if err := unlock(s, "correct horse"); err != nil {
 		t.Fatal(err)
 	}
 	entropy := model.Secret(bytes.Repeat([]byte{7}, 32))
@@ -95,7 +115,7 @@ func TestUnlockAndSeeds(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := s2.Unlock(model.Secret("correct horse")); err != nil {
+	if err := unlock(s2, "correct horse"); err != nil {
 		t.Fatal(err)
 	}
 	if got, err := s2.Seed(walletA); err != nil || !bytes.Equal(got, entropy) {
@@ -122,7 +142,7 @@ func TestUnlockAndSeeds(t *testing.T) {
 
 func TestTamperedFiles(t *testing.T) {
 	dir, s := newStore(t)
-	if err := s.Unlock(model.Secret("correct horse")); err != nil {
+	if err := unlock(s, "correct horse"); err != nil {
 		t.Fatal(err)
 	}
 	s.PutSeed(walletA, model.Secret("entropy of wallet A, 32 bytes.."))
@@ -168,7 +188,7 @@ func TestTamperedFiles(t *testing.T) {
 		{"empty", nil, ErrFormat},
 	} {
 		os.WriteFile(masterPath, tc.data, 0o600)
-		if err := s.Unlock(model.Secret("correct horse")); !errors.Is(err, tc.want) {
+		if err := unlock(s, "correct horse"); !errors.Is(err, tc.want) {
 			t.Errorf("%s: %v, want %v", tc.name, err, tc.want)
 		}
 	}
@@ -185,12 +205,14 @@ func TestTamperedFiles(t *testing.T) {
 		func(m *master) { m.KDF.MemoryKiB, m.KDF.Threads = 31, 4 },
 		func(m *master) { m.KDF.Threads = 0 },
 		func(m *master) { m.CT = make([]byte, maxFile) },
+		func(m *master) { m.CT = m.CT[:len(m.CT)-1] },
+		func(m *master) { m.CT = nil },
 	} {
 		c := m
 		change(&c)
 		b, _ := s.codec.Marshal(c)
 		os.WriteFile(masterPath, append([]byte(masterMagic), b...), 0o600)
-		if err := s.Unlock(model.Secret("correct horse")); !errors.Is(err, ErrFormat) {
+		if err := unlock(s, "correct horse"); !errors.Is(err, ErrFormat) {
 			t.Errorf("parameters %+v and %d bytes of ciphertext: %v", c.KDF, len(c.CT), err)
 		}
 	}
@@ -219,7 +241,7 @@ func TestSeedNeverReplaced(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := s.Unlock(model.Secret("correct horse")); err != nil {
+		if err := unlock(s, "correct horse"); err != nil {
 			t.Fatal(err)
 		}
 		stores[i] = s
@@ -262,7 +284,7 @@ func flipLast(b []byte) []byte {
 // parameters writes it again with the store's, and nothing else changes.
 func TestParamsRaised(t *testing.T) {
 	dir, s := newStore(t)
-	s.Unlock(model.Secret("correct horse"))
+	unlock(s, "correct horse")
 	s.PutSeed(walletA, model.Secret("entropy of wallet A, 32 bytes.."))
 
 	stronger := Params{Time: 2, MemoryKiB: 128, Threads: 2}
@@ -270,7 +292,7 @@ func TestParamsRaised(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := s2.Unlock(model.Secret("correct horse")); err != nil {
+	if err := unlock(s2, "correct horse"); err != nil {
 		t.Fatal(err)
 	}
 	m, _ := s2.readMaster()
@@ -282,21 +304,136 @@ func TestParamsRaised(t *testing.T) {
 	}
 	// Unlocking with weaker targets never lowers them.
 	s3, _ := Open(dir, fast)
-	s3.Unlock(model.Secret("correct horse"))
+	unlock(s3, "correct horse")
 	if m, _ := s3.readMaster(); m.KDF != stronger {
 		t.Errorf("parameters were lowered to %+v", m.KDF)
 	}
 	// Nor does raising one lower the others.
 	s4, _ := Open(dir, Params{Time: 1, MemoryKiB: 256, Threads: 1})
-	s4.Unlock(model.Secret("correct horse"))
+	unlock(s4, "correct horse")
 	if m, _ := s4.readMaster(); m.KDF != (Params{Time: 2, MemoryKiB: 256, Threads: 2}) {
 		t.Errorf("parameters after raising the memory alone: %+v", m.KDF)
 	}
 }
 
+// TestMachine follows the envelope of the machine of decision 132 through
+// the restarts of a wallet: each Open is a start.
+func TestMachine(t *testing.T) {
+	dir, s := newStore(t)
+	masterPath := filepath.Join(dir, "master.key")
+	machine, other := bytes.Repeat([]byte{1}, MachineKeySize), bytes.Repeat([]byte{2}, MachineKeySize)
+	entropy := model.Secret("entropy of wallet A, 32 bytes..")
+	restart := func() *Store {
+		t.Helper()
+		s, err := Open(dir, fast)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return s
+	}
+
+	// A new store has no envelope: the first start with a key stays locked.
+	if err := s.UnlockMachine(machine); !errors.Is(err, ErrNotBound) || !s.Locked() {
+		t.Fatalf("a new store: %v", err)
+	}
+	// A wrong password binds nothing.
+	if _, err := s.Unlock(model.Secret("wrong horse"), machine); !errors.Is(err, ErrWrongPassword) {
+		t.Fatalf("wrong password: %v", err)
+	}
+	if m, _ := s.readMaster(); m.Machine != nil {
+		t.Fatal("a wrong password bound the machine")
+	}
+	// The password binds it, and the next start opens with the key alone.
+	if bound, err := s.Unlock(model.Secret("correct horse"), machine); err != nil || !bound {
+		t.Fatalf("binding: %v, %v", bound, err)
+	}
+	s.PutSeed(walletA, entropy)
+	s = restart()
+	if err := s.UnlockMachine(machine); err != nil || s.Locked() {
+		t.Fatalf("a start with the key: %v", err)
+	}
+	if got, err := s.Seed(walletA); err != nil || !bytes.Equal(got, entropy) {
+		t.Errorf("the seed after a start with the key: %v", err)
+	}
+	// Another key, or a key of another size, does not open it.
+	for _, k := range [][]byte{other, machine[:31], nil} {
+		s = restart()
+		if err := s.UnlockMachine(k); !errors.Is(err, ErrMachineKey) || !s.Locked() {
+			t.Errorf("a start with key %x: %v", k, err)
+		}
+	}
+	// Unlocking again with the same key writes nothing.
+	before, _ := os.ReadFile(masterPath)
+	if bound, err := s.Unlock(model.Secret("correct horse"), machine); err != nil || !bound {
+		t.Fatalf("unlocking again: %v, %v", bound, err)
+	}
+	if after, _ := os.ReadFile(masterPath); !bytes.Equal(before, after) {
+		t.Error("master.key was written again with nothing to change")
+	}
+	// A new key replaces the envelope: the old one no longer opens.
+	if bound, err := s.Unlock(model.Secret("correct horse"), other); err != nil || !bound {
+		t.Fatalf("a new key: %v, %v", bound, err)
+	}
+	if s = restart(); !errors.Is(s.UnlockMachine(machine), ErrMachineKey) || s.UnlockMachine(other) != nil {
+		t.Error("the envelope did not follow the new key")
+	}
+	// Without a key, the password still opens and removes the envelope.
+	if bound, err := s.Unlock(model.Secret("correct horse"), nil); err != nil || bound {
+		t.Fatalf("without a key: %v, %v", bound, err)
+	}
+	if s = restart(); !errors.Is(s.UnlockMachine(other), ErrNotBound) {
+		t.Error("the envelope stayed without a key")
+	}
+	// Raising the parameters and binding go in one rewrite, and both hold.
+	stronger := Params{Time: 2, MemoryKiB: 128, Threads: 1}
+	s, _ = Open(dir, stronger)
+	if bound, err := s.Unlock(model.Secret("correct horse"), machine); err != nil || !bound {
+		t.Fatalf("raising and binding: %v, %v", bound, err)
+	}
+	if m, _ := s.readMaster(); m.KDF != stronger {
+		t.Errorf("parameters %+v", m.KDF)
+	}
+	if s = restart(); s.UnlockMachine(machine) != nil {
+		t.Error("the key does not open after raising the parameters")
+	}
+
+	// A changed envelope does not open, and a malformed one is refused.
+	orig, _ := os.ReadFile(masterPath)
+	var m master
+	s.codec.Unmarshal(orig[5:], &m)
+	for _, tc := range []struct {
+		change func(*sealed)
+		want   error
+	}{
+		{func(e *sealed) { e.CT[0] ^= 1 }, ErrMachineKey},
+		{func(e *sealed) { e.Nonce[0] ^= 1 }, ErrMachineKey},
+		{func(e *sealed) { e.Nonce = e.Nonce[1:] }, ErrFormat},
+		{func(e *sealed) { e.CT = append(e.CT, 0) }, ErrFormat},
+	} {
+		e := sealed{Nonce: bytes.Clone(m.Machine.Nonce), CT: bytes.Clone(m.Machine.CT)}
+		tc.change(&e)
+		c := m
+		c.Machine = &e
+		b, _ := s.codec.Marshal(c)
+		os.WriteFile(masterPath, append([]byte(masterMagic), b...), 0o600)
+		if s.Lock(); !errors.Is(s.UnlockMachine(machine), tc.want) || !s.Locked() {
+			t.Errorf("%+v: want %v", e, tc.want)
+		}
+	}
+	// The envelope of the password cannot stand for that of the machine: they
+	// differ in their associated data.
+	c := m
+	c.Machine = &sealed{Nonce: m.Nonce, CT: m.CT}
+	b, _ := s.codec.Marshal(c)
+	os.WriteFile(masterPath, append([]byte(masterMagic), b...), 0o600)
+	if err := s.UnlockMachine(machine); !errors.Is(err, ErrMachineKey) {
+		t.Errorf("the envelope of the password as the machine's: %v", err)
+	}
+}
+
 func TestPermissions(t *testing.T) {
 	dir, s := newStore(t)
-	s.Unlock(model.Secret("correct horse"))
+	unlock(s, "correct horse")
 	s.PutSeed(walletA, model.Secret("entropy of wallet A, 32 bytes.."))
 	for _, f := range []string{"master.key", string(walletA) + ".seed"} {
 		if fi, _ := os.Stat(filepath.Join(dir, f)); fi.Mode().Perm() != 0o600 {
@@ -333,7 +470,7 @@ func TestPermissions(t *testing.T) {
 func TestErrorsNeverQuoteSecrets(t *testing.T) {
 	dir, s := newStore(t)
 	for _, err := range []error{
-		s.Unlock(model.Secret("hunter2-hunter2")),
+		unlock(s, "hunter2-hunter2"),
 		s.CheckPassword(model.Secret("hunter2-hunter2")),
 		Create(dir, model.Secret("hunter2-hunter2"), fast),
 	} {

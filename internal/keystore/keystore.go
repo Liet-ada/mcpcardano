@@ -5,10 +5,11 @@
 // specification). It uses envelope encryption: a random 32-byte data key
 // encrypts the entropy of each wallet, and the data key is kept wrapped by the
 // person's password, with Argon2id and XChaCha20-Poly1305. So the password can
-// change without encrypting the wallets again, and a second wrapping, by the
-// machine, can arrive in H-3.
+// change without encrypting the wallets again. A second wrapping, by a key of
+// the machine that systemd keeps sealed by the TPM2, is optional: with it the
+// wallet starts unlocked (decision 132).
 //
-//	keystore/master.key         "MCPKS" || CBOR {v, kdf, salt, nonce, ct}
+//	keystore/master.key         "MCPKS" || CBOR {v, kdf, salt, nonce, ct, machine?: {nonce, ct}}
 //	keystore/<wallet_id>.seed   "MCPWS" || CBOR {v, wallet_id, nonce, ct}
 //
 // A wrong password shows as a failed authentication tag; no verifier is kept.
@@ -20,6 +21,7 @@ import (
 	"bytes"
 	"crypto/cipher"
 	"crypto/rand"
+	"crypto/subtle"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -44,10 +46,17 @@ const (
 	seedSuffix  = ".seed"
 	keySize     = chacha20poly1305.KeySize
 	saltSize    = 16
+	machineID   = "machine" // in the associated data of the envelope of the machine
 )
+
+// MachineKeySize is the size of the key of the machine.
+const MachineKeySize = keySize
 
 var (
 	ErrWrongPassword = errors.New("keystore: wrong password")
+	ErrMachineKey    = errors.New("keystore: the key of the machine does not open the key store")
+	ErrNotBound      = errors.New("keystore: the key store has no envelope of the machine")
+	ErrParams        = fmt.Errorf("keystore: Argon2id needs 1 to %d passes, at least 1 lane, 8 KiB per lane and at most %d MiB", MaxTime, MaxMemoryKiB>>10)
 	ErrLocked        = errors.New("keystore: locked")
 	ErrExists        = errors.New("keystore: already exists")
 	ErrNotFound      = errors.New("keystore: no such key store or seed")
@@ -107,9 +116,16 @@ func (p Params) raised(q Params) Params {
 }
 
 type master struct {
-	V     uint64 `cbor:"v"`
-	KDF   Params `cbor:"kdf"`
-	Salt  []byte `cbor:"salt"`
+	V       uint64  `cbor:"v"`
+	KDF     Params  `cbor:"kdf"`
+	Salt    []byte  `cbor:"salt"`
+	Nonce   []byte  `cbor:"nonce"`
+	CT      []byte  `cbor:"ct"`
+	Machine *sealed `cbor:"machine,omitempty"`
+}
+
+// sealed is the data key wrapped by the key of the machine.
+type sealed struct {
 	Nonce []byte `cbor:"nonce"`
 	CT    []byte `cbor:"ct"`
 }
@@ -141,8 +157,12 @@ type Store struct {
 
 // Create makes a key store in dir, which it creates with mode 0700 if
 // missing, with a new data key wrapped by password. It fails with ErrExists
-// if there is already one.
+// if there is already one, and with ErrParams if p is beyond what a
+// master.key may hold.
 func Create(dir string, password model.Secret, p Params) error {
+	if !p.valid() {
+		return ErrParams
+	}
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return fmt.Errorf("keystore: %w", err)
 	}
@@ -154,13 +174,21 @@ func Create(dir string, password model.Secret, p Params) error {
 		return fmt.Errorf("keystore: %w", err)
 	}
 	defer clear(key[:])
-	return writeMaster(newCodec(), dir, &key, password, p, false)
+	m := master{V: FormatVersion}
+	if err := sealPassword(&m, &key, password, p); err != nil {
+		return err
+	}
+	return writeMaster(newCodec(), dir, m, false)
 }
 
 // Open reads the key store in dir, locked. Unlock raises its Argon2id
-// parameters to p if they are lower. It refuses a directory or file that
-// other users could read (section 7.1).
+// parameters to p if they are lower; ErrParams if p is beyond what a
+// master.key may hold. It refuses a directory or file that other users could
+// read (section 7.1).
 func Open(dir string, p Params) (*Store, error) {
+	if !p.valid() {
+		return nil, ErrParams
+	}
 	if err := checkMode(dir, 0o700); err != nil {
 		return nil, err
 	}
@@ -193,7 +221,9 @@ func (s *Store) readMaster() (master, error) {
 	}
 	body, ok := bytes.CutPrefix(b, []byte(masterMagic))
 	if !ok || s.codec.Unmarshal(body, &m) != nil || m.V != FormatVersion ||
-		len(m.Salt) != saltSize || len(m.Nonce) != chacha20poly1305.NonceSizeX || !m.KDF.valid() {
+		len(m.Salt) != saltSize || len(m.Nonce) != chacha20poly1305.NonceSizeX || !m.KDF.valid() ||
+		len(m.CT) != keySize+chacha20poly1305.Overhead ||
+		m.Machine != nil && (len(m.Machine.Nonce) != chacha20poly1305.NonceSizeX || len(m.Machine.CT) != keySize+chacha20poly1305.Overhead) {
 		return m, ErrFormat
 	}
 	return m, nil
@@ -210,10 +240,10 @@ func associated(magic string, id string) []byte {
 	return append([]byte(magic), append([]byte{FormatVersion}, id...)...)
 }
 
-// writeMaster wraps key in a new master.key. Without replace, it fails with
-// ErrExists if there is one.
-func writeMaster(c *cborx.Codec, dir string, key *[keySize]byte, password model.Secret, p Params, replace bool) error {
-	m := master{V: FormatVersion, KDF: p, Salt: make([]byte, saltSize), Nonce: make([]byte, chacha20poly1305.NonceSizeX)}
+// sealPassword wraps key in m with the password, under the parameters p and
+// a new salt.
+func sealPassword(m *master, key *[keySize]byte, password model.Secret, p Params) error {
+	m.KDF, m.Salt, m.Nonce = p, make([]byte, saltSize), make([]byte, chacha20poly1305.NonceSizeX)
 	rand.Read(m.Salt)
 	rand.Read(m.Nonce)
 	wk := wrapKey(password, m.Salt, p)
@@ -223,6 +253,40 @@ func writeMaster(c *cborx.Codec, dir string, key *[keySize]byte, password model.
 		return fmt.Errorf("keystore: %w", err)
 	}
 	m.CT = aead.Seal(nil, m.Nonce, key[:], associated(masterMagic, ""))
+	return nil
+}
+
+// sealMachine wraps key with the key of the machine.
+func sealMachine(key *[keySize]byte, machine []byte) (*sealed, error) {
+	aead, err := chacha20poly1305.NewX(machine)
+	if err != nil {
+		return nil, ErrMachineKey
+	}
+	e := &sealed{Nonce: make([]byte, chacha20poly1305.NonceSizeX)}
+	rand.Read(e.Nonce)
+	e.CT = aead.Seal(nil, e.Nonce, key[:], associated(masterMagic, machineID))
+	return e, nil
+}
+
+// openMachine returns the data key that e wraps, or ErrMachineKey.
+func openMachine(e *sealed, machine []byte) (*[keySize]byte, error) {
+	aead, err := chacha20poly1305.NewX(machine)
+	if err != nil {
+		return nil, ErrMachineKey
+	}
+	pt, err := aead.Open(nil, e.Nonce, e.CT, associated(masterMagic, machineID))
+	if err != nil {
+		return nil, ErrMachineKey
+	}
+	defer clear(pt)
+	key := new([keySize]byte)
+	copy(key[:], pt)
+	return key, nil
+}
+
+// writeMaster writes m as master.key. Without replace, it fails with
+// ErrExists if there is one.
+func writeMaster(c *cborx.Codec, dir string, m master, replace bool) error {
 	b, err := c.Marshal(m)
 	if err != nil {
 		return fmt.Errorf("keystore: %w", err)
@@ -251,26 +315,91 @@ func (s *Store) unwrap(m master, password model.Secret) (*[keySize]byte, error) 
 	return key, nil
 }
 
-// Unlock opens the data key with the password and keeps it in memory. If an
-// Argon2id parameter of master.key is lower than the store's, it is written
-// again with that one raised and a new salt, as section 7.6 asks; the data
-// key, and so the seeds, stay the same.
-func (s *Store) Unlock(password model.Secret) error {
+// Unlock opens the data key with the password and keeps it in memory. Then
+// it brings master.key up to date, and writes it again if anything changes;
+// the data key, and so the seeds, stay the same:
+//   - an Argon2id parameter lower than the store's is raised, with a new
+//     salt, as section 7.6 asks;
+//   - the envelope of the machine follows machine, the key of the machine
+//     if the wallet has one: it is added, or made again for a new key, and
+//     without a key it is removed (decision 132).
+//
+// It reports whether master.key has the envelope of the machine.
+func (s *Store) Unlock(password model.Secret, machine []byte) (bool, error) {
+	if machine != nil && len(machine) != MachineKeySize {
+		return false, ErrMachineKey
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	m, err := s.readMaster()
+	if err != nil {
+		return false, err
+	}
+	key, err := s.unwrap(m, password)
+	if err != nil {
+		return false, err
+	}
+	changed := false
+	if p := m.KDF.raised(s.params); p != m.KDF {
+		err = sealPassword(&m, key, password, p)
+		changed = true
+	}
+	if err == nil && !machineFollows(m.Machine, machine, key) {
+		m.Machine = nil
+		if machine != nil {
+			m.Machine, err = sealMachine(key, machine)
+		}
+		changed = true
+	}
+	if err == nil && changed {
+		err = writeMaster(s.codec, s.dir, m, true)
+	}
+	if err != nil {
+		clear(key[:])
+		return false, err
+	}
+	if s.key != nil {
+		clear(s.key[:])
+	}
+	s.key = key
+	return m.Machine != nil, nil
+}
+
+// machineFollows reports whether e is what machine asks for: no envelope
+// without a key, or one that the key opens to key.
+func machineFollows(e *sealed, machine []byte, key *[keySize]byte) bool {
+	if machine == nil || e == nil {
+		return machine == nil && e == nil
+	}
+	k, err := openMachine(e, machine)
+	if err != nil {
+		return false
+	}
+	defer clear(k[:])
+	return subtle.ConstantTimeCompare(k[:], key[:]) == 1
+}
+
+// UnlockMachine opens the data key with the key of the machine and keeps it
+// in memory: the unlock at start of decision 132. It fails with ErrNotBound
+// if master.key has no envelope of the machine, and with ErrMachineKey if
+// machine does not open it. It changes nothing on disk: only an unlock with
+// the password raises the parameters or changes the envelope.
+func (s *Store) UnlockMachine(machine []byte) error {
+	if len(machine) != MachineKeySize {
+		return ErrMachineKey
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	m, err := s.readMaster()
 	if err != nil {
 		return err
 	}
-	key, err := s.unwrap(m, password)
+	if m.Machine == nil {
+		return ErrNotBound
+	}
+	key, err := openMachine(m.Machine, machine)
 	if err != nil {
 		return err
-	}
-	if p := m.KDF.raised(s.params); p != m.KDF {
-		if err := writeMaster(s.codec, s.dir, key, password, p, true); err != nil {
-			clear(key[:])
-			return err
-		}
 	}
 	if s.key != nil {
 		clear(s.key[:])

@@ -50,19 +50,32 @@ func (d *Daemon) status() (*ipc.StatusReport, error) {
 
 // unlock decrypts the key store. Wrong passwords go through the same doubling
 // wait as authorizations; once unlocked, Unlock only checks the password.
+// The unlock also binds the key store to the key of the machine, or unbinds
+// it if there is no key (decision 132). A key that cannot be read counts as
+// none: the password always opens.
 func (d *Daemon) unlock(b *ipc.Unlock) error {
 	defer clear(b.Password)
+	e := map[string]any{"by": "password"}
 	err := d.authz.Attempt(func() error {
 		if !d.store.Locked() {
 			return d.checkPassword(b.Password)
 		}
-		err := d.store.Unlock(b.Password)
+		machine, err := d.machineKey()
+		if err != nil {
+			e["machine_error"] = err.Error()
+		}
+		defer clear(machine)
+		bound, err := d.store.Unlock(b.Password, machine)
 		if errors.Is(err, keystore.ErrWrongPassword) {
 			return authz.ErrWrongPassword
 		}
+		if err == nil {
+			e["machine"] = bound
+		}
 		return err
 	})
-	d.record("unlock", map[string]any{"ok": err == nil})
+	e["ok"] = err == nil
+	d.record("unlock", e)
 	return authError(err)
 }
 

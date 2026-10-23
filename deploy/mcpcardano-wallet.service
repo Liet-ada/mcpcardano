@@ -5,6 +5,9 @@
 # end of each. It starts locked: the person unlocks it with mcpcardano unlock.
 # It locks its memory out of swap, which LimitMEMLOCK allows.
 # Create its key store once, before the first start (see deploy/README.md).
+# With a TPM2 it can start unlocked: ImportCredential hands it the key of the
+# machine, if there is one in /etc/credstore.encrypted, and skips it if it is
+# missing or does not decrypt (decision 132). systemd before 254 ignores it.
 [Unit]
 Description=mcpcardano wallet
 Before=mcpcardano-server.service
@@ -20,6 +23,7 @@ StateDirectoryMode=0700
 RuntimeDirectory=mcpcardano-wallet
 RuntimeDirectoryMode=0750
 UMask=0077
+ImportCredential=mcpcardano-wallet.unlock
 
 PrivateNetwork=yes
 RestrictAddressFamilies=AF_UNIX
