@@ -52,11 +52,8 @@ sudo chmod 0755 /usr/local/bin
 "$work/koios" -listen 127.0.0.1:18080 &
 koios=$!
 head -c 24 /dev/urandom | base64 > "$work/password"
+# install ends once both services answer on their sockets.
 sudo "$work/bin/mcpcardano" install -datasource-url http://127.0.0.1:18080 < "$work/password"
-for _ in $(seq 50); do
-	if sudo test -S /run/mcpcardano-server/mcp.sock; then break; fi
-	sleep 0.2
-done
 sudo ls -la /run/mcpcardano-wallet /run/mcpcardano-server
 
 echo "== doctor"

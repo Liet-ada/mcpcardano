@@ -14,6 +14,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Liet-ada/mcpcardano/deploy"
 	"github.com/Liet-ada/mcpcardano/internal/model"
@@ -35,7 +36,9 @@ type fake struct {
 	fail    map[string]string // a command, as recorded, and what it writes when it fails
 	// nextServer is the uid systemd-sysusers gives the server's user.
 	nextServer uint32
-	source     string
+	// silent names a unit that starts without opening its socket.
+	silent string
+	source string
 }
 
 const person = "ana"
@@ -46,7 +49,7 @@ func newFake(t *testing.T) *fake {
 		groups: map[string]uint32{}, synced: true, systemd: "systemd 255 (255.4-1ubuntu8)\n+PAM +AUDIT\n", fail: map[string]string{},
 		nextServer: 992, source: t.TempDir()}
 	f.m = &Machine{root: t.TempDir(), run: f.run, chown: f.chown, lookupUser: f.lookupUser, lookupGroup: f.lookupGroup,
-		synced: func() (bool, error) { return f.synced, nil }, out: &f.out}
+		synced: func() (bool, error) { return f.synced, nil }, startWait: 300 * time.Millisecond, out: &f.out}
 	f.touch("/run/systemd/system/.keep")
 	for _, b := range deploy.Binaries {
 		if err := os.WriteFile(filepath.Join(f.source, b), []byte("binary "+b), 0o755); err != nil {
@@ -102,6 +105,13 @@ func (f *fake) run(c command) (string, error) {
 		f.touch(deploy.MasterKey)
 	case c.name == "systemd-creds":
 		f.touch(deploy.Credential)
+	case rec == "systemctl start "+deploy.WalletService && f.silent != deploy.WalletService:
+		f.touch(deploy.AdminSocket)
+	case rec == "systemctl start "+deploy.ServerService && f.silent != deploy.ServerService:
+		f.touch(deploy.MCPSocket)
+	case c.name == "systemctl" && len(c.args) > 0 && c.args[0] == "stop":
+		os.Remove(f.m.path(deploy.AdminSocket))
+		os.Remove(f.m.path(deploy.MCPSocket))
 	}
 	return "", nil
 }
@@ -533,5 +543,19 @@ func TestLinkInsteadOfADirectory(t *testing.T) {
 	}
 	if err := f.install(f.options(), "correct horse"); err == nil || !strings.Contains(err.Error(), deploy.WalletData+" is not a directory") {
 		t.Errorf("a link for the wallet's data: %v", err)
+	}
+}
+
+func TestServiceDoesNotAnswer(t *testing.T) {
+	for _, unit := range deploy.Units {
+		f := newFake(t)
+		f.silent = unit
+		err := f.install(f.options(), "correct horse")
+		if err == nil || !strings.Contains(err.Error(), "journalctl -u "+unit) {
+			t.Errorf("%s without its socket: %v", unit, err)
+		}
+		if unit == deploy.WalletService && slices.Contains(f.cmds, "systemctl start "+deploy.ServerService) {
+			t.Error("the server started before the wallet answered")
+		}
 	}
 }

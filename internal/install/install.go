@@ -22,6 +22,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/Liet-ada/mcpcardano/deploy"
 	"github.com/Liet-ada/mcpcardano/internal/model"
@@ -105,6 +106,8 @@ type Machine struct {
 	synced func() (bool, error)
 	// euid is the effective user of the process.
 	euid int
+	// startWait is how long a service may take to open its socket.
+	startWait time.Duration
 	// unsupported says why install cannot run on this system, if it cannot.
 	unsupported string
 	out         io.Writer
@@ -406,12 +409,33 @@ func (m *Machine) Install(o Options, password model.Secret) error {
 	if err := m.cmd(nil, "systemctl", "enable", deploy.WalletService, deploy.ServerService); err != nil {
 		return err
 	}
-	for _, u := range deploy.Units {
-		if err := m.cmd(nil, "systemctl", "start", u); err != nil {
+	// systemd says a service started when it runs, not when it answers:
+	// the server starts once the wallet has its sockets, and install ends
+	// once the server has its own.
+	for _, s := range []struct{ unit, socket string }{
+		{deploy.WalletService, deploy.AdminSocket},
+		{deploy.ServerService, deploy.MCPSocket},
+	} {
+		if err := m.cmd(nil, "systemctl", "start", s.unit); err != nil {
 			return err
+		}
+		if err := m.waitFor(s.socket); err != nil {
+			return fmt.Errorf("install: %s did not open %s in %v: journalctl -u %s says why", s.unit, s.socket, m.startWait, s.unit)
 		}
 	}
 	m.next(upgrade, o.Network)
+	return nil
+}
+
+// waitFor waits until p exists, for startWait at most.
+func (m *Machine) waitFor(p string) error {
+	deadline := time.Now().Add(m.startWait)
+	for !m.exists(p) {
+		if time.Now().After(deadline) {
+			return fs.ErrNotExist
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
 	return nil
 }
 

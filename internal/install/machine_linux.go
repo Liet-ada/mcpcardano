@@ -14,6 +14,7 @@ import (
 	"os/user"
 	"strconv"
 	"syscall"
+	"time"
 
 	"golang.org/x/sys/unix"
 )
@@ -21,7 +22,7 @@ import (
 // NewMachine returns this machine, on which install writes as root.
 func NewMachine(out io.Writer) *Machine {
 	return &Machine{root: "/", run: run, chown: lchown, lookupUser: lookupUser, lookupGroup: lookupGroup,
-		synced: ClockSynced, euid: os.Geteuid(), out: out}
+		synced: ClockSynced, euid: os.Geteuid(), startWait: 30 * time.Second, out: out}
 }
 
 func lchown(path string, uid, gid uint32) error { return os.Lchown(path, int(uid), int(gid)) }
