@@ -271,9 +271,19 @@ func (d *doctor) files() {
 	for _, u := range deploy.Units {
 		p := filepath.Join(deploy.UnitDir, u)
 		if b, err := d.env.ReadFile(p); err == nil && string(b) != deploy.Unit(u) {
-			d.add(Warn, "%s is not the unit of this version of mcpcardano: sudo mcpcardano install puts it back", p)
+			d.add(changed(u), "%s is not the unit of this version of mcpcardano: sudo mcpcardano install puts it back", p)
 		}
 	}
+}
+
+// changed is how a change to a unit comes out: nothing may change the
+// wallet's, the frontier of the keys; the server's may get, say, a
+// credential of its provider.
+func changed(unit string) Level {
+	if unit == deploy.WalletService {
+		return Fail
+	}
+	return Warn
 }
 
 func (d *doctor) check(e expect) string {
@@ -287,6 +297,8 @@ func (d *doctor) check(e expect) string {
 	}
 	uid, gid := d.env.Owner(fi)
 	switch mode := fi.Mode().Perm(); {
+	case fi.Mode()&(fs.ModeSetuid|fs.ModeSetgid|fs.ModeSticky) != 0:
+		return fmt.Sprintf("%s has the setuid, setgid or sticky bit, which install never sets", e.path)
 	case uid != e.uid:
 		return fmt.Sprintf("%s is %s's, and must be %s's", e.path, d.env.UserName(uid), d.env.UserName(e.uid))
 	case e.gid != nil && gid != *e.gid:
@@ -334,7 +346,7 @@ func (d *doctor) units() int {
 	for _, u := range deploy.Units {
 		want := hardening(deploy.Unit(u))
 		keys := slices.Sorted(maps.Keys(want))
-		props := append([]string{"ActiveState", "SubState", "Result", "MainPID", "FragmentPath", "DropInPaths", "SystemCallFilter"}, keys...)
+		props := append([]string{"ActiveState", "SubState", "Result", "MainPID", "FragmentPath", "DropInPaths", "ExecStart", "SystemCallFilter"}, keys...)
 		got, err := d.env.Show(u, props)
 		if err != nil {
 			d.add(Fail, "systemctl show %s: %v", u, err)
@@ -349,9 +361,12 @@ func (d *doctor) units() int {
 			d.add(Fail, "%s comes from %q, not from the unit install wrote", u, f)
 		}
 		if p := got["DropInPaths"]; p != "" {
-			d.add(Warn, "%s has drop-ins, which may change it: %s", u, p)
+			d.add(changed(u), "%s has drop-ins, which may change it: %s", u, p)
 		}
 		var weak []string
+		if run, want := argv(got["ExecStart"]), settings(deploy.Unit(u))["ExecStart"]; run != want {
+			weak = append(weak, fmt.Sprintf("it runs %q, not %q", run, want))
+		}
 		for _, k := range keys {
 			v, known := got[k]
 			switch {
@@ -376,10 +391,8 @@ func (d *doctor) units() int {
 	return pid
 }
 
-// hardening reads the settings of a unit's [Service] section that systemctl
-// show prints as they are written: all but the command and the filter of
-// system calls, which it prints expanded.
-func hardening(unit string) map[string]string {
+// settings reads the settings of a unit's [Service] section.
+func settings(unit string) map[string]string {
 	out := map[string]string{}
 	section := ""
 	s := bufio.NewScanner(strings.NewReader(unit))
@@ -391,12 +404,31 @@ func hardening(unit string) map[string]string {
 			section = line
 		case section == "[Service]":
 			k, v, _ := strings.Cut(line, "=")
-			if k != "ExecStart" && k != "SystemCallFilter" {
-				out[k] = v
-			}
+			out[k] = v
 		}
 	}
 	return out
+}
+
+// hardening is the settings that systemctl show prints as they are written:
+// all but the command, which it prints as a record (argv reads it), and the
+// filter of system calls, which it prints expanded.
+func hardening(unit string) map[string]string {
+	out := settings(unit)
+	delete(out, "ExecStart")
+	delete(out, "SystemCallFilter")
+	return out
+}
+
+// argv reads the command line of an ExecStart as systemctl show prints it:
+// "{ path=... ; argv[]=/usr/local/bin/x -config y ; ignore_errors=no ; ... }".
+func argv(exec string) string {
+	_, rest, ok := strings.Cut(exec, "argv[]=")
+	if !ok {
+		return ""
+	}
+	cmd, _, _ := strings.Cut(rest, " ; ")
+	return cmd
 }
 
 // sameValue compares a property as systemctl show prints it with the unit's

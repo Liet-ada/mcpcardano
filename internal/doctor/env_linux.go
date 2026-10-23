@@ -106,8 +106,16 @@ func userName(uid uint32) string {
 
 // show runs systemctl show, which needs no privilege, and reads its lines
 // of property=value. A property this systemd does not know is left out.
+// systemctl comes from the system's directories, not from the person's
+// PATH.
 func show(unit string, props []string) (map[string]string, error) {
-	out, err := exec.Command("systemctl", "show", unit, "-p", strings.Join(props, ",")).Output()
+	systemctl, err := install.SystemCommand("systemctl")
+	if err != nil {
+		return nil, err
+	}
+	cmd := exec.Command(systemctl, "show", unit, "-p", strings.Join(props, ","))
+	cmd.Env = install.SafeEnv()
+	out, err := cmd.Output()
 	if err != nil {
 		return nil, err
 	}

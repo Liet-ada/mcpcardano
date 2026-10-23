@@ -76,6 +76,7 @@ func healthy() *machine {
 		props["FragmentPath"] = filepath.Join(deploy.UnitDir, u)
 		props["DropInPaths"] = ""
 		props["SystemCallFilter"] = "_llseek accept accept4 access"
+		props["ExecStart"] = shown(settings(deploy.Unit(u))["ExecStart"])
 		m.show[u] = props
 	}
 	m.show[deploy.WalletService]["MainPID"] = fmt.Sprint(walletPID)
@@ -196,7 +197,15 @@ func TestBroken(t *testing.T) {
 		{"the configuration's group", func(m *machine) { m.files[deploy.WalletConfig].gid = 0 }, Fail, "has the group 0, and must have mcpcardano"},
 		{"a socket missing", func(m *machine) { delete(m.files, deploy.AdminSocket) }, Fail, deploy.AdminSocket},
 		{"a socket as a file", func(m *machine) { m.files[deploy.MCPSocket].mode = 0o660 }, Fail, "is not a socket"},
-		{"a unit edited", func(m *machine) { m.files["/etc/systemd/system/mcpcardano-server.service"].data += "# edited\n" }, Warn, "is not the unit of this version"},
+		{"the server's unit edited", func(m *machine) { m.files["/etc/systemd/system/mcpcardano-server.service"].data += "# edited\n" }, Warn, "is not the unit of this version"},
+		{"the wallet's unit edited", func(m *machine) { m.files["/etc/systemd/system/mcpcardano-wallet.service"].data += "# edited\n" }, Fail, "is not the unit of this version"},
+		{"a drop-in on the wallet", func(m *machine) {
+			m.show[deploy.WalletService]["DropInPaths"] = "/etc/systemd/system/mcpcardano-wallet.service.d/x.conf"
+		}, Fail, "has drop-ins"},
+		{"another binary", func(m *machine) {
+			m.show[deploy.WalletService]["ExecStart"] = shown("/tmp/evil -config /etc/mcpcardano-wallet/config.json")
+		}, Fail, `it runs "/tmp/evil -config`},
+		{"a setuid binary", func(m *machine) { m.files["/usr/local/bin/mcpcardano"].mode = 0o755 | fs.ModeSetuid }, Fail, "setuid"},
 		{"development", func(m *machine) {
 			m.files[deploy.WalletConfig].data = `{"network": "preprod", "admin_uid": 1000, "development": true}`
 		}, Fail, `"development": true`},
@@ -319,5 +328,22 @@ func TestNoControlReachesTheTerminal(t *testing.T) {
 	}
 	if !strings.Contains(out, "the server v1?]0;owned??[2J?evil?ok    all is fine") {
 		t.Errorf("doctor does not show the version, made visible:\n%s", out)
+	}
+}
+
+// shown writes a command as systemctl show prints an ExecStart.
+func shown(cmd string) string {
+	path, _, _ := strings.Cut(cmd, " ")
+	return "{ path=" + path + " ; argv[]=" + cmd + " ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }"
+}
+
+func TestArgv(t *testing.T) {
+	// As systemd 259 printed it.
+	got := argv("{ path=/bin/echo ; argv[]=/bin/echo otro -x ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }")
+	if got != "/bin/echo otro -x" {
+		t.Errorf("argv = %q", got)
+	}
+	if argv("") != "" {
+		t.Error("argv of nothing")
 	}
 }

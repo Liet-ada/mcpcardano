@@ -5,6 +5,12 @@
 
 package install
 
-import "io/fs"
+import (
+	"io/fs"
+	"os"
+)
 
 func ownerOf(fs.FileInfo) account { return account{} }
+
+// openNoFollow opens a file to read it.
+func openNoFollow(path string) (*os.File, error) { return os.Open(path) }

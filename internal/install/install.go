@@ -76,6 +76,29 @@ var fidoRules = []string{
 // quote as it is.
 var userName = regexp.MustCompile(`^[a-z_][a-z0-9_-]{0,31}$`)
 
+// safePath is where the system's commands are taken from, whatever PATH
+// sudo passed on: a directory the person can write must never lend root a
+// systemctl, nor a systemd-creds that gets the key of the machine.
+var safePath = []string{"/usr/sbin", "/usr/bin", "/sbin", "/bin"}
+
+// SystemCommand returns the path of one of the system's commands, found in
+// safePath alone. A path is returned as it is.
+func SystemCommand(name string) (string, error) {
+	if filepath.IsAbs(name) {
+		return name, nil
+	}
+	for _, d := range safePath {
+		p := filepath.Join(d, name)
+		if fi, err := os.Stat(p); err == nil && fi.Mode().IsRegular() && fi.Mode()&0o111 != 0 {
+			return p, nil
+		}
+	}
+	return "", fmt.Errorf("install: there is no %s in %s", name, strings.Join(safePath, ":"))
+}
+
+// SafeEnv is the whole environment of the commands install runs.
+func SafeEnv() []string { return []string{"PATH=" + strings.Join(safePath, ":")} }
+
 // command is a command install runs: as root, or as a user of a service.
 type command struct {
 	name  string
@@ -175,9 +198,20 @@ func (m *Machine) writeFile(p string, data []byte, mode fs.FileMode, uid, gid ui
 	return nil
 }
 
-// copyFile copies the file src, outside root, to p.
+// copyFile copies the file src, outside root, to p. src must be the file
+// itself: it is opened without following a link, so that what Check saw is
+// what is copied.
 func (m *Machine) copyFile(src, p string, mode fs.FileMode) error {
-	data, err := os.ReadFile(src)
+	f, err := openNoFollow(src)
+	if err != nil {
+		return fmt.Errorf("install: %s must be the binary itself, not a link: %w", src, err)
+	}
+	defer f.Close()
+	fi, err := f.Stat()
+	if err != nil || !fi.Mode().IsRegular() {
+		return fmt.Errorf("install: %s is not a regular file", src)
+	}
+	data, err := io.ReadAll(f)
 	if err != nil {
 		return fmt.Errorf("install: %w", err)
 	}
@@ -194,14 +228,30 @@ func (m *Machine) mkdir(p string, mode fs.FileMode, uid, gid uint32) error {
 	if err := os.Mkdir(dir, mode); err != nil && !errors.Is(err, fs.ErrExist) {
 		return fmt.Errorf("install: %w", err)
 	}
-	// chmod follows a link: p must be the directory itself.
-	if fi, err := os.Lstat(dir); err != nil || !fi.IsDir() {
-		return fmt.Errorf("install: %s is not a directory", p)
+	if err := m.isDir(p); err != nil {
+		return err
 	}
 	if err := m.chown(dir, uid, gid); err != nil {
 		return fmt.Errorf("install: %w", err)
 	}
-	if err := os.Chmod(dir, mode); err != nil {
+	return m.chmodDir(p, mode)
+}
+
+// isDir checks that p is a directory, and not a link to one.
+func (m *Machine) isDir(p string) error {
+	if fi, err := os.Lstat(m.path(p)); err != nil || !fi.IsDir() {
+		return fmt.Errorf("install: %s is not a directory", p)
+	}
+	return nil
+}
+
+// chmodDir gives the directory p its mode. chmod follows a link, so p must
+// be the directory itself.
+func (m *Machine) chmodDir(p string, mode fs.FileMode) error {
+	if err := m.isDir(p); err != nil {
+		return err
+	}
+	if err := os.Chmod(m.path(p), mode); err != nil {
 		return fmt.Errorf("install: %w", err)
 	}
 	return nil
@@ -252,6 +302,9 @@ func (m *Machine) Check(o *Options) error {
 		}
 		return fmt.Errorf("install: %s. The wallet takes the time from it (section 9.3): turn on its synchronization, as with timedatectl set-ntp true, and run install again", why)
 	}
+	if err := m.checkHardlinks(); err != nil {
+		return err
+	}
 	if o.Person == "" || o.Person == "root" {
 		return errors.New("install: run it with sudo from the person's account, or name the person with -user")
 	}
@@ -295,6 +348,16 @@ func (m *Machine) Check(o *Options) error {
 		case o.DataSource != "koios":
 			return fmt.Errorf("install: unknown data source %q: there is only koios", o.DataSource)
 		}
+		// The server's configuration may be left from an install that
+		// stopped half way; install keeps it, but not for another network.
+		if data, err := os.ReadFile(m.path(deploy.ServerConfig)); err == nil {
+			var c struct {
+				Network model.Network `json:"network"`
+			}
+			if err := json.Unmarshal(data, &c); err != nil || c.Network != o.Network {
+				return fmt.Errorf("install: %s is left from an earlier install, and is not for %s: remove it, or install with its network", deploy.ServerConfig, o.Network)
+			}
+		}
 	}
 	switch o.Unlock {
 	case "", UnlockPassword:
@@ -314,12 +377,28 @@ func (m *Machine) Check(o *Options) error {
 		return fmt.Errorf("install: %s has mode %04o, so others than root could replace the binaries, the wallet's among them: make it root's alone, as with chmod 755 %s, and run install again", deploy.BinDir, fi.Mode().Perm(), deploy.BinDir)
 	}
 	for _, b := range deploy.Binaries {
-		fi, err := os.Stat(filepath.Join(o.Source, b))
+		fi, err := os.Lstat(filepath.Join(o.Source, b))
 		if err != nil || !fi.Mode().IsRegular() {
-			return fmt.Errorf("install: %s must be next to mcpcardano, in %s", b, o.Source)
+			return fmt.Errorf("install: %s must be next to mcpcardano, in %s, as a file and not a link", b, o.Source)
 		}
 	}
 	return nil
+}
+
+// hardlinks is where Linux says whether a user may make a hard link to a file
+// of someone else's.
+const hardlinks = "/proc/sys/fs/protected_hardlinks"
+
+// checkHardlinks refuses a kernel that lets anyone link anyone's files. A
+// service could then put, in its data directory, a link to a file of root's,
+// which install would give to the service's user when it gives the data
+// back, as after uninstall.
+func (m *Machine) checkHardlinks() error {
+	b, err := os.ReadFile(m.path(hardlinks))
+	if err != nil || strings.TrimSpace(string(b)) == "1" {
+		return nil
+	}
+	return errors.New("install: fs.protected_hardlinks is off, so a service could link a file of root's into its data directory for install to give it away: turn it on, as with sysctl fs.protected_hardlinks=1, and run it again")
 }
 
 func (m *Machine) checkSystem(what string) error {
@@ -556,11 +635,17 @@ func (m *Machine) installConfig(o Options, r ids) error {
 			return fmt.Errorf("install: %w", err)
 		}
 	}
-	// The binaries check what they will run with.
-	if err := m.cmd(nil, filepath.Join(deploy.BinDir, "mcpcardano-wallet"), "-config", deploy.WalletConfig, "-check"); err != nil {
-		return err
+	// The binaries check what they will run with, as the users they will
+	// run as, and not as root.
+	for _, c := range []command{
+		{name: filepath.Join(deploy.BinDir, "mcpcardano-wallet"), args: []string{"-config", deploy.WalletConfig, "-check"}, as: &account{r.wallet.uid, r.group}},
+		{name: filepath.Join(deploy.BinDir, "mcpcardano-server"), args: []string{"-config", deploy.ServerConfig, "-check"}, as: &account{r.server.uid, r.group}},
+	} {
+		if out, err := m.run(c); err != nil {
+			return fmt.Errorf("install: %s: %v%s", c, err, indent(out))
+		}
 	}
-	return m.cmd(nil, filepath.Join(deploy.BinDir, "mcpcardano-server"), "-config", deploy.ServerConfig, "-check")
+	return nil
 }
 
 // keptConfig is the wallet's config.json of an earlier install, field by
@@ -660,6 +745,8 @@ func (m *Machine) installUnlock(unlock string) error {
 			return fmt.Errorf("install: %w", err)
 		}
 		return m.cmd(key, "systemd-creds", "encrypt", "--with-key=tpm2+host", "--name="+filepath.Base(deploy.Credential), "-", deploy.Credential)
+	case unlock == UnlockMachine:
+		m.say("Keeping the key of the machine sealed earlier. If the TPM2 was cleared since, it no longer opens: install -unlock password, and then -unlock machine, seals a new one.")
 	case unlock == UnlockPassword && m.exists(deploy.Credential):
 		m.say("Removing the key of the machine: the next unlock with the password removes its wrapping.")
 		if err := os.Remove(m.path(deploy.Credential)); err != nil {
@@ -727,7 +814,12 @@ func ada(lovelace uint64) string {
 
 // CheckUninstall checks that uninstall can run, before the person is asked
 // to confirm anything.
-func (m *Machine) CheckUninstall() error { return m.checkSystem("uninstall") }
+func (m *Machine) CheckUninstall() error {
+	if err := m.checkSystem("uninstall"); err != nil {
+		return err
+	}
+	return m.checkHardlinks()
+}
 
 // Uninstall removes the services, the binaries, the users, the group and
 // the key of the machine (section 10.1). The configuration and the data
@@ -787,8 +879,11 @@ func (m *Machine) Uninstall(deleteData bool) error {
 			}
 		}
 		for _, p := range []string{deploy.WalletData, deploy.ServerData} {
-			if err := os.Chmod(m.path(p), 0o700); err != nil && !errors.Is(err, fs.ErrNotExist) {
-				return fmt.Errorf("install: %w", err)
+			if !m.exists(p) {
+				continue
+			}
+			if err := m.chmodDir(p, 0o700); err != nil {
+				return err
 			}
 		}
 	}

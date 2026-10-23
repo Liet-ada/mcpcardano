@@ -27,17 +27,21 @@ func NewMachine(out io.Writer) *Machine {
 
 func lchown(path string, uid, gid uint32) error { return os.Lchown(path, int(uid), int(gid)) }
 
-// run runs a command. One that runs as a user of a service gets a bare
-// environment and no supplementary groups.
+// run runs a command from safePath, with a bare environment, in /. One that
+// runs as a user of a service has no supplementary groups.
 func run(c command) (string, error) {
-	cmd := exec.Command(c.name, c.args...)
+	path, err := SystemCommand(c.name)
+	if err != nil {
+		return "", err
+	}
+	cmd := exec.Command(path, c.args...)
+	cmd.Env = SafeEnv()
+	cmd.Dir = "/"
 	if c.stdin != nil {
 		cmd.Stdin = bytes.NewReader(c.stdin)
 	}
 	if c.as != nil {
 		cmd.SysProcAttr = &syscall.SysProcAttr{Credential: &syscall.Credential{Uid: c.as.uid, Gid: c.as.gid}}
-		cmd.Env = []string{"PATH=/usr/sbin:/usr/bin:/sbin:/bin"}
-		cmd.Dir = "/"
 	}
 	out, err := cmd.CombinedOutput()
 	return string(out), err

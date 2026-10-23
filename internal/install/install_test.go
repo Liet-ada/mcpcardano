@@ -207,8 +207,8 @@ func TestFirstInstall(t *testing.T) {
 		"systemd-sysusers " + deploy.SysUsersPath,
 		"usermod -aG mcpcardano ana",
 		"systemctl daemon-reload",
-		"/usr/local/bin/mcpcardano-wallet -config /etc/mcpcardano-wallet/config.json -check",
-		"/usr/local/bin/mcpcardano-server -config /etc/mcpcardano-server/config.json -check",
+		"as 991:990 /usr/local/bin/mcpcardano-wallet -config /etc/mcpcardano-wallet/config.json -check",
+		"as 992:990 /usr/local/bin/mcpcardano-server -config /etc/mcpcardano-server/config.json -check",
 		"as 991:990 /usr/local/bin/mcpcardano-wallet -config /etc/mcpcardano-wallet/config.json init",
 		"systemctl enable mcpcardano-wallet.service mcpcardano-server.service",
 		"systemctl start mcpcardano-wallet.service",
@@ -429,6 +429,13 @@ func TestUnlockByMachine(t *testing.T) {
 	if slices.ContainsFunc(f.cmds, func(c string) bool { return strings.HasPrefix(c, "systemd-creds ") }) || !f.m.exists(deploy.Credential) {
 		t.Error("an update without -unlock changed the key of the machine")
 	}
+	// -unlock machine again keeps the key it sealed, and says how to seal
+	// another.
+	f.out.Reset()
+	f.mustInstall(o, "")
+	if slices.ContainsFunc(f.cmds, func(c string) bool { return strings.HasPrefix(c, "systemd-creds ") }) || !strings.Contains(f.out.String(), "Keeping the key of the machine") {
+		t.Errorf("-unlock machine with a key sealed:\n%s", f.out.String())
+	}
 	o.Unlock = UnlockPassword
 	f.mustInstall(o, "")
 	if f.m.exists(deploy.Credential) {
@@ -489,6 +496,19 @@ func TestCheck(t *testing.T) {
 			f.systemd = "systemd 253 (253.5)\n"
 		}, "systemd 254"},
 		{"a binary missing", func(f *fake, o *Options) { os.Remove(filepath.Join(o.Source, "mcpcardano-server")) }, "mcpcardano-server must be next to"},
+		{"a link for a binary", func(f *fake, o *Options) {
+			p := filepath.Join(o.Source, "mcpcardano-wallet")
+			os.Rename(p, p+".real")
+			os.Symlink(p+".real", p)
+		}, "as a file and not a link"},
+		{"links anyone may make", func(f *fake, _ *Options) {
+			os.MkdirAll(filepath.Dir(f.m.path(hardlinks)), 0o755)
+			os.WriteFile(f.m.path(hardlinks), []byte("0\n"), 0o644)
+		}, "fs.protected_hardlinks is off"},
+		{"a server's configuration of another network", func(f *fake, _ *Options) {
+			os.MkdirAll(f.m.path(deploy.ServerConfigDir), 0o750)
+			os.WriteFile(f.m.path(deploy.ServerConfig), []byte(`{"network": "preview"}`), 0o640)
+		}, "is left from an earlier install"},
 		{"binaries anyone writes", func(f *fake, _ *Options) {
 			os.MkdirAll(f.m.path(deploy.BinDir), 0o755)
 			os.Chmod(f.m.path(deploy.BinDir), 0o777)
@@ -557,5 +577,42 @@ func TestServiceDoesNotAnswer(t *testing.T) {
 		if unit == deploy.WalletService && slices.Contains(f.cmds, "systemctl start "+deploy.ServerService) {
 			t.Error("the server started before the wallet answered")
 		}
+	}
+}
+
+// What Check saw is what is copied: a binary turned into a link after it,
+// as in a race, is not followed.
+func TestCopyRefusesALink(t *testing.T) {
+	f := newFake(t)
+	target := filepath.Join(t.TempDir(), "other")
+	os.WriteFile(target, []byte("someone else's"), 0o755)
+	link := filepath.Join(f.source, "link")
+	if err := os.Symlink(target, link); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.m.copyFile(link, "/usr/local/bin/mcpcardano", 0o755); err == nil || !strings.Contains(err.Error(), "not a link") {
+		t.Errorf("copying a link: %v", err)
+	}
+	if f.m.exists("/usr/local/bin/mcpcardano") {
+		t.Error("the link's target was copied")
+	}
+}
+
+// uninstall never changes the mode of what a link in place of a data
+// directory points to.
+func TestUninstallDoesNotFollowALink(t *testing.T) {
+	f := newFake(t)
+	f.mustInstall(f.options(), "correct horse")
+	elsewhere := t.TempDir()
+	os.Chmod(elsewhere, 0o755)
+	os.RemoveAll(f.m.path(deploy.ServerData))
+	if err := os.Symlink(elsewhere, f.m.path(deploy.ServerData)); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.m.Uninstall(false); err == nil || !strings.Contains(err.Error(), deploy.ServerData+" is not a directory") {
+		t.Errorf("uninstall with a link for the server's data: %v", err)
+	}
+	if fi, _ := os.Stat(elsewhere); fi.Mode().Perm() != 0o755 {
+		t.Errorf("uninstall changed what the link points to: %v", fi.Mode())
 	}
 }
