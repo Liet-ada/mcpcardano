@@ -89,6 +89,26 @@ func walletMode(m string) bool {
 
 func address(b []byte) bool { return len(b) > 0 && len(b) <= MaxAddress }
 
+// sortedAddresses reports whether every address is valid and the list is in
+// strict order, so it has a single encoding.
+func sortedAddresses(list [][]byte) bool {
+	for i, a := range list {
+		if !address(a) || (i > 0 && bytes.Compare(list[i-1], a) >= 0) {
+			return false
+		}
+	}
+	return true
+}
+
+// destinations checks the destinations of a draft: at most as many as a
+// payment has outputs, valid and in strict order.
+func destinations(list [][]byte, what string) error {
+	if len(list) > model.MaxPaymentOutputs || !sortedAddresses(list) {
+		return malformed("%s: too many, invalid, repeated or out of order", what)
+	}
+	return nil
+}
+
 // Policy is a wallet's policy (section 3.6) on the wire.
 type Policy struct {
 	Frozen          bool         `cbor:"frozen"`
@@ -210,10 +230,8 @@ func (p *Policy) Validate() error {
 	if p.Destinations.Any && len(p.Destinations.Allowed) > 0 {
 		return malformed("policy destinations: any with a list")
 	}
-	for i, a := range p.Destinations.Allowed {
-		if !address(a) || (i > 0 && bytes.Compare(p.Destinations.Allowed[i-1], a) >= 0) {
-			return malformed("policy destinations: invalid, repeated or out of order")
-		}
+	if !sortedAddresses(p.Destinations.Allowed) {
+		return malformed("policy destinations: invalid, repeated or out of order")
 	}
 	for i, a := range p.Assets {
 		if err := asset(a.Policy, a.Name); err != nil {

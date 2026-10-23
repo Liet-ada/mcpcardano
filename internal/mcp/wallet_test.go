@@ -272,3 +272,93 @@ func TestRemoteWallets(t *testing.T) {
 		t.Errorf("wallets %q, want %q", ids, want)
 	}
 }
+
+// TestWalletCounts: the verdict of a draft of mode B or C counts the
+// transactions and the new destinations of the wallet process's record, so
+// a draft the wallet would reject comes out blocked; a destination the
+// record knows is not new. The server asks about the draft's destinations,
+// and get_policy_status shows the counts.
+func TestWalletCounts(t *testing.T) {
+	e := newEnv(t)
+	agent := agentWallet()
+	p := e.wallet.Policy
+	p.Limits.PerHour, p.Limits.PerDay, p.Limits.Budget = ada(1000), ada(1000), ada(1000)
+	p.Limits.TxPerHour, p.Limits.NewDestinationsPerHour, p.Limits.NewDestinationsPerDay = 10, 3, 5
+	addr, err := chain.AddressFromBytes(agent.Address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.src.utxos[string(addr.Raw)] = []chain.UTxO{{In: chain.TxIn{TxID: [32]byte{0: 0xcc}}, Address: addr, Value: model.Value{Lovelace: ada(100)}}}
+	shop, _ := chain.ParseAddress(model.Preprod, e.shop)
+
+	var mu sync.Mutex
+	status := ipc.PolicyStatus{Mode: agent.Mode, Policy: ipc.PolicyFrom(p), BudgetRemaining: ada(1000), Pending: []ipc.PendingTx{}}
+	f := startFakeWallet(t, func(typ string) ipc.Body {
+		if typ == ipc.MsgListWallets {
+			return &ipc.WalletList{Wallets: []ipc.Wallet{agent}}
+		}
+		mu.Lock()
+		defer mu.Unlock()
+		ps := status
+		return &ps
+	})
+	e.connect(f)
+	set := func(tx, newHour, newDay uint32, known [][]byte) {
+		mu.Lock()
+		status.TxHour, status.NewDestinationsHour, status.NewDestinationsDay, status.Known = tx, newHour, newDay, known
+		mu.Unlock()
+	}
+	pay := map[string]any{"wallet_id": agent.ID, "outputs": []any{
+		map[string]any{"address": e.shop, "lovelace": "5000000"},
+		map[string]any{"address": e.shop, "lovelace": "6000000"},
+	}}
+
+	for _, tc := range []struct {
+		name                string
+		tx, newHour, newDay uint32
+		known               [][]byte
+		rule                string // empty if allowed
+	}{
+		{"the transactions of the hour", 10, 0, 0, nil, "limits.tx_per_hour"},
+		{"the new destinations of the hour", 0, 3, 3, nil, "limits.new_destinations_per_hour"},
+		{"the new destinations of the day", 0, 0, 5, nil, "limits.new_destinations_per_day"},
+		{"a destination the record knows", 9, 3, 5, [][]byte{shop.Raw}, ""},
+	} {
+		set(tc.tx, tc.newHour, tc.newDay, tc.known)
+		got, failure := e.call("build_payment", pay)
+		switch {
+		case tc.rule == "" && failure != nil:
+			t.Errorf("%s: %v", tc.name, failure)
+		case tc.rule == "" && got["verdict"].(map[string]any)["status"] != "allowed":
+			t.Errorf("%s: verdict %v", tc.name, got["verdict"])
+		case tc.rule != "" && (failure == nil || failure.Code != CodeBudgetExceeded || !strings.HasPrefix(failure.Message, tc.rule+":")):
+			t.Errorf("%s: %v, want %s", tc.name, failure, tc.rule)
+		}
+	}
+
+	// Each build asked about the shop alone: once, though it is paid twice.
+	// Looking the wallet up asks about none.
+	f.mu.Lock()
+	asked := 0
+	for _, r := range f.seen {
+		if g, ok := r.(*ipc.GetPolicyStatus); ok && g.Destinations != nil {
+			asked++
+			if !slices.EqualFunc(g.Destinations, [][]byte{shop.Raw}, bytes.Equal) {
+				t.Errorf("asked about %x", g.Destinations)
+			}
+		}
+	}
+	f.mu.Unlock()
+	if asked != 4 {
+		t.Errorf("asked about the destinations %d times, want 4", asked)
+	}
+
+	set(4, 1, 2, nil)
+	got := e.ok("get_policy_status", map[string]any{"wallet_id": agent.ID})
+	if got["transactions_hour"] != 4.0 || got["new_destinations_hour"] != 1.0 || got["new_destinations_day"] != 2.0 {
+		t.Errorf("counts %v, %v and %v", got["transactions_hour"], got["new_destinations_hour"], got["new_destinations_day"])
+	}
+	if got := e.ok("get_policy_status", map[string]any{"wallet_id": walletID}); got["transactions_hour"] != nil {
+		t.Errorf("counts in mode A: %v", got["transactions_hour"])
+	}
+}

@@ -426,6 +426,20 @@ func TestDraftFlow(t *testing.T) {
 	if d["summary"].(map[string]any)["net_effect"] == nil {
 		t.Error("no net effect")
 	}
+	// The inputs the server chose, each with the value of its UTxO.
+	value := map[string]string{}
+	for _, u := range e.src.utxos[string(e.wallet.Address.Raw)] {
+		value[u.In.String()] = model.FormatAmount(u.Value.Lovelace)
+	}
+	ins := d["summary"].(map[string]any)["inputs"].([]any)
+	for _, x := range ins {
+		if in := x.(map[string]any); in["own"] != true || in["lovelace"] == nil || in["lovelace"] != value[in["ref"].(string)] {
+			t.Errorf("input %v", in)
+		}
+	}
+	if len(ins) == 0 {
+		t.Error("no inputs")
+	}
 
 	a := e.ok("authorize_draft", map[string]any{"draft_id": id})
 	if a["state"] != "pending_approval" || !strings.Contains(a["next"].(string), "hardware wallet") {
