@@ -114,3 +114,31 @@ sudo systemctl reset-failed mcpcardano-wallet
 if sudo systemctl restart mcpcardano-wallet; then echo "the wallet started"; else echo "the wallet did not start"; fi
 sudo systemctl status mcpcardano-wallet --no-pager | head -n 20 || true
 sudo journalctl -u mcpcardano-wallet --no-pager -n 20 || true
+
+echo "== observation: ImportCredential, with the same TPM2 and with another"
+sudo rm -f /etc/systemd/system/mcpcardano-wallet.service.d/unlock.conf
+head -c 32 /dev/urandom | sudo systemd-creds encrypt --with-key=tpm2+host --name=mcpcardano-wallet.unlock - /etc/credstore.encrypted/mcpcardano-wallet.unlock
+printf '[Service]\nImportCredential=mcpcardano-wallet.unlock\n' | sudo tee /etc/systemd/system/mcpcardano-wallet.service.d/import.conf
+sudo systemctl daemon-reload
+sudo systemctl reset-failed mcpcardano-wallet
+if sudo systemctl restart mcpcardano-wallet; then echo "import, same TPM2: started"; else echo "import, same TPM2: did not start"; fi
+sleep 1
+sudo ls -la /run/credentials/mcpcardano-wallet.service/ || true
+sudo pkill -f "swtpm chardev"
+for _ in $(seq 50); do
+	if [ ! -e /dev/tpmrm0 ]; then break; fi
+	sleep 0.2
+done
+sudo rm -rf "$tpm"
+tpm=$(sudo mktemp -d)
+sudo swtpm chardev --vtpm-proxy --tpm2 --tpmstate dir="$tpm" --flags startup-clear --daemon
+for _ in $(seq 50); do
+	if [ -e /dev/tpmrm0 ]; then break; fi
+	sleep 0.2
+done
+sudo systemctl reset-failed mcpcardano-wallet
+if sudo systemctl restart mcpcardano-wallet; then echo "import, other TPM2: started"; else echo "import, other TPM2: did not start"; fi
+sleep 1
+sudo systemctl status mcpcardano-wallet --no-pager | head -n 12 || true
+sudo ls -la /run/credentials/mcpcardano-wallet.service/ || true
+sudo journalctl -u mcpcardano-wallet --no-pager -n 8 || true
