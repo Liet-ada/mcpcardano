@@ -110,6 +110,7 @@ for _ in $(seq 50); do
 	if [ -e /dev/tpmrm0 ]; then break; fi
 	sleep 0.2
 done
+sudo systemctl reset-failed mcpcardano-wallet
 if sudo systemctl restart mcpcardano-wallet; then echo "the wallet started"; else echo "the wallet did not start"; fi
 sudo systemctl status mcpcardano-wallet --no-pager | head -n 20 || true
 sudo journalctl -u mcpcardano-wallet --no-pager -n 20 || true

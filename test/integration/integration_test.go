@@ -425,8 +425,10 @@ func TestUnlockByMachine(t *testing.T) {
 	}
 	const dropIn = "/etc/systemd/system/mcpcardano-wallet.service.d/unlock.conf"
 	// restart restarts the wallet and returns what mcpcardano status says.
+	// It resets systemd's limit of 5 starts in 10 seconds first.
 	restart := func() string {
 		t.Helper()
+		sudo(t, "systemctl", "reset-failed", "mcpcardano-wallet")
 		sudo(t, "systemctl", "restart", "mcpcardano-wallet")
 		for range 50 {
 			if code, out := person(t, "", "status"); code == 0 {
