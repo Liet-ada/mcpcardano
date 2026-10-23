@@ -1,0 +1,569 @@
+{
+  "device": "Trezor Safe 7 emulator (T3W1), Trezor app version 2.13.0",
+  "tool": "cardano-hw-go version 0.1.0-dev (compatible with cardano-hw-cli 1.20.0)",
+  "recorded": "2026-10-23",
+  "tx_body_hash": "fea1626a152d10bd773cec25cb47987d9a200dff87841ac036316da6f92c6489",
+  "phrases": [
+    {
+      "phrase": "test walk nut penalty hip pave soap entry language right filter choice",
+      "keys": [
+        {
+          "derivation": "ICARUS",
+          "account": 0,
+          "role": 0,
+          "index": 0,
+          "xpub": "73fea80d424276ad0978d4fe5310e8bc2d485f5f6bb3bf87612989f112ad5a7ddd75e154da417becec55cdd249327454138f082110297d5e87ab25e15fad150f",
+          "signature": "af82501f0d3161e7e5895156a1d56fa75df06e693a66384ebc63b84a45ec90ecae6f3ddfe9a4d985d65ce74d7189423626c7fd634c8da13743dbcdbe5fb70604"
+        },
+        {
+          "derivation": "ICARUS",
+          "account": 0,
+          "role": 2,
+          "index": 0,
+          "xpub": "2c041c9c6a676ac54d25e2fdce44c56581e316ae43adc4c7bf17f23214d8d892abbec7b28b61543d4b1401a1bb5b799770b79f5cb49ee7c539e5e6e4eb047367",
+          "signature": "c21785e94158de18b2ef7e8fdf1e810ddd2241316654094ad809c419560607cadfc0115fc8fcac9e2d327333df7ff8442a7fbe3a9b5f22afcefbd4c581ab1a03"
+        },
+        {
+          "derivation": "ICARUS",
+          "account": 0,
+          "role": 0,
+          "index": 1,
+          "xpub": "f626ab887eb5f40b502463ccf2ec5a7311676ee9e5d55c492059a366c0b4d4a1f7ab126f2884db9059fa09ca83be6b8bd0250426aeb62191bdd9861457b8bc91",
+          "signature": "8fcc21c065307212607227c8253f589681059b16389276ce867e624836737e56040c7e6a5e738cd9e406ab2b823c222947444eada975c19fdedccf02ecadb80f"
+        },
+        {
+          "derivation": "ICARUS",
+          "account": 7,
+          "role": 0,
+          "index": 19,
+          "xpub": "5cebe2becad41e6f967cacb46bc993fd26c173d87c913d31a17733d3996e34480f003bf3bae4a82a300c0e1ba90d33f40915bd1e5659ec9a286aeb1b3eede4de",
+          "signature": "5cf3cb2f06139aeb879e26a67e6459c9382bc6c95fdf2aa11be30fe9e27f486f1cda05b95f8b760bf45299baeeaa2d2ca5bf673553543116e3dd8c61d996d203"
+        },
+        {
+          "derivation": "ICARUS_TREZOR",
+          "account": 0,
+          "role": 0,
+          "index": 0,
+          "xpub": "73fea80d424276ad0978d4fe5310e8bc2d485f5f6bb3bf87612989f112ad5a7ddd75e154da417becec55cdd249327454138f082110297d5e87ab25e15fad150f"
+        },
+        {
+          "derivation": "ICARUS_TREZOR",
+          "account": 0,
+          "role": 2,
+          "index": 0,
+          "xpub": "2c041c9c6a676ac54d25e2fdce44c56581e316ae43adc4c7bf17f23214d8d892abbec7b28b61543d4b1401a1bb5b799770b79f5cb49ee7c539e5e6e4eb047367"
+        }
+      ]
+    },
+    {
+      "phrase": "excess behave track soul table wear ocean cash stay nature item turtle palm soccer lunch horror start stumble month panic right must lock dress",
+      "keys": [
+        {
+          "derivation": "ICARUS",
+          "account": 0,
+          "role": 0,
+          "index": 0,
+          "xpub": "f9162b91126212b71500e89dc7da31111dfc1466a9f24f48a34e7ea529d2d33817ec20d6a203d73bda30563bd20f29c83a732f9524c16a93b181798afaf7880d",
+          "signature": "bf13aacead34a3669219f6b7376278cdc01b3a97d1325a57983e2cc82f04826ca78f194c04f5f39f01e77bc4cc8221234bc7eef4c1424b5855c761e7b00b0d01"
+        },
+        {
+          "derivation": "ICARUS",
+          "account": 0,
+          "role": 2,
+          "index": 0,
+          "xpub": "c6b23057646cc44da83a7d4256f39b6fcd45b6b0e4efa56bacc3e4cabde9b38057e01eb78bb839aa92a7bf568a7bf03b035194691bb13d5e3f9b33965ac80d96",
+          "signature": "8d07e5e63f6611ba7599ede97e8f0c6fae70845e8eb48f1322accdcd4f9f42f359f77182a9611edda4fb0f4446e7e6eb5646abe593227a3208575e6549c9c804"
+        },
+        {
+          "derivation": "ICARUS",
+          "account": 0,
+          "role": 0,
+          "index": 1,
+          "xpub": "65fcd4a301ccae883131b9601ff59c9e15fb2c40d048e65dbef77791ab2b23ba7b2d25b96670ea51c22a38cbfea18238352bc8e21b363416fb38ff2bda488094",
+          "signature": "c230b57ffcf386d810a68db32eb7483adbc32b909b8a2193d58d8f6e01f11d7d536a3bf919e867b2a9195a5ff6ddb1916b9898ede7720ea8b3e81a128674ae09"
+        },
+        {
+          "derivation": "ICARUS",
+          "account": 7,
+          "role": 0,
+          "index": 19,
+          "xpub": "1484ca7cea0c2bbd02c6242fcd16de01362d3c146b4b9d5476a363b2dafbf6158730e27d600da35a88d2413b489bc91be1f4546f68aa41e6881813d77e776bc0",
+          "signature": "aeaefca3d36fc30f7a508eac12658181fd177ffd79212b1680cd98f47c8f53b2a786d8a33ae04005dc4ee422df6591c8f53be5cd57feabced808c1703564f403"
+        },
+        {
+          "derivation": "ICARUS_TREZOR",
+          "account": 0,
+          "role": 0,
+          "index": 0,
+          "xpub": "7d4a96486220d4137aa2f85f98e1dfa06539f40e692a38aaf347ed9209f75080e35d0b25ceb85456208bfc6151fdc6de36a25df3c70a82deabd08879abbdacb4"
+        },
+        {
+          "derivation": "ICARUS_TREZOR",
+          "account": 0,
+          "role": 2,
+          "index": 0,
+          "xpub": "0d2b4b42cfbf6fc8f8dba6c9212e64806166a60c8c0dc1956b73b0efbbb5a01ea3391ad5dda64ee590cfa979456bb221be95b07cb7d41b6aac08909f720ac34b"
+        }
+      ]
+    },
+    {
+      "phrase": "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about",
+      "keys": [
+        {
+          "derivation": "ICARUS",
+          "account": 0,
+          "role": 0,
+          "index": 0,
+          "xpub": "7ea09a34aebb13c9841c71397b1cabfec5ddf950405293dee496cac2f437480a88848e8af62a27a57e982215741c9eac17e6e45cbfd6ea65a0e0dcc03bb777b2",
+          "signature": "92033b55ffb03439e6083d418385bedb4959663fb74d45a95ba6dc9cb508a04a1cad4c776d1dbd723504dc263104f4cbc0cb1af9309e92704fd886e8fc9db603"
+        },
+        {
+          "derivation": "ICARUS",
+          "account": 0,
+          "role": 2,
+          "index": 0,
+          "xpub": "012f5dc3115b8a07981e6e50f5a671e2c6fbb26c3ffde1cd1dcaf40a7fe8f16030b05b69780015fcee3b00fe0629c58c491db17481241fab0beb92569e34bf16",
+          "signature": "8db1f9ca6d9338701547c4cf38286eb58d70c8e579a6a477769bf41ee8465fe42a913fefdd7f16edcb2538d520e79c4b145cd85aa836de51296f689def1cd10d"
+        },
+        {
+          "derivation": "ICARUS",
+          "account": 0,
+          "role": 0,
+          "index": 1,
+          "xpub": "86e24e36b7f0d1ad2afa266179207eb04f02642898bb58a2b6f80e491b6580605e2d5be510b65aaaaeaa7a764b58538f22ae1c278f06db39d8c39495d4c5ec00",
+          "signature": "3870b147b43f8b0e97a4b6c4a16c5449688d091626836810b9838bdcf9d7be80462b198df6614070ed78807cca4a4843589942a91358c786bdc8880528647b00"
+        },
+        {
+          "derivation": "ICARUS",
+          "account": 7,
+          "role": 0,
+          "index": 19,
+          "xpub": "59888488a3051ef31debddac27c151e49c7d5704430eb06c4b2ab87b04e69318dbcc0486c0b7f1ffc57808c4df33bef02f39ee1852725175e0a5f5b986082eff",
+          "signature": "17d36f57db275be5c67d4cf18f5c5bdb8f31a4b8b12e13afb45c60b506a3ba3b06eea1926a2d56d9955abad69cfd75a4c5bd4b81bda11cd69c72eae376be5a0b"
+        },
+        {
+          "derivation": "ICARUS_TREZOR",
+          "account": 0,
+          "role": 0,
+          "index": 0,
+          "xpub": "7ea09a34aebb13c9841c71397b1cabfec5ddf950405293dee496cac2f437480a88848e8af62a27a57e982215741c9eac17e6e45cbfd6ea65a0e0dcc03bb777b2"
+        },
+        {
+          "derivation": "ICARUS_TREZOR",
+          "account": 0,
+          "role": 2,
+          "index": 0,
+          "xpub": "012f5dc3115b8a07981e6e50f5a671e2c6fbb26c3ffde1cd1dcaf40a7fe8f16030b05b69780015fcee3b00fe0629c58c491db17481241fab0beb92569e34bf16"
+        }
+      ]
+    },
+    {
+      "phrase": "letter advice cage absurd amount doctor acoustic avoid letter advice cage absurd amount doctor acoustic avoid letter always",
+      "keys": [
+        {
+          "derivation": "ICARUS",
+          "account": 0,
+          "role": 0,
+          "index": 0,
+          "xpub": "b541210de355e07b0aea410eb105852080f735322d755a74380820d483e3667a8a471383b418ee4cd462a7051343846272df82eb38482da04b68df8aa644086e",
+          "signature": "df85b76619553c2f7763028e54cffb881ff3a013e9d9ec9b27c0c680947322340ad48e78ba55b97b5c3e53d6c88d75e4ce2b43f5c448a93a4882c38cc71cd501"
+        },
+        {
+          "derivation": "ICARUS",
+          "account": 0,
+          "role": 2,
+          "index": 0,
+          "xpub": "cfa14051e5b122366c0f944a4c80574f234ab11b23d80fba14ab6dc326cede573cd02653918da795d97a3a12a6ed8547c36d533e351a4b9c492263134e4e4118",
+          "signature": "3cd12c242c0a4c47afa8485b5453094a605bf771f3eedf8515a816c8b2eef17957995eeeaabd8bc28b726903343d447e6b1ba133dc50cf3fa0a479c361b0ca09"
+        },
+        {
+          "derivation": "ICARUS",
+          "account": 0,
+          "role": 0,
+          "index": 1,
+          "xpub": "ce3a5b645b7b28093945f60651e4b9a68482779149901345f82356572ca8645b8c59aeaffbd39c2f70094d27f7acf4801a9dbc4b183a0fec52875e9ceeb1f970",
+          "signature": "afec7c4b8eaa45593f20eaf207396bc021eb60a93722c1798d88b77fd3546b13d42c9c1d46f1be9a1ee034250b821766337602cea55e82caf96a4a2cbb24d20d"
+        },
+        {
+          "derivation": "ICARUS",
+          "account": 7,
+          "role": 0,
+          "index": 19,
+          "xpub": "e8c6e704787587eb318fbdcadd4467c18710c12cee444470fc13ca7fa2495a2ed6860a27dfa79907da23dadcee80d874f98d1cbb91d5efaf2f3d3f2996d65c47",
+          "signature": "d08edb7f66dd494fa1e87e3e4a0d1e790f8330aee6083a3f9eed311ad8be01728455e8b6f90e024719af3ef2333a051fe368577c29a12c4362381220512f450f"
+        },
+        {
+          "derivation": "ICARUS_TREZOR",
+          "account": 0,
+          "role": 0,
+          "index": 0,
+          "xpub": "b541210de355e07b0aea410eb105852080f735322d755a74380820d483e3667a8a471383b418ee4cd462a7051343846272df82eb38482da04b68df8aa644086e"
+        },
+        {
+          "derivation": "ICARUS_TREZOR",
+          "account": 0,
+          "role": 2,
+          "index": 0,
+          "xpub": "cfa14051e5b122366c0f944a4c80574f234ab11b23d80fba14ab6dc326cede573cd02653918da795d97a3a12a6ed8547c36d533e351a4b9c492263134e4e4118"
+        }
+      ]
+    },
+    {
+      "phrase": "zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo vote",
+      "keys": [
+        {
+          "derivation": "ICARUS",
+          "account": 0,
+          "role": 0,
+          "index": 0,
+          "xpub": "17c1b345186bb3b96b7b6506ed70bf54692bb1e66665326223441580b7d04bdb864c096b675f6dda19f6cef0cdce5be4fe039eb119056829626836c802c5ef5f",
+          "signature": "c15c9c9fabb940e8d4b97b8413b47bf9e2e7cadec40c6cffdb45a5fd647adc03cb8597994caf1fadbb9ee4e7f3c71bf0319d5f42491bfc7338aa9f982b2f7e0c"
+        },
+        {
+          "derivation": "ICARUS",
+          "account": 0,
+          "role": 2,
+          "index": 0,
+          "xpub": "281bf51f81ecb43f058b3b61962682d6be52f80bc0db0bf2ed5d62e1d48479832dc5c8c8e8533c14e98f0a8cb57746b62a03b88bbf6ebe59d3c3f177c6e4c3d0",
+          "signature": "6df9ae733cf0a3c749727a3f8dfe46eee747aba56cb27969766573e7c4ace3ec060139534e93e11c1b6033e6b4ce0918cfa002acdc8266931c7404ebaeb3530a"
+        },
+        {
+          "derivation": "ICARUS",
+          "account": 0,
+          "role": 0,
+          "index": 1,
+          "xpub": "ca3925e28d28a2a784c4fd6f2f59f71bb91a2a128fbf373743c3f96435ee6c163bd640c44b4c6a46b83a0c03ebf6f90f8b917b21a99ff16be5dbfcab9e9856d5",
+          "signature": "b8ea20d6672707470ef60427fda575a076ac09c40f1a7bbb487471d42859251091886675301d42a11c6332f28ff288883496d0331ef63d5860f90909ffb9d203"
+        },
+        {
+          "derivation": "ICARUS",
+          "account": 7,
+          "role": 0,
+          "index": 19,
+          "xpub": "ca66f4215e2bd4980c76e8fb18408080c24cccbd122001a0d1676513a32e3498b9d4be8bfd0bb8e03827afd67c3b98d777b837bf9aae5f0c50cc22f762b11fe5",
+          "signature": "c8a17347305b4bb55ba209da9460ed01be991696dfd863e2164ccf0a8cd88924f3886422a6f7fbaedf18c50fd6af13e3c7b3224d7af74d20e2550be8c6983d09"
+        },
+        {
+          "derivation": "ICARUS_TREZOR",
+          "account": 0,
+          "role": 0,
+          "index": 0,
+          "xpub": "fd61f35aaa1ca9588576e278d20c53f44b6116565344091355a4e568a8718080aadefc5d34ddcb0275596df85815dccf645c668990c0c2021ca3adffc1c83486"
+        },
+        {
+          "derivation": "ICARUS_TREZOR",
+          "account": 0,
+          "role": 2,
+          "index": 0,
+          "xpub": "cc07b0f228445fe45a614dd281c3c007dbdabecbd6ab6ecdd8370a2ff24dbb02ab7153f2a2245de85371bc5199c1f2eb1d85827400381b58929b8e043e1e5461"
+        }
+      ]
+    },
+    {
+      "phrase": "detail topic confirm scatter rally drop battle subject kitchen above wink green",
+      "keys": [
+        {
+          "derivation": "ICARUS",
+          "account": 0,
+          "role": 0,
+          "index": 0,
+          "xpub": "f01001976063b7165dcc13896d6938b311ce20010cc487a885a25fd7f4ed7ab4b309c88d1255c8d1a26d9193088cd1f3f7cfa8f7a446eca326703428ad1dc370",
+          "signature": "9b5ba3ff4a84c97b607c8ce4d0a604e6159da6c098e156b2f0f5b6ce99ee70bedb81ed3c5cd099434cbae710ad9d56a2a6ef3148f6a698b34f2a140755719902"
+        },
+        {
+          "derivation": "ICARUS",
+          "account": 0,
+          "role": 2,
+          "index": 0,
+          "xpub": "bed720fdbe96a6b1145bba16ef3fed942f94a1a0fbf24fb2697bd2caba2d74b25585506303fa4505693da8bb68cfa2799831fd1428ddb171131457b1569735b2",
+          "signature": "146d0ac9b89b30d76c24f0e1b1ad3a5f46b121590d4bd7713c0be0b37facf69bd2a88ad505667fd27b306cf95c621430153afc006feca4ceb628a7748088500b"
+        },
+        {
+          "derivation": "ICARUS",
+          "account": 0,
+          "role": 0,
+          "index": 1,
+          "xpub": "636fee2bebeb0fa3c69709ce21e32ecec2984ecaa15f8c24fa8795b7b47eb529b6b03e740529f014d26d9689b57ae4066d523c56f35dce44ad49c57621efd8f2",
+          "signature": "2ccce89f77c73046f07a0583c56436775b9ec756fa15b2ae75b8346640c63e768c1cdf6e6f482d815199796211f4711897206ae9f6426259da7971b69b1a9b01"
+        },
+        {
+          "derivation": "ICARUS",
+          "account": 7,
+          "role": 0,
+          "index": 19,
+          "xpub": "2c8643d134e34278f6a774f8d6ac31a5eba42aae07facd6d67fe405346330b7bb8b219783dfea7be64fed9710174113575a938d40748d385037b0488f7e4ca44",
+          "signature": "fffa5826ea5a1fe4b184097b6551652a4451e6f27e4ded30d94110dee9e7d3ac1c6e02d90e779f227c20db21e45ea308af68f3aded618ac46bb1d657525e9a05"
+        },
+        {
+          "derivation": "ICARUS_TREZOR",
+          "account": 0,
+          "role": 0,
+          "index": 0,
+          "xpub": "f01001976063b7165dcc13896d6938b311ce20010cc487a885a25fd7f4ed7ab4b309c88d1255c8d1a26d9193088cd1f3f7cfa8f7a446eca326703428ad1dc370"
+        },
+        {
+          "derivation": "ICARUS_TREZOR",
+          "account": 0,
+          "role": 2,
+          "index": 0,
+          "xpub": "bed720fdbe96a6b1145bba16ef3fed942f94a1a0fbf24fb2697bd2caba2d74b25585506303fa4505693da8bb68cfa2799831fd1428ddb171131457b1569735b2"
+        }
+      ]
+    },
+    {
+      "phrase": "purity time lens hero can father ghost nominee bid staff minimum excess scare chaos kit forum hair account",
+      "keys": [
+        {
+          "derivation": "ICARUS",
+          "account": 0,
+          "role": 0,
+          "index": 0,
+          "xpub": "a50dfade90ba0f20dd136627d9baeee5d40a89d825cd967ffc17e6c3a098c5b139fe2526f948ef145b3c8b02c0872de890cbfe1a80548fc297901a2cb9e4ed8d",
+          "signature": "3ef36c1a864ff3eb224828f8cae2c61951214a9d70910e18f7db70a089675ff41d67382440ddcbbaf2a7be18d2198023f656fa6912a38089b1cb2fabdfaf6a06"
+        },
+        {
+          "derivation": "ICARUS",
+          "account": 0,
+          "role": 2,
+          "index": 0,
+          "xpub": "95fc757fd4ad67f49c6300fcf2f05c9337443e973cd292e8ca7359d2455bd167c7d68a9c844e480506a33458ca897f553c6ce0395890b925df36027cae7890d2",
+          "signature": "d588a88d7da4c8b77840fbe30c1084288807561ba405ce6a09d8dc3f6c865eb0e61c2709ebfa5b1e36ca7752cfe03ced1b1c8aedca529d387ca15fd31168a104"
+        },
+        {
+          "derivation": "ICARUS",
+          "account": 0,
+          "role": 0,
+          "index": 1,
+          "xpub": "510869cc2ac5f8085d3a91c5171086ac6e892ccddc726ead356318a567af64a5e8ae80111032a22bce173da25b956915c9e48ea17324b35628634b85eb1297fe",
+          "signature": "54a557a2ce8f187fc29c703a9ff0fe4053444de4cf248575491f4d6d245d3e4aed99cebee2de3a62882df9ddca252f84a96165ede2dbe0ff9c0865f6522aa802"
+        },
+        {
+          "derivation": "ICARUS",
+          "account": 7,
+          "role": 0,
+          "index": 19,
+          "xpub": "1542c7c4abe20a52e15810507e19818cf6afde8c55791660bad35e3c44fd75deadac345f88b89ab73854fca5a725fe9b1f718b27606806b1a75818ffc424cf53",
+          "signature": "d85d07b8e89100bceeb6150317f08a7bcd50bc7255226b2987d3b78920d00730d08078e023374b64c02cb5802d3183a8e3fb64e639f5b151a8aafcbef6dedc00"
+        },
+        {
+          "derivation": "ICARUS_TREZOR",
+          "account": 0,
+          "role": 0,
+          "index": 0,
+          "xpub": "a50dfade90ba0f20dd136627d9baeee5d40a89d825cd967ffc17e6c3a098c5b139fe2526f948ef145b3c8b02c0872de890cbfe1a80548fc297901a2cb9e4ed8d"
+        },
+        {
+          "derivation": "ICARUS_TREZOR",
+          "account": 0,
+          "role": 2,
+          "index": 0,
+          "xpub": "95fc757fd4ad67f49c6300fcf2f05c9337443e973cd292e8ca7359d2455bd167c7d68a9c844e480506a33458ca897f553c6ce0395890b925df36027cae7890d2"
+        }
+      ]
+    },
+    {
+      "phrase": "boil bracket endless limit asset zebra suffer want angle exile park run load eternal record address claim floor step stadium cliff arch love cancel",
+      "keys": [
+        {
+          "derivation": "ICARUS",
+          "account": 0,
+          "role": 0,
+          "index": 0,
+          "xpub": "d6f2d32f76bd090172be6e1771f7749cb9a5f00fb07225f03c0dea9eb9de288d211a1e77c85bd9996b0b6924ec31e3f6e3e148a827b2b480064e964386edf62d",
+          "signature": "ac053232889b4e201e7bd8815e625ade1e813ae7fed98454c417c32d685cdae9fd744df20be927eb0c8506beca00a8e21ac6c8f261d8ce47e6caf8624b834b04"
+        },
+        {
+          "derivation": "ICARUS",
+          "account": 0,
+          "role": 2,
+          "index": 0,
+          "xpub": "5a6c4cb4d2249806de414660c8df03253b2ee433d122f2b52ee2cb2b37afe16401130e8e62e02576e1c132dea56f2cdd548c15e8134adf76b753744543f535e9",
+          "signature": "9b91706027ff9a1087b1c8ac06b620ef4e811dbd8698f654b75c0f5cb1e5fe9aee1e7e53e183e1bfbd3a8c2dff5672bc8b2795536d3ca83438311b9ceb7b0d02"
+        },
+        {
+          "derivation": "ICARUS",
+          "account": 0,
+          "role": 0,
+          "index": 1,
+          "xpub": "3e69f76da21d4c7222f31785f1aa64b149508541febd4ed25990212d844d8968ead15d0b80a0c22c39f4e0b3a669a1c7fa499fbb4132d7ed04873f1ae198f202",
+          "signature": "ad7396263e7c840d134ef21ed1c48ad480e5428ba3141c562ddb70eb1be670c5175483a67dad095463929d8b18874a7b1b8912204e0489c3ff860467f675ab08"
+        },
+        {
+          "derivation": "ICARUS",
+          "account": 7,
+          "role": 0,
+          "index": 19,
+          "xpub": "8a64e0349d67290078ab9b0f9d9840c1b81295e2d14ad9ec270e07d40e172f47ba6017d9ed8bb91d5f17151a230681f8c3dd8305550fc79f8e1dbf36d395dbbb",
+          "signature": "7b847d6d53af098c2507c19dcf5c4bccbfc498b28f83a73c18d086f96d6e5aa52fb79c188ad7b2ad1ca351560bfefc07201fc4fdcd8b72831c98310d0066ba00"
+        },
+        {
+          "derivation": "ICARUS_TREZOR",
+          "account": 0,
+          "role": 0,
+          "index": 0,
+          "xpub": "49a4b7d5b416f6e38765b18f8351f0e01a0922544bb75c0b552e0155d298b85e900b71898197db0c10c135d1adb029e1769673b78af5d1102af6f531bbc54932"
+        },
+        {
+          "derivation": "ICARUS_TREZOR",
+          "account": 0,
+          "role": 2,
+          "index": 0,
+          "xpub": "81eefb78a97cfd3e17cad57250db982205c6860224ebd06415ca948d43d3a73caff48e79f364c1068fe479eb9284027a8d0059e67532f0c620d7060fc7e89b22"
+        }
+      ]
+    },
+    {
+      "phrase": "call ball flag comfort old dial fog hazard sort differ crime away",
+      "keys": [
+        {
+          "derivation": "ICARUS",
+          "account": 0,
+          "role": 0,
+          "index": 0,
+          "xpub": "8e374d510a81e656628f495a0f67e70e4ffe79741d717a418d7d038330f693dde28de7a1d6ce3be9f6cea06850ae713805e81e1729648164055a527c1a03244b",
+          "signature": "9c707059197258a39982cfa8f4d5f809492df10af97041d65aaf0af2b4da8c626fb1e8c18fed44da2d7a2fea6bf7034b54833073ad63930f9823ac2fe7b2c404"
+        },
+        {
+          "derivation": "ICARUS",
+          "account": 0,
+          "role": 2,
+          "index": 0,
+          "xpub": "e9178cc3991da265f9c404a20c435fcdc3231db9ffcfa0d80399f390c206816dfc91374a4e051b37ed257605181d4ef0d5f21c9280ada88564323781a76768d1",
+          "signature": "fba9073fc0497f123bdd448847f827dfce7e6c77e52523ca8c06c12e1e71c688ef8e6479d328a79bd2e3462d216f75a7fc1887ecedb81bd51990c559b65bc90f"
+        },
+        {
+          "derivation": "ICARUS",
+          "account": 0,
+          "role": 0,
+          "index": 1,
+          "xpub": "195cbdb382cef8e72d8c54bd8bb02bf095c721576630b97e69e404c6f6d20c6b3149901097df9282869f8603877d3a2f8ec6e53fcf47480c6915eb36379525f8",
+          "signature": "2c1923deb77c03b741515f27126d50dc3c29478d32776d87dc3202eac2cd07868bf34ba51e640acd5bdfafbd2e52e997ce995382df8cc6ae9319696716132702"
+        },
+        {
+          "derivation": "ICARUS",
+          "account": 7,
+          "role": 0,
+          "index": 19,
+          "xpub": "7b27715de257fb61d6df53b4e0ae16a068ff3eae3aec179802bc1e345fbc5f86cdd399f85d8929b3b9b1e628394d9b260da6ff6270eca883b92a26970de1de64",
+          "signature": "1d953c8949304579ed25d0f0aca909e59869c9361fbade174340ad21e7857e03eab968cba9c73ee63ae22961ca0a8a9f2826f27ec4c1f18ea348ced394a4330d"
+        },
+        {
+          "derivation": "ICARUS_TREZOR",
+          "account": 0,
+          "role": 0,
+          "index": 0,
+          "xpub": "8e374d510a81e656628f495a0f67e70e4ffe79741d717a418d7d038330f693dde28de7a1d6ce3be9f6cea06850ae713805e81e1729648164055a527c1a03244b"
+        },
+        {
+          "derivation": "ICARUS_TREZOR",
+          "account": 0,
+          "role": 2,
+          "index": 0,
+          "xpub": "e9178cc3991da265f9c404a20c435fcdc3231db9ffcfa0d80399f390c206816dfc91374a4e051b37ed257605181d4ef0d5f21c9280ada88564323781a76768d1"
+        }
+      ]
+    },
+    {
+      "phrase": "gloom rebel credit upper device fuel walnut degree type punch mimic science clock bus refuse lift special broccoli",
+      "keys": [
+        {
+          "derivation": "ICARUS",
+          "account": 0,
+          "role": 0,
+          "index": 0,
+          "xpub": "3d9620363647c1f64d0b1e47464b5ef77bd30843df93e1225083ff217332077fe93ae7aacbb250e76cd3a7087b1e9e37c2d7a372128e0743abe1a5acb210471e",
+          "signature": "385149ad8b165f3d04104f84462f4371447bd516911037cb6db15fbf0f6e9b122af798e1c3cb93c720bb0df815a30c78d46a337aaeda17b19f9c2d1606907601"
+        },
+        {
+          "derivation": "ICARUS",
+          "account": 0,
+          "role": 2,
+          "index": 0,
+          "xpub": "ab43f2dc85a6d2d235beed9e45c20fc8ad5981511f4edcf727aa2d811738ec61534404c7c6cef50876e80b820743147ddc73c1431c00dc007fbe1c28fa4e8b2f",
+          "signature": "6f135edc5b3d1d358cd5f4f804ac7a37d7e3ac72fca6591632c1fdaca7916a1e83d1d6d8f0c55c14e5c5457d0aa4f6820036a67ffe5d7d48d7288005a84ef50b"
+        },
+        {
+          "derivation": "ICARUS",
+          "account": 0,
+          "role": 0,
+          "index": 1,
+          "xpub": "aeca711d93a008ff9d23d89669f16da0ec2c66e6b839b578872ddb82a1f3c19d662eeb8647925df00fddba92eb490115b03d618da3a98bada5347d752fc70b8b",
+          "signature": "1cb03c0118de7ecae5097a5b4c95bbfa2a7bb9a2453043709234dac0de47fc84fca32e56801099d29b297cd731a2cefb556bb60272bfd996f8db13ae34dd6f08"
+        },
+        {
+          "derivation": "ICARUS",
+          "account": 7,
+          "role": 0,
+          "index": 19,
+          "xpub": "35fd89badde872fbb70f28fbef62b90400ee8c39244c931b587e87e60991b8eac9c8d33cd2e0a00bcc07fa6baab3b12d94c2cd843caf91150b26f47bf212b540",
+          "signature": "810348f45e6242dcc4205a8653cc8ef34945afbbeea54eced95ef99eaf4cde222f28853b3e4749cea22acf491322905c3005d0a3a78bc14dae558cbbe5638001"
+        },
+        {
+          "derivation": "ICARUS_TREZOR",
+          "account": 0,
+          "role": 0,
+          "index": 0,
+          "xpub": "3d9620363647c1f64d0b1e47464b5ef77bd30843df93e1225083ff217332077fe93ae7aacbb250e76cd3a7087b1e9e37c2d7a372128e0743abe1a5acb210471e"
+        },
+        {
+          "derivation": "ICARUS_TREZOR",
+          "account": 0,
+          "role": 2,
+          "index": 0,
+          "xpub": "ab43f2dc85a6d2d235beed9e45c20fc8ad5981511f4edcf727aa2d811738ec61534404c7c6cef50876e80b820743147ddc73c1431c00dc007fbe1c28fa4e8b2f"
+        }
+      ]
+    },
+    {
+      "phrase": "indoor tower purse hen chief bonus inspire van venture whale repair diet analyst brand town exercise remain orient daughter refuse bargain gospel place marine",
+      "keys": [
+        {
+          "derivation": "ICARUS",
+          "account": 0,
+          "role": 0,
+          "index": 0,
+          "xpub": "669ad8b3487efb73cd6e032b17f3402a2ef13d03675ebba3e8f8082932df5f460c66250846319f1c33efc5f2e5a3e216d699638b872571274aa36a7139952b39",
+          "signature": "c38e7bd7431e99c6f3c64bb7fa3d980ec69c01a084f1efe028202e39ada80d529cfd40805253ff79313004a04a88029693a8c92b8222a2a3ffa7fc645317df05"
+        },
+        {
+          "derivation": "ICARUS",
+          "account": 0,
+          "role": 2,
+          "index": 0,
+          "xpub": "ed3071e6f243671dc349bc42832173e0b3baa9b4f6bb6ef2d7430fecfd47d57d34d1c72790b19ff98c0ad6bbfac8f8fe528ffb760175f0655b6e5da593cb8cb2",
+          "signature": "ed463c3af8c7ced4040cd86f2e9053fb8bfa9c10d1a606c35307ab165305fa890b8350e1d6500b3c1f31e7fe6384c347eea3d7128b8ae917c126edc9a145b505"
+        },
+        {
+          "derivation": "ICARUS",
+          "account": 0,
+          "role": 0,
+          "index": 1,
+          "xpub": "45034bae558f29b0157c9f1a11d8f7b34d5143287d183061ef847d14f523cdd7f140a0639da396c76f236e011391b96f51ee99f1f6e2e5c15f2d3d0241f17356",
+          "signature": "b6dd51d0836201ce754d7830fec2c0c46b6d5aed0f20312f1e8d05244faa5522f5dc31b4d76a27c750056bbbbc21ea20f3df0a27c146a363df9a00150fda5709"
+        },
+        {
+          "derivation": "ICARUS",
+          "account": 7,
+          "role": 0,
+          "index": 19,
+          "xpub": "58e81a5634beb4892a88c0cc801ec54d902221a5d9edb23938ce9819cf8cef777414a476414db3776aa39bd9cd4b2c13ab39f3ef445c9e6a40617867f6d76786",
+          "signature": "0604ca6cf06a6bf0fd79fe6dedd105d55d7e7143cd4ad471d68a7132b3720685787ff44159e34abf2ec0212fe84a0caf640e068ddbfc2779c8a1839465990e0e"
+        },
+        {
+          "derivation": "ICARUS_TREZOR",
+          "account": 0,
+          "role": 0,
+          "index": 0,
+          "xpub": "db8e13a6073f3891e560b4e47db5af8d172810b639ef16749037261b7de7bbaf9d32963f2c6d5cf58b32d184d2fde010fa591735cadbedf8c6ebcbb6b5340e76"
+        },
+        {
+          "derivation": "ICARUS_TREZOR",
+          "account": 0,
+          "role": 2,
+          "index": 0,
+          "xpub": "4391ed921bc980750e3533b5a699735eb5222bad589d10ff935483b84f38a320ca9d7bcb63bee4f705eaa9415e073cc3a213f297757ff23336be1f3e4e7cf2c9"
+        }
+      ]
+    }
+  ]
+}

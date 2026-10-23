@@ -1,0 +1,858 @@
+{
+  "tool": "cardano-cli 11.2.3.0 - linux-x86_64 - ghc-9.6 git rev 938cba990357ae7c4b7f95c8f75dd9d31174bbeb",
+  "recorded": "2026-10-23",
+  "tx_body": "84a300d901028182582000000000000000000000000000000000000000000000000000000000000000000001818258390019e07fbcc7577359d6c51f1e49cf1b0bf4c943b48ba4e4905a8702e49558e969caa9e57adcfc40b9907eb794363b590faf42fff48c38eb881a000f4240021a00030d40a0f5f6",
+  "tx_body_hash": "fea1626a152d10bd773cec25cb47987d9a200dff87841ac036316da6f92c6489",
+  "phrases": [
+    {
+      "phrase": "eight country switch draw meat scout mystery blade tip drift useless good keep usage title",
+      "source": "CIP-3 (Icarus.md)",
+      "keys": [
+        {
+          "account": 0,
+          "role": 0,
+          "index": 0,
+          "xprv": "00df3ecf0e02979dd9ee569d09412c1f370f476054aaa1ef3cf5a08c0557d245a6ad0fe81ab55e36178f5866dc8f83cf57239fdeee35c737ef887964aae20500cc9809944150c00f3913cd2b103e9b42fe6243fc36a76f9eb800692e2bda3f2e2b2dd0a9b83141f6650c40abec9ed52ecaa6a567825cb2c7a14b9452bca0c020",
+          "signature": "1d29274dfe9f07ad28e52d9bc59ab457a544335d38044dfa3512b5a2457b362843a5ede1b700860a50afd5498e2e84b62d95c6c2c0278cd942ca8d0c75baba07"
+        },
+        {
+          "account": 0,
+          "role": 2,
+          "index": 0,
+          "xprv": "f874f575cb9b7dabfd5487e9151c759fffc66d6915f86f8b08a4e21f0957d245cd81a43dc6716e6d7fd574b31e7e91c1b3a6968e4aa69e880712f196500a27136162765320c93ad3c82cc28b9578be31a791f03a37dcae056343cc25bbcb3b3118c452024ee1ae7477b82f42e1a0debc01d4696177d92a5c98695dbf47aaf6fa",
+          "signature": "80c10ecaa44c57e65f9e34c196fd5b6992d5b883c0319d3434e5fbf190ca33e408b44f53efbc3768176e57eeabb6aaefe893a07797d4bf5ff0379e687c9cec04"
+        },
+        {
+          "account": 0,
+          "role": 0,
+          "index": 1,
+          "xprv": "10acd05b2e859cca484c9090aea48be93e9ae3c561bafde31cd52be20357d2452469f0a338206dd0714c8eb1b1090aa1b285a3d6593cedcab17d7015d7747849c2e870d4d5f1dcdf3618607718453d03e5e8513a0641096eb0ced08e27e2949daa07a6202e2199c5b9e16931869435db1bee8e8674a2e2ea9e12514515cd90d7",
+          "signature": "9b37cccb99057e0529b3a2d390abaca0091c571e0ded81d66eba36e2ac07cbda5b31eed9a2bff7ec6d7cf89014cfd13c182b400aacd8852aaa8fa92186ec2604"
+        },
+        {
+          "account": 7,
+          "role": 0,
+          "index": 19,
+          "xprv": "286cca900652ce1e509d2f5ce0f68fc5307eb9b97de8b8f61c3d9f000c57d245da4c04202038d1f590874a40ce8d9abe6a0b6cafadbedc87be4b57bb603e0671e74c098a74e71e40a4cb87d7220777c06c8d6d08c3a95b11191383b10c9a7ab138691b27b051b2f91c9abc047d92d71ab37d26bf98be7ea35c2300b7b227f250",
+          "signature": "b63ca27dbe08dfab3d4e09bff1e4488e0f04e2578bf443343fd8e86e0c316647e2730e66540e9b122cfdd911a92b7eebea33afe49bcd704f829efc5c93818b03"
+        },
+        {
+          "account": 2147483647,
+          "role": 0,
+          "index": 2147483647,
+          "xprv": "7868e5ce50a1443564a128b0398a6e4b8220b5a862bc4ccf223b31610957d245e057f53c9a09b65cfb473d73e136dcabd6fea44b7a2165be599e665981ee6afd9f309dd2dc2f2650010fc5c595416922237bc00c94a2494aa6363f224f630e8d55d789e39124bc030e766f5b68b40445cb5ad345c9c5a2d4815d049a8b128f90",
+          "signature": "08465f6080f6bac652e00cf1759158f5e46ddb3b544861053a77273e8eb881d4ad7d58149ccdc3f6af97832ace9e857c1e2647e88853ed62c87f6746af52d00d"
+        },
+        {
+          "account": 2147483647,
+          "role": 2,
+          "index": 0,
+          "xprv": "c040aefa323b9617e6383972b5e081d35f19ad5c0bed46ef4378ad980657d2451180b93eebb601c41f7f06dbbb49cf23218422fa0b379ebfe348d354a3da45ecc73cbcf9c7e666f7dc519cc8afe0fff0227c8430bb2d8880fa1577f35eecf96f934316ca2ce5f5bb405d2c393af899459f9a87320124298f8da4a8f67253925b",
+          "signature": "aa502545fb7643b7011cf9ad50c0cf130726465f62ff5f433c593111732dd7d5a82920a941e44e017950d98a853e8f2514c2d5baf80ebc726cfc60fbd5164c02"
+        }
+      ],
+      "address_preprod": "addr_test1qqv7qlaucathxkwkc503ujw0rv9lfj2rkj96feyst2rs9ey4tr5knj4fu4adelzqhxg8adu5xca4jra0gtllfrpcawyqpt0f6v",
+      "address_mainnet": "addr1qyv7qlaucathxkwkc503ujw0rv9lfj2rkj96feyst2rs9ey4tr5knj4fu4adelzqhxg8adu5xca4jra0gtllfrpcawyqzajfkn"
+    },
+    {
+      "phrase": "test walk nut penalty hip pave soap entry language right filter choice",
+      "source": "cardano-serialization-lib",
+      "keys": [
+        {
+          "account": 0,
+          "role": 0,
+          "index": 0,
+          "xprv": "b813a62becba674d8e29ce907ee3533f622d41e155768d58793cbad373e1a45e47f9d20ab7f78b023a2cf363c2217400a8c658dfd1c8057c4f62b6f6746d1c4173fea80d424276ad0978d4fe5310e8bc2d485f5f6bb3bf87612989f112ad5a7ddd75e154da417becec55cdd249327454138f082110297d5e87ab25e15fad150f",
+          "signature": "af82501f0d3161e7e5895156a1d56fa75df06e693a66384ebc63b84a45ec90ecae6f3ddfe9a4d985d65ce74d7189423626c7fd634c8da13743dbcdbe5fb70604"
+        },
+        {
+          "account": 0,
+          "role": 2,
+          "index": 0,
+          "xprv": "a0156d1fb884e6a7c549c32758d0ca72b237a5bee93cbfb9b983d59a70e1a45e7cef128a6d68df8047b86502e6663e8e8c10adbcc1f91f878849c4b56d4e1e122c041c9c6a676ac54d25e2fdce44c56581e316ae43adc4c7bf17f23214d8d892abbec7b28b61543d4b1401a1bb5b799770b79f5cb49ee7c539e5e6e4eb047367",
+          "signature": "c21785e94158de18b2ef7e8fdf1e810ddd2241316654094ad809c419560607cadfc0115fc8fcac9e2d327333df7ff8442a7fbe3a9b5f22afcefbd4c581ab1a03"
+        },
+        {
+          "account": 0,
+          "role": 0,
+          "index": 1,
+          "xprv": "e062f25ddbb7249b49aa1b08528bc047b6d081a79f999bc08c4814f173e1a45eecef3adcad12701624f702ac6a8b818158b5985930d467fa9830475f3b38db1ff626ab887eb5f40b502463ccf2ec5a7311676ee9e5d55c492059a366c0b4d4a1f7ab126f2884db9059fa09ca83be6b8bd0250426aeb62191bdd9861457b8bc91",
+          "signature": "8fcc21c065307212607227c8253f589681059b16389276ce867e624836737e56040c7e6a5e738cd9e406ab2b823c222947444eada975c19fdedccf02ecadb80f"
+        },
+        {
+          "account": 7,
+          "role": 0,
+          "index": 19,
+          "xprv": "f07320fe962f7a09c1779e770fbbdf3bdabf998b31c1ce5c8852233c6de1a45e59ab584cd73f2a929e2f99d40ace47ebacac2897bf0b19c0b724d706311269905cebe2becad41e6f967cacb46bc993fd26c173d87c913d31a17733d3996e34480f003bf3bae4a82a300c0e1ba90d33f40915bd1e5659ec9a286aeb1b3eede4de",
+          "signature": "5cf3cb2f06139aeb879e26a67e6459c9382bc6c95fdf2aa11be30fe9e27f486f1cda05b95f8b760bf45299baeeaa2d2ca5bf673553543116e3dd8c61d996d203"
+        },
+        {
+          "account": 2147483647,
+          "role": 0,
+          "index": 2147483647,
+          "xprv": "689e1a76df35aaa4881cb1575c9f88e0d4bf6b48f57113913a6538176ee1a45e43af2fb8f8f1bf2c6d38d65fbdcb36b5df8d92b0148d6e8f37c76c191e7a3c410d9d83176dc805d5395fda28ac3f66535bccd2ed2f26eb3d62c6b9d86a843cff9ee189bcebf885e814e2eb27825077e0769a6ca538eb85ef09c7eecf67fe7338",
+          "signature": "883ff7e439e0ab2bb711c46da2ef0562e0b1fa009bed37cfa48aca26063fc467e7ffb4453498573ee79490902187ccd69feed5dce801956c603156bc97fb4505"
+        },
+        {
+          "account": 2147483647,
+          "role": 2,
+          "index": 0,
+          "xprv": "f8064b2c74418ca0d0edb82f4232e2951b8f9b031ae61c329ec909f46fe1a45e3a739fe6db7d962774b0cdb2eda5413a9eb8fcdfb25a4bd5ada5f46b7c866b1b38afdb1abf8a8003fc742c995d8683af6dbe5bb8f5e0eb3b305bbaebc9afd234907172da55003887f60286ed733cef01210e523c2582c7e314330d018320524b",
+          "signature": "5a899e852a236cbb3863eaa4c305f23fcda402fc4daee1a64e35e492cc342ef12c49248341413d3eb6d677998a7a1dac8a313224c709395f197473daef49a202"
+        }
+      ],
+      "address_preprod": "addr_test1qz2fxv2umyhttkxyxp8x0dlpdt3k6cwng5pxj3jhsydzer3jcu5d8ps7zex2k2xt3uqxgjqnnj83ws8lhrn648jjxtwq2ytjqp",
+      "address_mainnet": "addr1qx2fxv2umyhttkxyxp8x0dlpdt3k6cwng5pxj3jhsydzer3jcu5d8ps7zex2k2xt3uqxgjqnnj83ws8lhrn648jjxtwqfjkjv7"
+    },
+    {
+      "phrase": "art forum devote street sure rather head chuckle guard poverty release quote oak craft enemy",
+      "source": "cardano-serialization-lib",
+      "keys": [
+        {
+          "account": 0,
+          "role": 0,
+          "index": 0,
+          "xprv": "48918f96db7ed99549d9380cccc755769792b02d6ddc17510774e5fe077bd95c60b5bdd4ba8f9bd0dbbfa03686e0a5876720392c17b905bcd150a359e6dc652c489ef28ea97f719ee7768645fc74b811c271e5d7ef06c2310854db30158e945daf83bb96fb37877523e81074533fd5775e7709a34ce5b62d35a98e26dac13617",
+          "signature": "24b480256c38d7833a3674fd4cf948d8004ba5e9042e4341dc39fc5341f42e6352a84b7f4c696a3012faff06f04dd83c436efdbeb926ada7f08dac9e3f33a509"
+        },
+        {
+          "account": 0,
+          "role": 2,
+          "index": 0,
+          "xprv": "e0e06be0cc8c1b13a10d2c1a79fd78aa85519bf95e79ee1eb91ea9ac0e7bd95c939c2b6814e450eb46f9ced1e779394c7d58d4a91a01932c4e9991fe8ee8de8c13fe0ab7d1fd4cbb55508c755829219d77432f9dc26c9955a632cbcbe30cfa341eeda4b21989f62eac93a10e240667cec3888a02a50720de98de086271f92d76",
+          "signature": "45876870010f8fae08e96369d62db5c84dfe5cef3f2091539ea5e2af3834817e7525d5d268242f62b175d594acfff829362545afc5a6a26bdca2ecc87c70ad0f"
+        },
+        {
+          "account": 0,
+          "role": 0,
+          "index": 1,
+          "xprv": "f8144f8bc9bc26f6a77cfa8393c6386b9929b3862f3a6e0ba2a3d10f067bd95c08d63cbd3014c0fe5a2e5877a7d7267cabead6870465f8a021b5f78da0f55c2e2447e7e644eb61d0ff223c43ee5c870ebef3f69097cfa7da02cb0dc7cba6c3b66d7588bb9c0ff251c810714fdb79ebe86d17d5d31bc344c48aeb6bf0187f3c32",
+          "signature": "d788f32a470ed0367b861a5b6f0ac092e2dbf4e73b297b65c91ec893f2f53b2a0fdcdb644c1d301752b747a7a99c48f41312ccbc80be87a792ff8e0085d3b209"
+        },
+        {
+          "account": 7,
+          "role": 0,
+          "index": 19,
+          "xprv": "30b065b6b9b4c894b4593eb1bd717b0c7d0fbb809565c37bd59fd567107bd95c60c3043f8c42d2f139de362d04093b1bb1e0f2851b5d90ae365fba1e9da661878a0b861937b0aa9a284e9dafc4b96e1e2d74cb34ab49ff93845da8f46151624c17d7b02ab968b2b2a91e0f8965a03bcd3b46bd041a5ce433292c27510747f853",
+          "signature": "8f9576cd33ea846961bd5f62af4c94a56fac80ef6b078bc1268cd1991c309b03bcc8092f6fc01b2f218578796946b10cb0159c05bec5ced026552f6969f1e20c"
+        },
+        {
+          "account": 2147483647,
+          "role": 0,
+          "index": 2147483647,
+          "xprv": "9862d36f3b723c324ddb877e6fa8245a8746c0b8205832dc3d35137a0c7bd95cc05facd1186291d1f3e79752b5a718e6262a061ef4a178f0459f51223db7c64d23603618b0ed34f15a0e96c3060a30f56bc26f48c7c823e388d747139cc4ddff3cbf0c3851cffd61260cbe5c7933694c786e4dd4c6353898088faeccc788184d",
+          "signature": "fe542c08a78866e17c927986a2194169d393c0d03915a7578b8394ee685f1c9a2799f40cdb73420e42bc62e2537e76504e3ebf4860826ffe3e083042c52fe30d"
+        },
+        {
+          "account": 2147483647,
+          "role": 2,
+          "index": 0,
+          "xprv": "8838c50b4451ef810016226a35cba98a37907abf9e9b4c1af1ea64140a7bd95cb3ba131ec07b3f00eeb4b0e71ea1bf6880d08e014e07dfe173565f49e2f2f98fadc2f25c9445ef6a768c695fa528a51391d9d8f76d0b3c105efaba1ceaf305fa94d2abd9ed439988b1d24804257d3c98d5efd5a02b73c045cd92520af0561d1a",
+          "signature": "58eba6909a79fe98646fb37718a6c8586bd6fb5839a0d72319e6120e293a5e91bf7b5b1cde852c4dc27ac8aa7ac134a504c3a0ae72906caec8b1f3c3574c2107"
+        }
+      ],
+      "address_preprod": "addr_test1qpu5vlrf4xkxv2qpwngf6cjhtw542ayty80v8dyr49rf5ewvxwdrt70qlcpeeagscasafhffqsxy36t90ldv06wqrk2qum8x5w",
+      "address_mainnet": "addr1q9u5vlrf4xkxv2qpwngf6cjhtw542ayty80v8dyr49rf5ewvxwdrt70qlcpeeagscasafhffqsxy36t90ldv06wqrk2qld6xc3"
+    },
+    {
+      "phrase": "excess behave track soul table wear ocean cash stay nature item turtle palm soccer lunch horror start stumble month panic right must lock dress",
+      "source": "cardano-serialization-lib",
+      "keys": [
+        {
+          "account": 0,
+          "role": 0,
+          "index": 0,
+          "xprv": "1029e3b462cd5613a4158a383d298a953cc6d26c41f4a960f715125a15118f45c246fff6327c4866e76932746019535ef560ce2500150be0f601e036772fca0ff9162b91126212b71500e89dc7da31111dfc1466a9f24f48a34e7ea529d2d33817ec20d6a203d73bda30563bd20f29c83a732f9524c16a93b181798afaf7880d",
+          "signature": "bf13aacead34a3669219f6b7376278cdc01b3a97d1325a57983e2cc82f04826ca78f194c04f5f39f01e77bc4cc8221234bc7eef4c1424b5855c761e7b00b0d01"
+        },
+        {
+          "account": 0,
+          "role": 2,
+          "index": 0,
+          "xprv": "28b87cb91016719d21cc18bed16117a07d4f9172b22672120cf320f80c118f457d684b2e28a38806222041d846614683f18f7b766fa4ac1194fa79fe62987d31c6b23057646cc44da83a7d4256f39b6fcd45b6b0e4efa56bacc3e4cabde9b38057e01eb78bb839aa92a7bf568a7bf03b035194691bb13d5e3f9b33965ac80d96",
+          "signature": "8d07e5e63f6611ba7599ede97e8f0c6fae70845e8eb48f1322accdcd4f9f42f359f77182a9611edda4fb0f4446e7e6eb5646abe593227a3208575e6549c9c804"
+        },
+        {
+          "account": 0,
+          "role": 0,
+          "index": 1,
+          "xprv": "080bba52d443bfab22f2db4c6bfd985567db9eb98b3db1e25469d4c910118f45f023d3514c3ddf9b0ee63982dc49920ec02a4d1a54542b43f4f4f6963e20c85f65fcd4a301ccae883131b9601ff59c9e15fb2c40d048e65dbef77791ab2b23ba7b2d25b96670ea51c22a38cbfea18238352bc8e21b363416fb38ff2bda488094",
+          "signature": "c230b57ffcf386d810a68db32eb7483adbc32b909b8a2193d58d8f6e01f11d7d536a3bf919e867b2a9195a5ff6ddb1916b9898ede7720ea8b3e81a128674ae09"
+        },
+        {
+          "account": 7,
+          "role": 0,
+          "index": 19,
+          "xprv": "08f885b7b1d2259fa9a8dcac3323b87fd8de2e1f1a3ef6d9fc31671f18118f4504aa8c631e60208b42c34a52b38fc6e6394b11a9d213cb8e8297389954478d011484ca7cea0c2bbd02c6242fcd16de01362d3c146b4b9d5476a363b2dafbf6158730e27d600da35a88d2413b489bc91be1f4546f68aa41e6881813d77e776bc0",
+          "signature": "aeaefca3d36fc30f7a508eac12658181fd177ffd79212b1680cd98f47c8f53b2a786d8a33ae04005dc4ee422df6591c8f53be5cd57feabced808c1703564f403"
+        },
+        {
+          "account": 2147483647,
+          "role": 0,
+          "index": 2147483647,
+          "xprv": "000190209a42d486988bdb900a0401732b59ce5ac00178bdb87e565007118f455d0be4095a712d802e609422205061664e3ea1fc95019e70fea967366aefa1f02c420af54317ea93fdaa5e65014db342d78770371cbbb036a3fb549bffcb6242c22adcdb6ab2c48e36c992d97a2edf4dbb58273cba5c5f3d38385f9459fea26f",
+          "signature": "be338394618614ca363c852a7985e4c06f379ba08df4f00d990f56dada6bf29a09559b150e666379d2da47052e351dde2149552b66d19fde603c1052f2a54100"
+        },
+        {
+          "account": 2147483647,
+          "role": 2,
+          "index": 0,
+          "xprv": "50c7224098b24a263fcf2e2716b97cb06a8760cc31ecbd57fd6eeaed0e118f4557d7068bbc8edf43eac9d510a69606e929dfe9641badab8a633be349991ca75937efb7705a1cf55f5e3f7af589349b75b7b651ba03c01fd63fe25b423e4d87fd8996901f5bfa8b349bf29b4a7c770f25817d8a666137be23cbe0215777719d4c",
+          "signature": "b5089ac392da92f21aa45c518fbb2b981a2820195e16ecbcd4139d5865c953ee94fd616e0dfb82e112ca770cee5fa087f193a6e6c3f13663570124da38dd590b"
+        }
+      ],
+      "address_preprod": "addr_test1qqy6nhfyks7wdu3dudslys37v252w2nwhv0fw2nfawemmn8k8ttq8f3gag0h89aepvx3xf69g0l9pf80tqv7cve0l33sw96paj",
+      "address_mainnet": "addr1qyy6nhfyks7wdu3dudslys37v252w2nwhv0fw2nfawemmn8k8ttq8f3gag0h89aepvx3xf69g0l9pf80tqv7cve0l33sdn8p3d"
+    },
+    {
+      "phrase": "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about",
+      "source": "BIP-39 (trezor/python-mnemonic)",
+      "keys": [
+        {
+          "account": 0,
+          "role": 0,
+          "index": 0,
+          "xprv": "105d2ef2192150655a926bca9cccf5e2f6e496efa9580508192e1f4a790e6f53de06529129511d1cacb0664bcf04853fdc0055a47cc6d2c6d2051270207606527ea09a34aebb13c9841c71397b1cabfec5ddf950405293dee496cac2f437480a88848e8af62a27a57e982215741c9eac17e6e45cbfd6ea65a0e0dcc03bb777b2",
+          "signature": "92033b55ffb03439e6083d418385bedb4959663fb74d45a95ba6dc9cb508a04a1cad4c776d1dbd723504dc263104f4cbc0cb1af9309e92704fd886e8fc9db603"
+        },
+        {
+          "account": 0,
+          "role": 2,
+          "index": 0,
+          "xprv": "2047891e88934a422e3ff6eea4caaaecda795724cd2bfacf91569896750e6f534a704748705e28a7bd69d009638add767f79c63eb9c839c8ffe0eff0b6e16772012f5dc3115b8a07981e6e50f5a671e2c6fbb26c3ffde1cd1dcaf40a7fe8f16030b05b69780015fcee3b00fe0629c58c491db17481241fab0beb92569e34bf16",
+          "signature": "8db1f9ca6d9338701547c4cf38286eb58d70c8e579a6a477769bf41ee8465fe42a913fefdd7f16edcb2538d520e79c4b145cd85aa836de51296f689def1cd10d"
+        },
+        {
+          "account": 0,
+          "role": 0,
+          "index": 1,
+          "xprv": "30b8a1fd8fed35febc91a0ded3e49c41ce883625bca29f877765e34c7c0e6f53520bd4fb56a4546f0c82f99747b9e09c65971c64c75a1386f016ccf840af283a86e24e36b7f0d1ad2afa266179207eb04f02642898bb58a2b6f80e491b6580605e2d5be510b65aaaaeaa7a764b58538f22ae1c278f06db39d8c39495d4c5ec00",
+          "signature": "3870b147b43f8b0e97a4b6c4a16c5449688d091626836810b9838bdcf9d7be80462b198df6614070ed78807cca4a4843589942a91358c786bdc8880528647b00"
+        },
+        {
+          "account": 7,
+          "role": 0,
+          "index": 19,
+          "xprv": "b0cc37a5632ddc76633456f7b725c77ef912a84da561123f2cc64d7a740e6f536eac520a185609cbb95f3a88a46aae6fb365b11ed33862ab5223aeba7bba6c7f59888488a3051ef31debddac27c151e49c7d5704430eb06c4b2ab87b04e69318dbcc0486c0b7f1ffc57808c4df33bef02f39ee1852725175e0a5f5b986082eff",
+          "signature": "17d36f57db275be5c67d4cf18f5c5bdb8f31a4b8b12e13afb45c60b506a3ba3b06eea1926a2d56d9955abad69cfd75a4c5bd4b81bda11cd69c72eae376be5a0b"
+        },
+        {
+          "account": 2147483647,
+          "role": 0,
+          "index": 2147483647,
+          "xprv": "3081f3e84a0f218974ac2107620cf3da42ee09e1994efedd0afc41cd750e6f533322076b7a2fb2e12f1f804b17480bcc846c4ce136f761c2f9fbda7a6e9707bfbd5bfc9e22868bf8f99ede0c11e6848a0020d8f5d9ab42d17f425011a03dba201ee8dde46496fe355450372b5f5a753d0a1ab62102fbe182144d478ce72e0a8c",
+          "signature": "572884b1274dfd3ed7f56b8b73a7328674343acd1fefe0fa320c4c7fb0795f784a31791ee9961de52d43a15b444e07cd175773b8a87f03143083e3d2980d3e00"
+        },
+        {
+          "account": 2147483647,
+          "role": 2,
+          "index": 0,
+          "xprv": "582a3a162beb983c966b6ce7eeeb3face13470a36a222d9057503e64720e6f538a3e7caf1a09a7f013ff43718c29ff9f28af2e267345252410e3746ceddd42c9d5925ad82f00febe2077dd2003a463943d1f3661b6dd7f33e61f4fa2975d9e986c7b8902fd50b6154146fb51a3d36456816fbd31964b0846ea20cae7e4bd79b5",
+          "signature": "adb89d0a638c0d3bf1e0891ebcaf94edcd6736e2af6ab0a4b3b3bf58df9046c5b9221260dd9ae661400c645f043324cc743164955d6fc6af12cc7ac7c35cf10f"
+        }
+      ],
+      "address_preprod": "addr_test1qq8ac7qqy0vtulyl7wntmsxc6wex80gvcyjy33qffrhm7sh927ysx5sftuw0dlft05dz3c7revpf7jx0xnlcjz3g69mqkt5dmn",
+      "address_mainnet": "addr1qy8ac7qqy0vtulyl7wntmsxc6wex80gvcyjy33qffrhm7sh927ysx5sftuw0dlft05dz3c7revpf7jx0xnlcjz3g69mq4afdhv"
+    },
+    {
+      "phrase": "letter advice cage absurd amount doctor acoustic avoid letter advice cage absurd amount doctor acoustic avoid letter always",
+      "source": "BIP-39 (trezor/python-mnemonic)",
+      "keys": [
+        {
+          "account": 0,
+          "role": 0,
+          "index": 0,
+          "xprv": "f0f9ccc76541bebc9196d2745753d26bbcff40573c81f5f5dce581b9597272510bee9cd8e2c3a6288bcdd9275802cf936a7e69bedfcf635e17562cc0216838cbb541210de355e07b0aea410eb105852080f735322d755a74380820d483e3667a8a471383b418ee4cd462a7051343846272df82eb38482da04b68df8aa644086e",
+          "signature": "df85b76619553c2f7763028e54cffb881ff3a013e9d9ec9b27c0c680947322340ad48e78ba55b97b5c3e53d6c88d75e4ce2b43f5c448a93a4882c38cc71cd501"
+        },
+        {
+          "account": 0,
+          "role": 2,
+          "index": 0,
+          "xprv": "0040ef5b65edbef7dc3164900a142d391b4184dee26a07393fe0075b577272511c8985f5e513fade6aa1d4c16261d64d1fbdcf4107e8a711bf2bc12aaa1dbfaecfa14051e5b122366c0f944a4c80574f234ab11b23d80fba14ab6dc326cede573cd02653918da795d97a3a12a6ed8547c36d533e351a4b9c492263134e4e4118",
+          "signature": "3cd12c242c0a4c47afa8485b5453094a605bf771f3eedf8515a816c8b2eef17957995eeeaabd8bc28b726903343d447e6b1ba133dc50cf3fa0a479c361b0ca09"
+        },
+        {
+          "account": 0,
+          "role": 0,
+          "index": 1,
+          "xprv": "70d6bfc87825c42540f2cb6b0287bb07eb1d3336f9b5e99c42c1a80a5a727251aa864006aa72e8d921bd004bd04ddb1383cb7613eb7839c71b0a4ce2becef284ce3a5b645b7b28093945f60651e4b9a68482779149901345f82356572ca8645b8c59aeaffbd39c2f70094d27f7acf4801a9dbc4b183a0fec52875e9ceeb1f970",
+          "signature": "afec7c4b8eaa45593f20eaf207396bc021eb60a93722c1798d88b77fd3546b13d42c9c1d46f1be9a1ee034250b821766337602cea55e82caf96a4a2cbb24d20d"
+        },
+        {
+          "account": 7,
+          "role": 0,
+          "index": 19,
+          "xprv": "e03a59281f0113a0f53b0fe3ff2da717b80a6d3723a503ab1e2327655a727251dc8e948f4d83d53fbc9a1abd6faa5b10fd21b4d3c945a8ec9cc9db5ce9c3f159e8c6e704787587eb318fbdcadd4467c18710c12cee444470fc13ca7fa2495a2ed6860a27dfa79907da23dadcee80d874f98d1cbb91d5efaf2f3d3f2996d65c47",
+          "signature": "d08edb7f66dd494fa1e87e3e4a0d1e790f8330aee6083a3f9eed311ad8be01728455e8b6f90e024719af3ef2333a051fe368577c29a12c4362381220512f450f"
+        },
+        {
+          "account": 2147483647,
+          "role": 0,
+          "index": 2147483647,
+          "xprv": "98f17ca81bc3cf5ddc23fc74370d81ec946fda0676f6f70ad8bf4edb5a7272511232fa5bab45820cd0d5ffe6be1be88ec027df65d2aa1811141885485f86f5a201f77f1bcf897a85879c2e7360226bbc905c33b29d65e7d4b05c98a8a91094504abd160f2dc494590a1d8428f1d83692bf84e4dee949b2f33f5338ffdf1cde18",
+          "signature": "7ab287a2005cb1c077e4abc8fc13ba00f4a624136c97be58f9baab40193a010b5aca66cba25ce5a1c217690b487e557b2d5071112583aa87d1fddc021138ce01"
+        },
+        {
+          "account": 2147483647,
+          "role": 2,
+          "index": 0,
+          "xprv": "48b204696cf98d34482e6513ae83a375fa49623138c8b5b13f46109e5c727251244e229454a1c4a8000ee25be317eee3bbb6f243b22cf8bfb1ae2b0c6591cac29ccab376467e7c73f58b5b15891f8739b12d17611e87b376c07748d112d71b1f9275a83d12323a1f58505f087c4f074e6cd0bb6a66b006ab7a2506dc2f68ce56",
+          "signature": "c11f66e4c51a1a2c4740517c75caa8956c08d316fd4d6f4406e9b5bca92a54ea2707d79ecee60d1edd222e848da4571e057398793576f5becfac6acdd49c100f"
+        }
+      ],
+      "address_preprod": "addr_test1qppyncx7amdejm4465g3lxptz2yhfyl3zzk0jv84m2w8yn6nun4shk8uw8052h6ugq3fadfg6ys5vek6rtvsyzwh7zmqwufr6m",
+      "address_mainnet": "addr1q9pyncx7amdejm4465g3lxptz2yhfyl3zzk0jv84m2w8yn6nun4shk8uw8052h6ugq3fadfg6ys5vek6rtvsyzwh7zmqd25rky"
+    },
+    {
+      "phrase": "zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo vote",
+      "source": "BIP-39 (trezor/python-mnemonic)",
+      "keys": [
+        {
+          "account": 0,
+          "role": 0,
+          "index": 0,
+          "xprv": "485f47d753bcbe8830fff7d2a4fe68af4feafb02fd4c2761ce6364512b9689420d0aeb332c2165cdd53d0ee7fb6034d556ff76281a08c02c11238d4585bf5e6617c1b345186bb3b96b7b6506ed70bf54692bb1e66665326223441580b7d04bdb864c096b675f6dda19f6cef0cdce5be4fe039eb119056829626836c802c5ef5f",
+          "signature": "c15c9c9fabb940e8d4b97b8413b47bf9e2e7cadec40c6cffdb45a5fd647adc03cb8597994caf1fadbb9ee4e7f3c71bf0319d5f42491bfc7338aa9f982b2f7e0c"
+        },
+        {
+          "account": 0,
+          "role": 2,
+          "index": 0,
+          "xprv": "68bbc16ce4a4b51dbd5bb9bc82322d404630e221f44b943141022db12996894206ccb01545bf9e8292bb20d4dc9c25326c971e87cb974660d499828a7914910a281bf51f81ecb43f058b3b61962682d6be52f80bc0db0bf2ed5d62e1d48479832dc5c8c8e8533c14e98f0a8cb57746b62a03b88bbf6ebe59d3c3f177c6e4c3d0",
+          "signature": "6df9ae733cf0a3c749727a3f8dfe46eee747aba56cb27969766573e7c4ace3ec060139534e93e11c1b6033e6b4ce0918cfa002acdc8266931c7404ebaeb3530a"
+        },
+        {
+          "account": 0,
+          "role": 0,
+          "index": 1,
+          "xprv": "c8dc4c7829b98e4fa40df0656ab621ec49f40d8e899dc3580eca525327968942d7efa7c1301995eb65e7adc2bd27444eee488cfab1fd0c4f255f9b1a64a38f3bca3925e28d28a2a784c4fd6f2f59f71bb91a2a128fbf373743c3f96435ee6c163bd640c44b4c6a46b83a0c03ebf6f90f8b917b21a99ff16be5dbfcab9e9856d5",
+          "signature": "b8ea20d6672707470ef60427fda575a076ac09c40f1a7bbb487471d42859251091886675301d42a11c6332f28ff288883496d0331ef63d5860f90909ffb9d203"
+        },
+        {
+          "account": 7,
+          "role": 0,
+          "index": 19,
+          "xprv": "8832392c020258decc029437e7254fe0fe728e9fc57ea6a56b5b707e2c968942dabde85eb9aa1717cb8e53806a419ebb3bb0dc279ada58b88c17682876c3ec47ca66f4215e2bd4980c76e8fb18408080c24cccbd122001a0d1676513a32e3498b9d4be8bfd0bb8e03827afd67c3b98d777b837bf9aae5f0c50cc22f762b11fe5",
+          "signature": "c8a17347305b4bb55ba209da9460ed01be991696dfd863e2164ccf0a8cd88924f3886422a6f7fbaedf18c50fd6af13e3c7b3224d7af74d20e2550be8c6983d09"
+        },
+        {
+          "account": 2147483647,
+          "role": 0,
+          "index": 2147483647,
+          "xprv": "f03ef23d77d80bd61ed37ffdc69451a9dadc14d802e7f111c108e45d2c96894211db2285397a8fe39b4391403eaf99c84e15bf456a88c6365a4b54d164d072603c6b18e40481611b741437f4dbfd8c288188142100913714d7836291143cbde5dcdc97da2c73ce1880772b288f7d4a6e0b681d0c96d7652fca7c67877eef9fb0",
+          "signature": "b95ee1e7b420c94777497ad5a098277e9d1cd8d8d94859545d6295f062074e13c3ac5bbbe395a9638ada58603e3bdb2c68de01bfc10bbf12a38c1bc72a07dc0f"
+        },
+        {
+          "account": 2147483647,
+          "role": 2,
+          "index": 0,
+          "xprv": "60f553ffdab684b93f55f9bf7f6bccbb8ba78dba2bdfeac7164a298131968942430a13150fd9976e88ccf3ec60a726e6d6f913e94df29600f7ddac317409cb982320c226d76f5bd6b13287b3c9bb40d6a32d2b2c99e15ef21cd703bee84314db3d83b0abf59c6fef440788d802ae568dfe953b2feb56fbf9d85505d5ad8bdc3e",
+          "signature": "5353661a61369d82c8d864cb3f26bb21d3849b2f0db831d18199b82527225b596a52b435e6beb9924eae4e557443dd9f30684e64334c16571fef094dbaad1005"
+        }
+      ],
+      "address_preprod": "addr_test1qqlrq4h2xvj7x49shr65uxrsgkfmpq65la8lpvmxn06gprl6td4s5g30erqzfhnrx8faqtuxl8ruc4a75rxx99twr7fsyfr6t2",
+      "address_mainnet": "addr1qylrq4h2xvj7x49shr65uxrsgkfmpq65la8lpvmxn06gprl6td4s5g30erqzfhnrx8faqtuxl8ruc4a75rxx99twr7fs8l7684"
+    },
+    {
+      "phrase": "detail topic confirm scatter rally drop battle subject kitchen above wink green",
+      "source": "cardano-cli generate-mnemonic",
+      "keys": [
+        {
+          "account": 0,
+          "role": 0,
+          "index": 0,
+          "xprv": "00df9eedf774d64e474bd00743a10bfbfd79ddebe17f7f304afc1c567a4a46405104ca337d929653ba196f383b6b814b59b0bae16d1b2631ba9f9489ae61f5c2f01001976063b7165dcc13896d6938b311ce20010cc487a885a25fd7f4ed7ab4b309c88d1255c8d1a26d9193088cd1f3f7cfa8f7a446eca326703428ad1dc370",
+          "signature": "9b5ba3ff4a84c97b607c8ce4d0a604e6159da6c098e156b2f0f5b6ce99ee70bedb81ed3c5cd099434cbae710ad9d56a2a6ef3148f6a698b34f2a140755719902"
+        },
+        {
+          "account": 0,
+          "role": 2,
+          "index": 0,
+          "xprv": "c82281504ec45b9876c35eb132a96c849fe76fe44ff3b4a4cf9e4f8d774a464014d102e3e658b0b4e2d67ce92bc9b3788a56c193a35174ebe98e26675a5ce35ebed720fdbe96a6b1145bba16ef3fed942f94a1a0fbf24fb2697bd2caba2d74b25585506303fa4505693da8bb68cfa2799831fd1428ddb171131457b1569735b2",
+          "signature": "146d0ac9b89b30d76c24f0e1b1ad3a5f46b121590d4bd7713c0be0b37facf69bd2a88ad505667fd27b306cf95c621430153afc006feca4ceb628a7748088500b"
+        },
+        {
+          "account": 0,
+          "role": 0,
+          "index": 1,
+          "xprv": "384bf8613b648613f2f8e76d9cb1ed14d1ec53a9b606970e3243e850794a46400503f81c19d4df1c2e73ac0f9b581137ae30812f65975fe25285a9bdc582ff14636fee2bebeb0fa3c69709ce21e32ecec2984ecaa15f8c24fa8795b7b47eb529b6b03e740529f014d26d9689b57ae4066d523c56f35dce44ad49c57621efd8f2",
+          "signature": "2ccce89f77c73046f07a0583c56436775b9ec756fa15b2ae75b8346640c63e768c1cdf6e6f482d815199796211f4711897206ae9f6426259da7971b69b1a9b01"
+        },
+        {
+          "account": 7,
+          "role": 0,
+          "index": 19,
+          "xprv": "189c7e84e10d2add3ed9f8422845c9289899e8e07364699b73ae34af724a46408cd7ed25556f86e257200f93b5b761514fb6ee3329c636f4d2d19bed3d8a32c62c8643d134e34278f6a774f8d6ac31a5eba42aae07facd6d67fe405346330b7bb8b219783dfea7be64fed9710174113575a938d40748d385037b0488f7e4ca44",
+          "signature": "fffa5826ea5a1fe4b184097b6551652a4451e6f27e4ded30d94110dee9e7d3ac1c6e02d90e779f227c20db21e45ea308af68f3aded618ac46bb1d657525e9a05"
+        },
+        {
+          "account": 2147483647,
+          "role": 0,
+          "index": 2147483647,
+          "xprv": "88faf8c8bb24644ad18d4e8fc4997a64bd3219e2560914c75aab62c6774a4640d0b6823fcef6cf7e476872538785aa2eac1e542ca463a8d3bda1bbfc6ace75c0da8dfac668f768caa9cc0fd080dc8b9df58d306e4e2fc03f16c8f452ec715309ed61f81b1659e5bd6bb8e7e4ddef1ff2b7d9c7bf2b368d2eac06332eab3c20a5",
+          "signature": "a59a2c8264418b6b5aba2d8c11bef8e4203e657f30ad7ed3d5a9825da5141f7dffdaa97a77ec1231b8e1ca3b99a15e49968029842b05474c7645506193250b06"
+        },
+        {
+          "account": 2147483647,
+          "role": 2,
+          "index": 0,
+          "xprv": "48794642207e0929a06f9ffadd027866c18093981e159f50b2f2bc3f734a4640479c5b7d89172ca9dd5a1a325bfd2158238b91514c59254a5993d7250b98093b094890ee8209d981481bfab45591fdcb113fba3c667096b2ae711fadddf9ebf675256da7dc72e2e02ca92ea6a28c56d78cd2b8811bb159e7ea300533252b7a34",
+          "signature": "59fc7bf44c43f5747d61f342214bece2e2ed128acc7dc46d997f706e50fb15ab2c4c68af4ebc7a92c862556b768a8021ca3aed60e875cc90ddd5ded744457005"
+        }
+      ],
+      "address_preprod": "addr_test1qpglm58x5neyxenqw5jyedqyemxlzz60xg6xhyup9h46sf24gt9qea866uxpmx999t7pccnxv440mld4arz7gnqx6l0sjyen2q",
+      "address_mainnet": "addr1q9glm58x5neyxenqw5jyedqyemxlzz60xg6xhyup9h46sf24gt9qea866uxpmx999t7pccnxv440mld4arz7gnqx6l0s3jynxl"
+    },
+    {
+      "phrase": "cruise picture modify author curious air scatter over remember transfer quit victory joy theme thing",
+      "source": "cardano-cli generate-mnemonic",
+      "keys": [
+        {
+          "account": 0,
+          "role": 0,
+          "index": 0,
+          "xprv": "d82bfe133ef19383821b9be9f574f172f14565703220b9162b6967b891781d54b195e8cd828af94509201d12eda27ed3a833168a6b06f52460bcf42b68fe6650a317f6326f4f14c92531e66be92b0d1a7eddc2dd7facac44220cbe0336d6c0d63e06cb29edcba73c439affd9eae76f434f31401abebe5b5408495840e8baa1e8",
+          "signature": "9f73cf85a360f329c9dc5bdb9cd917ad4816fd66bdc10c7b7acd200ccc0441718257028bc7f25c3885d6430a5383b3209e511cf66ee78e7ec743b929fbe90902"
+        },
+        {
+          "account": 0,
+          "role": 2,
+          "index": 0,
+          "xprv": "f06e6748fc964f347a3761b3a11afe41e0ff77ad9a75493a3d08e47f8d781d54ed32a5d9816b0bea5399232a4104279bb154500971e094a4fab0a38bb661ae443a30d8b78674446ebf0142a9cba720d6f7799a77c1be7eca05022c3bc41080000e5165a6c0ea21caecb53d6875737fb7555a08dcb0073381557ad09e2b5fa0f3",
+          "signature": "e8a16c4b6f990f2b8e1330e0f6f3e1b51a6ded3f1abb36fe46b76f416af899c8b3c8b8ea515afe7c42386753440f55f617590667b16603cfa36ad132cfa1400c"
+        },
+        {
+          "account": 0,
+          "role": 0,
+          "index": 1,
+          "xprv": "a80c9396b488f0abeaee69b85e34bf5f6e71855008ee1183f3e041b88b781d543bb5b53f4c14a2507b9004e3480686eccecd38fa814be578540795cb4efeda1eed136d320079079f56ed700c1d5c5e58040b66144ef273074c5cb2c0eae02734b2b5f0e033d46cea498468e2b6aeb3f267789ec382c1af7c16beb41fe953da3e",
+          "signature": "149139984e834744339fc32bb950542e2d61e9915dbe72546cf2ba1c797785830c7c90edcb58f78c64470138396d11e3e3a4c36d1b49bbca1062ee5ff79d8b05"
+        },
+        {
+          "account": 7,
+          "role": 0,
+          "index": 19,
+          "xprv": "308b00b81e5184aec0ea19592b59e31016b2538d60ba9389493eb39c8d781d545c130062f3a37da514015de05ecec8d00514e7bc008493673c8704cd0101cd284d3c37f621c8244b66f7ac3ed63d821f2e0e6a51f8cd8ab6841c6fe12bb0b6fdd32d0b7adf493d336962e02e18df541833ee58459baff9abd18a0c903f715f95",
+          "signature": "bb529bec765b70b755e73a6f5c6c150493bfe23cb6ab69960ca1a61eff79aa4bfcb7fd955cacb712420a9a5d2303b336ff90fbf2bfdaf3c4fa9e54bcce44e00d"
+        },
+        {
+          "account": 2147483647,
+          "role": 0,
+          "index": 2147483647,
+          "xprv": "f0dce56b08202ac044672eb895fc6516d85946ad9bf5b1cc6d38f10089781d5440d33ce8bdc33a3228e8b74b4ceccf3cd90c062de42d88e03a9d9dea88e58c6d36e19547816aa25ee7acd4b873e36a45e3fddcb6f14f83060889cd3e6c1de83b802d6f084572c88c3ede57fbd639d1bc87ef1c01de299bb647be3c03ae8dd4c3",
+          "signature": "e172c5e1a0355192285d2d298dccdd190f2c2f36471e820eb9be2c53d7adcfb72372a6ae5a641256ec3ff166273a2219e3b9e7f1ae2d0d32b3820b96a8dc0a08"
+        },
+        {
+          "account": 2147483647,
+          "role": 2,
+          "index": 0,
+          "xprv": "18337e3973d0c70e8d62801b0e7987f02b20aeefe2b84fd8db335cc490781d542ce1a5929b68da0ec037e0457b13ae2b5d7676fa113c9a92684ec56cf1d6c051a1840a59c681dd5fc0206329b5c30ade7cf68713fae4df81b48cc6135b76d288e1484cb0f95983ec39dd0d018df68f8c9c6e9fa22ad1177c9bc4fa4b48f98548",
+          "signature": "3fea5309f0db209a6250237b1c6c52f4fa4a14fedc28df91458a72bdc408cf0c4111140a90e8ca752a46ca0d47f3e3122fd184b837867223034b21f793cb7402"
+        }
+      ],
+      "address_preprod": "addr_test1qqkkt63ul5rkm6aqs7gxsk8hul5l75kd7hy97hznjx3mdcc6ael834zllceehvhevfj7jjgan8x4tkpwjz2zpu4nthnquhzwgj",
+      "address_mainnet": "addr1qykkt63ul5rkm6aqs7gxsk8hul5l75kd7hy97hznjx3mdcc6ael834zllceehvhevfj7jjgan8x4tkpwjz2zpu4nthnqlplwyd"
+    },
+    {
+      "phrase": "purity time lens hero can father ghost nominee bid staff minimum excess scare chaos kit forum hair account",
+      "source": "cardano-cli generate-mnemonic",
+      "keys": [
+        {
+          "account": 0,
+          "role": 0,
+          "index": 0,
+          "xprv": "7815a2708683657a4cc5a32790f13951f637b8674fce91eb460ee083370b714b09f890a36590930579670ea74945e71b3c4ee9a31a57557ce2cf09968553a503a50dfade90ba0f20dd136627d9baeee5d40a89d825cd967ffc17e6c3a098c5b139fe2526f948ef145b3c8b02c0872de890cbfe1a80548fc297901a2cb9e4ed8d",
+          "signature": "3ef36c1a864ff3eb224828f8cae2c61951214a9d70910e18f7db70a089675ff41d67382440ddcbbaf2a7be18d2198023f656fa6912a38089b1cb2fabdfaf6a06"
+        },
+        {
+          "account": 0,
+          "role": 2,
+          "index": 0,
+          "xprv": "d07a891a71374ba521ccfd0a553930fb1fa28736b7ab35a7e7b56a55390b714b3ff8e750ad946a02eea68f2c18716096fc5cb2496977a363e916b31acdf8bc9095fc757fd4ad67f49c6300fcf2f05c9337443e973cd292e8ca7359d2455bd167c7d68a9c844e480506a33458ca897f553c6ce0395890b925df36027cae7890d2",
+          "signature": "d588a88d7da4c8b77840fbe30c1084288807561ba405ce6a09d8dc3f6c865eb0e61c2709ebfa5b1e36ca7752cfe03ced1b1c8aedca529d387ca15fd31168a104"
+        },
+        {
+          "account": 0,
+          "role": 0,
+          "index": 1,
+          "xprv": "087d6fe9874e28d67de4b3ad0d145ffe75ac7591337681f352333da4340b714be74a61b299672ed7b061c0ea0bc073dbf70a227a830f1df47d279bee26d41691510869cc2ac5f8085d3a91c5171086ac6e892ccddc726ead356318a567af64a5e8ae80111032a22bce173da25b956915c9e48ea17324b35628634b85eb1297fe",
+          "signature": "54a557a2ce8f187fc29c703a9ff0fe4053444de4cf248575491f4d6d245d3e4aed99cebee2de3a62882df9ddca252f84a96165ede2dbe0ff9c0865f6522aa802"
+        },
+        {
+          "account": 7,
+          "role": 0,
+          "index": 19,
+          "xprv": "38b4c0ad357d36c289b859157129f381a1b98ae803613cb9bf7e2d153e0b714b8697a3e2758bb8252a8360a130386065b43ccf3560f6ea2fc7fe5b243461adbe1542c7c4abe20a52e15810507e19818cf6afde8c55791660bad35e3c44fd75deadac345f88b89ab73854fca5a725fe9b1f718b27606806b1a75818ffc424cf53",
+          "signature": "d85d07b8e89100bceeb6150317f08a7bcd50bc7255226b2987d3b78920d00730d08078e023374b64c02cb5802d3183a8e3fb64e639f5b151a8aafcbef6dedc00"
+        },
+        {
+          "account": 2147483647,
+          "role": 0,
+          "index": 2147483647,
+          "xprv": "e8c3ca5b6f3cec163f8137b23029966b7a6d85171f373585673235483b0b714b48c61511798bdcb5b9969f7907ca9fb82eb07354a17852add8fd47cc198b4a17f368099152729a66a49981df31521b1e8a13be0c96ac34f2192e9489ca58fe6c3f0f5c6fe05f7b8b50f665b41ced839c36e2709111054142c6025427635fdd1c",
+          "signature": "91b15ee2f822edcedea931b35b15ffe26eb612c1da4250ea78211547be1aa91dbd0de03ebd9122090216aeb923103eeede466f9b57f0726c04129f5caf722f00"
+        },
+        {
+          "account": 2147483647,
+          "role": 2,
+          "index": 0,
+          "xprv": "5859b4c48864b29e0b5398908925b8aa62793ce33e76beb112f3cc5c3b0b714b33c91fd9e91f80985b54cce8af732b89308a89c6c4b50ef35f869c32af82dc154c35ca90cfcc7e7a68ac0d4ec17a57554a448ed028dc97f121c5f2a7223c777aa0eb9ec049064567c5337547487cb91ca97ece055231ec1de71018a17e3ff8fb",
+          "signature": "731d3739752fbd03c3a63b315bd537b260756c6ded5b35a47351d235bb8e48d15ef53450273c1b6b249075173a55df3601f63be462399dbe33daf76e87250306"
+        }
+      ],
+      "address_preprod": "addr_test1qqj4500t9t4mmkj0xhdhwq7gk9tglxzhsdlzuwtu23vrqyvfqvljp4ycnkxjml8z5v4cqxg7wyxuwg4nsdgujnq5vw9scpn02u",
+      "address_mainnet": "addr1qyj4500t9t4mmkj0xhdhwq7gk9tglxzhsdlzuwtu23vrqyvfqvljp4ycnkxjml8z5v4cqxg7wyxuwg4nsdgujnq5vw9smhw0xr"
+    },
+    {
+      "phrase": "frost grace wasp marriage screen cruel silent pause family dignity stick enjoy intact lift worry frozen write mutual blouse october weasel",
+      "source": "cardano-cli generate-mnemonic",
+      "keys": [
+        {
+          "account": 0,
+          "role": 0,
+          "index": 0,
+          "xprv": "c0770abb38e283a6877d3a13c71b9b042782fcd8f2a4a89cbb3ee54445e0f451c753ba483eb02c3dc333a4afbf92e8eeea63257d4fa42212315dbc7093025f3ea469fbdddf4b27b808642df7f1872bf4eeadd61c7dca972ed466c862723591a4e906a23dda0c728550d0f600ec37b328c960d434a37f23897879839f5153b305",
+          "signature": "ca5912d467608c83b88d66519d93bce1ab601c84df63c9c6451f0f115eb07e68ced40774ed24f909f3cac2bb352ced933d243931fa1f38c492432c1ebc77d506"
+        },
+        {
+          "account": 0,
+          "role": 2,
+          "index": 0,
+          "xprv": "58d8d71b1a405fca6fd0d1589d9d99a1facaca694bcf82f754993dad48e0f4518acdf89e558cb935513d2c5cf3beafa41ff653f861aedff43f7a14c3f6132b2da6504f1f90e5089d130c0d6dba82504b0a6018cec7491fac2dc95632e92d551470c7bdb66009b932237458d717006a39d9b3405133b42a890fc1634fbc1c9f0c",
+          "signature": "fb6f686e757b11a0aee7ec4831b4422ce1d67c8cfe2792f1fdb76a705239120919a0c1b916ec4e26c6b7cbceb533b45cebc138a5e8d13b215928fe600005ee0a"
+        },
+        {
+          "account": 0,
+          "role": 0,
+          "index": 1,
+          "xprv": "4072bd4b172a8f1f2c7ffc16ed9e621366a084c2d88fbebffb48941242e0f45189fcb3838a6c6b8196698745ffd8a11d82e809ee0752a27c4c5aa7d1cf206b74e98159f7587bb14266ec984b140ab65b02ed59da45c225915e4e898d3ab2d2a370a610b46ea71008cf5f55f1230806a7435614197abf7f26f4745184155d56e9",
+          "signature": "84d27c41abe3620fd7a4713bedf8f21df9bec0fdf701ddccde8d5322a914f4168512158aabddc9528bfb1326df7f5bab82011f5142bf2cac9da4ee89fe2bd70f"
+        },
+        {
+          "account": 7,
+          "role": 0,
+          "index": 19,
+          "xprv": "188d726cd4e834dc5dc572fbe06a78d544b2fe0b5df2eb74eb38fe9143e0f45158316f6daec04ca8c74ecc209b58d40d9f1820f89fef74935f73f0f08b80c80e10b4d38a22ceaacdfd4c202c089d5418c92d6fe26602277c5a5b117796a5c07775d2713d092be6438095b1eeb3a14559738fc1d74af972426a3a7f2b6fbb12c4",
+          "signature": "8871fc1be8f5a52babdff0c41ba3b3752cfab744ac27582bb77f68b5d197ce0a291d3b3226ab89d9534e25dc75cb765528714eee63f3f1100e3085b22934310e"
+        },
+        {
+          "account": 2147483647,
+          "role": 0,
+          "index": 2147483647,
+          "xprv": "68a979857e2605688a26557654959b6acd121a354bea742bee6c216a44e0f4515edeb146e8ae0b202c35061ab1384c1b5e53894a8b187a557917e368f9b5971fd36bab84022b93e94707db0a1eec87ef41fff64dc9cfa34fe2d163290093ef2ca6c6e7b24d0787220560d56f5d36868b80fe7972aa3622c35b9201c83e5444eb",
+          "signature": "b2e495915d591002b517bd911b22d86c3bb8ebc3eca24ebdc4b3be3bc9fc32f77f22cce56edc9be0171ef097eef89d99a12a002a174b476fa37bacc06b450d03"
+        },
+        {
+          "account": 2147483647,
+          "role": 2,
+          "index": 0,
+          "xprv": "f0575e1e54ad821ad2df063fc174f4fe6c2142ebd7ccb961d55ae4cc44e0f451810a7c95fa4a977555b2dfc73f31cd665ca026a21b9bbcc4875dc6e7918d0ba93c8f93c9461c2c842cfe4dd283f8548541d8415849c924fcffd86d9cec12bb08115484f5a3f46dc9b7596766d22f73979d45ea985b02abcea59f805708c87518",
+          "signature": "8fc12ecc241ee56118522453a1664a8310ef355cd47619f825ecb646072685573c7657b4c85b16eea71f3d60d864c7ceab72809008dd1ac2469b4f16f89efc0f"
+        }
+      ],
+      "address_preprod": "addr_test1qr05wjql9gptg56ckqhww226nz2qxzy2l5c29x5vrsjva99x02wtraphva65qag49c5q0jmdaza0v95tmuxmycjkk3ksfgdhc3",
+      "address_mainnet": "addr1q805wjql9gptg56ckqhww226nz2qxzy2l5c29x5vrsjva99x02wtraphva65qag49c5q0jmdaza0v95tmuxmycjkk3ks27sh5w"
+    },
+    {
+      "phrase": "boil bracket endless limit asset zebra suffer want angle exile park run load eternal record address claim floor step stadium cliff arch love cancel",
+      "source": "cardano-cli generate-mnemonic",
+      "keys": [
+        {
+          "account": 0,
+          "role": 0,
+          "index": 0,
+          "xprv": "5007e5948fd65e73aedc65946101115c492785a19f2b5097bee45427c46e284ed76e93f6785f57aadac0fa4e2f88bc1a4ae2256f1a266d634ebc0795f7c186dbd6f2d32f76bd090172be6e1771f7749cb9a5f00fb07225f03c0dea9eb9de288d211a1e77c85bd9996b0b6924ec31e3f6e3e148a827b2b480064e964386edf62d",
+          "signature": "ac053232889b4e201e7bd8815e625ade1e813ae7fed98454c417c32d685cdae9fd744df20be927eb0c8506beca00a8e21ac6c8f261d8ce47e6caf8624b834b04"
+        },
+        {
+          "account": 0,
+          "role": 2,
+          "index": 0,
+          "xprv": "a0f29c7e0198acef025a0999a23cd22cd11e2037541c72e1cb2bfd45c56e284e9ee372507333e57e97832a1b5b987b060510b7209722177253e10b5b1da932355a6c4cb4d2249806de414660c8df03253b2ee433d122f2b52ee2cb2b37afe16401130e8e62e02576e1c132dea56f2cdd548c15e8134adf76b753744543f535e9",
+          "signature": "9b91706027ff9a1087b1c8ac06b620ef4e811dbd8698f654b75c0f5cb1e5fe9aee1e7e53e183e1bfbd3a8c2dff5672bc8b2795536d3ca83438311b9ceb7b0d02"
+        },
+        {
+          "account": 0,
+          "role": 0,
+          "index": 1,
+          "xprv": "e01f5ee0f924f161e6d172510a5dfd5dceffd008c780c4c1b14337ddc36e284e4852c731e11b405454968071ea46d2ae4c47244c4665c6257cd5241b2daa25b33e69f76da21d4c7222f31785f1aa64b149508541febd4ed25990212d844d8968ead15d0b80a0c22c39f4e0b3a669a1c7fa499fbb4132d7ed04873f1ae198f202",
+          "signature": "ad7396263e7c840d134ef21ed1c48ad480e5428ba3141c562ddb70eb1be670c5175483a67dad095463929d8b18874a7b1b8912204e0489c3ff860467f675ab08"
+        },
+        {
+          "account": 7,
+          "role": 0,
+          "index": 19,
+          "xprv": "d80214867c8f2e04e17081a3ce7a7c127a619bcbad2178e69cc4be8dc76e284e94c41371f1f2794e2f5170e4a1b9a6369d09766b3ef8a1dd66159561965eb2868a64e0349d67290078ab9b0f9d9840c1b81295e2d14ad9ec270e07d40e172f47ba6017d9ed8bb91d5f17151a230681f8c3dd8305550fc79f8e1dbf36d395dbbb",
+          "signature": "7b847d6d53af098c2507c19dcf5c4bccbfc498b28f83a73c18d086f96d6e5aa52fb79c188ad7b2ad1ca351560bfefc07201fc4fdcd8b72831c98310d0066ba00"
+        },
+        {
+          "account": 2147483647,
+          "role": 0,
+          "index": 2147483647,
+          "xprv": "f8ce93a6c22c02c65a4879b1c1f4d9b727d4576aec3b12cb72d53943c76e284eadca3b428997ebf1e9c9044887db665f095a73b6fcca293c0ac1c326cad01d586832617736b9fe7cdb2e5ae945edaeb40f9f9b6512ec131655bec7542eac3829bcb6a03db05b5cfca00bd7697e21dece01bfcb0dfc1e452dd1f9105d739062df",
+          "signature": "483731ae442e5b02fd210ec6cf7702f0f80063b294f56ec20def4f54bc64da28774e3227188828299c7f0b5ee25f659fa30ca0763b580948379d91a48f9ea80f"
+        },
+        {
+          "account": 2147483647,
+          "role": 2,
+          "index": 0,
+          "xprv": "78d1f3e7301b8d4149740b9f46e0bb56fbe276187c151ee8c606c809c66e284e7d3eb13864cce566a5dd763da90334771e969bc70f04ebdf2b45447b466ec728079eb9b8f06c420a23936cddc07d6a941a96033198bc55fbb28bae537813eefe643ea3d36d1777c7c52b2b353ecc682ac03279aebb25956a0289b77e0ee25ea1",
+          "signature": "f6dc034e7604d14d508c18cb0612f25072e84844c5ad3bca57188e8a476571dc401d3358a51b830b5dc87bd29ebd96480e676d228f0d900c0af9910ab91e460c"
+        }
+      ],
+      "address_preprod": "addr_test1qpel8hz0chljgnwwg4vhe8prqp6dh0y462zggzcn98qka07s9yu4xzmnls2esmzy2nseccp43na46t75cgzrty3f9seshjz4r9",
+      "address_mainnet": "addr1q9el8hz0chljgnwwg4vhe8prqp6dh0y462zggzcn98qka07s9yu4xzmnls2esmzy2nseccp43na46t75cgzrty3f9ses5yl406"
+    },
+    {
+      "phrase": "call ball flag comfort old dial fog hazard sort differ crime away",
+      "source": "cardano-cli generate-mnemonic",
+      "keys": [
+        {
+          "account": 0,
+          "role": 0,
+          "index": 0,
+          "xprv": "90339c07546c48597d634b73a14b2da5fbbfb05fa6e48290a935c5921ca46445343a89a97041ffdbb6ae9c189c4801441a394dd2a476e8c8fc23a2f0d8024e258e374d510a81e656628f495a0f67e70e4ffe79741d717a418d7d038330f693dde28de7a1d6ce3be9f6cea06850ae713805e81e1729648164055a527c1a03244b",
+          "signature": "9c707059197258a39982cfa8f4d5f809492df10af97041d65aaf0af2b4da8c626fb1e8c18fed44da2d7a2fea6bf7034b54833073ad63930f9823ac2fe7b2c404"
+        },
+        {
+          "account": 0,
+          "role": 2,
+          "index": 0,
+          "xprv": "20d92a1d3ca7c8c17f36cd670b8930f019dc13ead79dd1226f98c49c1ea464459bd5e46fc1431becc35f415e7f0a278594340c2a8c20a101b480563b52177fd7e9178cc3991da265f9c404a20c435fcdc3231db9ffcfa0d80399f390c206816dfc91374a4e051b37ed257605181d4ef0d5f21c9280ada88564323781a76768d1",
+          "signature": "fba9073fc0497f123bdd448847f827dfce7e6c77e52523ca8c06c12e1e71c688ef8e6479d328a79bd2e3462d216f75a7fc1887ecedb81bd51990c559b65bc90f"
+        },
+        {
+          "account": 0,
+          "role": 0,
+          "index": 1,
+          "xprv": "306e12e3404198c3bef0a055f837f19128720f3ab1dd7c216e8829f71da46445a96043b6c5eb77c8f410a1ed2df2329dd07fd065d3f5fb9d41d8b9ae564c321e195cbdb382cef8e72d8c54bd8bb02bf095c721576630b97e69e404c6f6d20c6b3149901097df9282869f8603877d3a2f8ec6e53fcf47480c6915eb36379525f8",
+          "signature": "2c1923deb77c03b741515f27126d50dc3c29478d32776d87dc3202eac2cd07868bf34ba51e640acd5bdfafbd2e52e997ce995382df8cc6ae9319696716132702"
+        },
+        {
+          "account": 7,
+          "role": 0,
+          "index": 19,
+          "xprv": "9030eee01c51a18541e6fce14420a43b11efa70b024b6d1847e79d701da4644519e455fa6d565f1f56e48006ae273bf393a9f14cc167429f2ac65cf08354fb527b27715de257fb61d6df53b4e0ae16a068ff3eae3aec179802bc1e345fbc5f86cdd399f85d8929b3b9b1e628394d9b260da6ff6270eca883b92a26970de1de64",
+          "signature": "1d953c8949304579ed25d0f0aca909e59869c9361fbade174340ad21e7857e03eab968cba9c73ee63ae22961ca0a8a9f2826f27ec4c1f18ea348ced394a4330d"
+        },
+        {
+          "account": 2147483647,
+          "role": 0,
+          "index": 2147483647,
+          "xprv": "389f26f4bbf3b84f5d4c604809f60446b1dbba1ab2c02a1518244ce41ea4644592b02b7d32e5e3858482d3a8448b64dab4e5ef2e6fc7c9af7b4a7f8f63a3221622921ce3dff623d7fda9d524f461aedb621a362fb84285aec5e07fa3bf5a913701ebed2cf77490aaa773c3d800c8aad8923887d7e7a466a6b5fd78680fd5fd39",
+          "signature": "a2039e34e8a4f02d7cf2dde9c9ad569f47a60a0706d43a1d0eb1c71280ae8663e14370ae9c3fe05217ce6b2888359c716c0f279bfec7a7de3bd71bd1e8ccd000"
+        },
+        {
+          "account": 2147483647,
+          "role": 2,
+          "index": 0,
+          "xprv": "7879327af3c265d1edf8f5668f88ee9de32acda0ece98029e67b212e17a464458be17466e68c63d8c57b905ce74db6ff8a9a754b565f71e607a702087c9c4c01bef59d5e98158612047168a14dfee8c7e0c39877b4d7225863df9245220ba72c31b5434f60148067a99038adae49f1bb0088c923e337436c6dcc4897c01e1757",
+          "signature": "142b565480d80a643aa9aab60491d393c37b49650772114a1c63dfba8f3308fa8f726b04f0a01e40f1c7bad008e8756a79e201e98ee90586cf075aab3d072706"
+        }
+      ],
+      "address_preprod": "addr_test1qzkx82twvy803s6mlzdgvcdx07pvwnasayxqgy2anpwvvfpenmdkza30q2nl7tu4qe9z78aqrwltg82ylc0v8g02lqvqgw87qw",
+      "address_mainnet": "addr1qxkx82twvy803s6mlzdgvcdx07pvwnasayxqgy2anpwvvfpenmdkza30q2nl7tu4qe9z78aqrwltg82ylc0v8g02lqvqtc67v3"
+    },
+    {
+      "phrase": "unaware october unusual upgrade ozone bamboo clinic phone want negative slight ivory metal antenna pause",
+      "source": "cardano-cli generate-mnemonic",
+      "keys": [
+        {
+          "account": 0,
+          "role": 0,
+          "index": 0,
+          "xprv": "6014c30f577f9988bbe4b9115752d7f26b9a7fc3155b01c6fb54843fe344ab5f97ed33a3cf35ed256bd47fccf80198c122ec292755a3d670420f47b504b35fa233ee0417bf31f6550b7b531d6bbe9324226f1eb8b7456cfcdb1f835defb9f5ed47c1890654cfb3a7777fef1c4c736ac1f1e05b822de6c69acc282628d474ac79",
+          "signature": "45ccb73d8bf875bf7c7fe6edad3f7d956ada1f7902feb587d82d15469c76ea5fe45eebeda7740002c5faac0ed2be45dd02eaee4400a648a558dee226ea76eb03"
+        },
+        {
+          "account": 0,
+          "role": 2,
+          "index": 0,
+          "xprv": "48740aa48fde4c9923d30a57b51d0b2d844a9f064acb010eed34250fe544ab5fcafe9c2390d3debf65b77a2238b0522fc71e632ad63d873446d95cc95dd0ab84cbc8fa5c8f4e302795a80cc35ed1a33816e24fdb20d5e1d9de9964660887555c7d6a341a3243402e27618485c9efa6711185d58d1f8d3580f49f4662c16b17d8",
+          "signature": "a1ebf35b60100bfde64f1cc4a8117f65f3c49d50d9dbba97f9b81b854e3c800a428eda05bf7a507bac4a3ee84252dfd5157569974bd90348d13c1a9c9f45720b"
+        },
+        {
+          "account": 0,
+          "role": 0,
+          "index": 1,
+          "xprv": "38e05b1c712d2a4fa8d6d9ce0cc9708a9ba0b55f3c19e30fa72cc54ee444ab5f582ec2a8ef4c2e3f0e5c3195f24486614ecc1b8023b05fbadb16f1b6dc0eecae451185c3fa6db26a4d6737928870d7ebdeaa269bb4eb442d0713bae65929bc85ec8d9e81a1911d4c1d1125ba8d9270c749dc32c0dbba53468deedaa1fbeea093",
+          "signature": "5dbc9a521717087056087d9519c8089c696ae0b9c512045d2d5499f801cef64751e8d7a84452cb1495acbc242ea3c20850c37ccfef733db086d90fee2e204d01"
+        },
+        {
+          "account": 7,
+          "role": 0,
+          "index": 19,
+          "xprv": "f8ade1b6d8d964a86d1f9a34d0170af718ba6e420eefd640fd7b303be044ab5f7fe1a9a72e6604dced56a8916dac889a9b405cec0771ac60cb775c155c2917f933c74e7e8368c86c9fb9af1974330a315c14abdf7f54997f273e0d3a841864257c354a37fafd34626e142f7dca34872bd74bf8e0668a6640e941b78cc8a733fc",
+          "signature": "9024c903a8222ad96a1ec773b66477698573a2151ba4d58cfc43e59870176fce15614886e0659992aef7e98ef90ddf9329dc179964385a0c3a25e9947523ac09"
+        },
+        {
+          "account": 2147483647,
+          "role": 0,
+          "index": 2147483647,
+          "xprv": "4070609e9198348c2ed9c6735dee33e000c6eb43536854c6daf71c1aed44ab5ff5b540b009a22fe3d94af2e69fe67c6dc46fd7d2000d5d57ed28698ac00ff3005f94a117b86306fb894929499c51ef697b57ec1d0ba522285d9d948dffc37dc6b25fdbe0f78286f412f604ced1ffb29e48ed3e7b3549cadf5f2b87f2ab1950e3",
+          "signature": "3ceac579ef9b68cbb6e6d58c4273af88d43bbcc8b0dace5448607cf7dc871cebbe91de0cd8abd31c3ad396215cbadfb1d8f3c91a4619d614da24b44851594a00"
+        },
+        {
+          "account": 2147483647,
+          "role": 2,
+          "index": 0,
+          "xprv": "c0c25bb6ae4d5851ad0af6ca6b504b764dea60fedd51e0ffe3cd75b5e644ab5fece120aa2a02bfb0610443e4b4e152d3a468b018c43d06fdabdbbad6f5817bb050a0ef94e8085e4d8180c23a4b9e8287b854d18d9d52923fea4090bddb4075168019ea875987776a7fe7f7d2b735cd5d4552e3f37b91f442bb4fb74b962d59e9",
+          "signature": "8f99ba1737ba6633cdb1b955807f9b569677e26870d588f5cfaf5ccd4e25e04bdaa66d5db683c2857fad8337076151e24c0139d586040c3ad84298a56d42ca0d"
+        }
+      ],
+      "address_preprod": "addr_test1qqp2gs6h3rs53atp3mm0qdlm3qach524ypxhx6uaqrvfnac3l29tz75txke205d3kar9u580dwe4xxz4g36tnqcyxfwsgdyd2t",
+      "address_mainnet": "addr1qyp2gs6h3rs53atp3mm0qdlm3qach524ypxhx6uaqrvfnac3l29tz75txke205d3kar9u580dwe4xxz4g36tnqcyxfwstmedx5"
+    },
+    {
+      "phrase": "gloom rebel credit upper device fuel walnut degree type punch mimic science clock bus refuse lift special broccoli",
+      "source": "cardano-cli generate-mnemonic",
+      "keys": [
+        {
+          "account": 0,
+          "role": 0,
+          "index": 0,
+          "xprv": "487fbe3c63795fd81b4116cfbb56cdabad85914be39ab8cd3bc5cc9043c8e65cd90c460c9fab2a185ceeecb62c78bba3a0c7a066937920eee9a6211b4a1c72783d9620363647c1f64d0b1e47464b5ef77bd30843df93e1225083ff217332077fe93ae7aacbb250e76cd3a7087b1e9e37c2d7a372128e0743abe1a5acb210471e",
+          "signature": "385149ad8b165f3d04104f84462f4371447bd516911037cb6db15fbf0f6e9b122af798e1c3cb93c720bb0df815a30c78d46a337aaeda17b19f9c2d1606907601"
+        },
+        {
+          "account": 0,
+          "role": 2,
+          "index": 0,
+          "xprv": "60de509f2a4c325957dcd0c0713e9fcbe2d1944436e8c6bab7d5825b43c8e65cec105621d026576f05f09db1474b5da5f26bd9a9adc74b9cb4dc96b79fcb2ec9ab43f2dc85a6d2d235beed9e45c20fc8ad5981511f4edcf727aa2d811738ec61534404c7c6cef50876e80b820743147ddc73c1431c00dc007fbe1c28fa4e8b2f",
+          "signature": "6f135edc5b3d1d358cd5f4f804ac7a37d7e3ac72fca6591632c1fdaca7916a1e83d1d6d8f0c55c14e5c5457d0aa4f6820036a67ffe5d7d48d7288005a84ef50b"
+        },
+        {
+          "account": 0,
+          "role": 0,
+          "index": 1,
+          "xprv": "d8e48b8c7b7bf1b2441b5bbdb430e9e02490c06cb8941fafc236ee0645c8e65c990b7d97af2ff1547562ce460ca2d201919091753064a0addec9f434174bdd32aeca711d93a008ff9d23d89669f16da0ec2c66e6b839b578872ddb82a1f3c19d662eeb8647925df00fddba92eb490115b03d618da3a98bada5347d752fc70b8b",
+          "signature": "1cb03c0118de7ecae5097a5b4c95bbfa2a7bb9a2453043709234dac0de47fc84fca32e56801099d29b297cd731a2cefb556bb60272bfd996f8db13ae34dd6f08"
+        },
+        {
+          "account": 7,
+          "role": 0,
+          "index": 19,
+          "xprv": "508e3ea9d0522ea5bf1be5b894a678c3ee57e63b6e841f5beb866d6243c8e65c2e5b899a1e3d2a491dba53ecc297a361666433e516356073352373163b99277b35fd89badde872fbb70f28fbef62b90400ee8c39244c931b587e87e60991b8eac9c8d33cd2e0a00bcc07fa6baab3b12d94c2cd843caf91150b26f47bf212b540",
+          "signature": "810348f45e6242dcc4205a8653cc8ef34945afbbeea54eced95ef99eaf4cde222f28853b3e4749cea22acf491322905c3005d0a3a78bc14dae558cbbe5638001"
+        },
+        {
+          "account": 2147483647,
+          "role": 0,
+          "index": 2147483647,
+          "xprv": "60c7f60341c6058fdc6dc9591a8bb967c18de4030220e86e9786b3413ec8e65cbdd54621ca5ab429cf26b822818ada703d8a2d3740ecf3206d952d56322912573f9d0845eb2bdbb276d11c3c4fff5461981094dd6e212aee00d2b83c18c1138a78286dd432d835ff4613c09f073c2703f0cb8eacbdb7f6d732d9282704cf4e60",
+          "signature": "118dd2bcb7c5c0ebc6c11ffa91f41617dae43b26ffb05791cc01b41a2336dd9260e2d43df1012f50aee0bd55ee702220c9c0b8f5b9bb9f83f031e05b02b28c0a"
+        },
+        {
+          "account": 2147483647,
+          "role": 2,
+          "index": 0,
+          "xprv": "883d1b0df9bae36c0fdf96cc968e0d7e3bc0aea02ab4bc443896983c3fc8e65c7a8f696c1547ead2b78ef174f583343b21cfbf7f823e4f6faaa3a231e4d625ca4b041498b3063622e1d18936888e964f39f0abf74666fda2e8d2a0f57b3a7752b868dabee8f3540b6db5848fec8f1ffb8fb4defb27d976b06e39464e07179bde",
+          "signature": "e6843a96224e5c27422b639255c27b69d30d4de2845fa13e2112a4b67acbc9185c86a13b5a154ccd1a5cdf5f7a32e4d3ed29fa6f5aa30645d5de8a50e40df009"
+        }
+      ],
+      "address_preprod": "addr_test1qq87lf2qs2fv2e4vlhuxv205e2zd6uuvhulpn454538w6424pph9yeeff72lpqellz04585ptpf4m3e368regwqlj2dsktx6ga",
+      "address_mainnet": "addr1qy87lf2qs2fv2e4vlhuxv205e2zd6uuvhulpn454538w6424pph9yeeff72lpqellz04585ptpf4m3e368regwqlj2ds4am6yz"
+    },
+    {
+      "phrase": "note crater grain kiss insect rookie comfort wife wonder regret impose concert glare short lock outer depth seven drill elbow amateur",
+      "source": "cardano-cli generate-mnemonic",
+      "keys": [
+        {
+          "account": 0,
+          "role": 0,
+          "index": 0,
+          "xprv": "f8cd5eb955fe66f97a1b710bcee8d50602793b4d1527db7d9f07f11ff2991552ad17ddfba765fae2a39b05789c47fa6914985c960b6f4719f64ea69e106a80a8aa914ded535061c19c9775f4ff3c79b44f412b6316705056c63729d316827c91d0121b6552318eb2ad473b95dd6275dc2bcc11bf0666dc219fc8c248a954f439",
+          "signature": "e75aeaa07f9b59b06a81917ac673b49f43f43bd114e3311d76366a7f251924de1323dedb53bd0f62b2bef863830cbff169d3367c78aa182974e4655091c34908"
+        },
+        {
+          "account": 0,
+          "role": 2,
+          "index": 0,
+          "xprv": "d0905727f5baefd26c737b5878fba6f58b53d93267cc22fb2dd8f32df2991552b829ff26497c5a745cb6def5909f1529aaafc3771e1dbf22f73f03d979ac64f04c4d70910366199c83e94648e1616b2680286544584189ccade1783c0e4abd99101826674401dda6819881a129249fa0655ff2955197cea68cd0f9d33027f159",
+          "signature": "d64152ef691c3121df8d062f8a2702a24a134104600b2c6d10acc680f270bf74ed4a9459455b6fd29f0807e4cf356f21aa89da31aed8e8751684b9d8fbb7b102"
+        },
+        {
+          "account": 0,
+          "role": 0,
+          "index": 1,
+          "xprv": "78969e102b09fcd41a1226cca529c4342a6dc603b0595de7d7575175f39915527d504165f9162b6585d25f799f9a42c34ff362454c9392eb9acf3c984997189f3d83b245fc06b7b6d73efdf81cdb0b8054faac516f32a3fc5c2b3fd84d592e92717444a85f372ebf70343c0cbb95e0b9baa8f515b22a3da09986ba69e9c2d44b",
+          "signature": "4481265a4ac89332daad5c9775db482d4ec37f58e75f9d00420302ecb6314a2a5f0a27ff97afd70388f1eaa2f97300bd4eb85ec29f1e1d8100a457a7de759e04"
+        },
+        {
+          "account": 7,
+          "role": 0,
+          "index": 19,
+          "xprv": "d04ee78a55901f3b50a525a5d4f521486a744c10728c5c5447cab0f7f4991552c931fffbe4e2fb2ef431894c6a857ba629f6d16b8bbf6c3923ca7bc18e52b2510f13c4db0653c1084590fb9381383b05a1dac52559ff7a55e1322d62a724ab0e4429421b32a725430b135c197c75615541d369808647cdec17da6e74f3e7974b",
+          "signature": "7f2ff094f5b57227a712dd294ea7de57e1cff52a5441c72ee1f4b26a8cd3f7894911dafb7e21df9da25221c49f73d0ae0d9fb1a57d6de20aeafc8d0eb32a3a0c"
+        },
+        {
+          "account": 2147483647,
+          "role": 0,
+          "index": 2147483647,
+          "xprv": "e065af55bfd7c758364d8ea907cb07db932d0eac902f2565552984a6f7991552da0313540d9423512a9a3463bb828bf79da420661ddd05646bf158893f55beccf3e9a2b63fe17cfb5929a500dbc1bf81f06b3179e7a51f3f642504435f3234b2872590b59938945ed1ea3f9b43a9cbdc2b35ef42bf8ccd8abb5eaa75a22ddf3a",
+          "signature": "562a5f14bcb2f7b9c4daaa9dba3bf6a802506b802a31b61d4e854d2c022527d6c86205339cfb13a470f628be49c5479f03daaef4b3dc316af601d4f959b4ab0d"
+        },
+        {
+          "account": 2147483647,
+          "role": 2,
+          "index": 0,
+          "xprv": "50879634980c52aec764317e1d9c632cb162b5b7a3d6978ef921ca38fa991552cbca8a0e6d788fdd46646a4fc60a9ca8cdc29cfaba179ca5c7fa232661ab2889f5cb983158ea1ef2f655ec34b4c599d4beca2d668ba63ebdc29a07f49574a9cc6bfe8cac82d6b4d0b90562e66fb62c628b1e510a81d0e6cc81af3f726eb4a2df",
+          "signature": "5441fd6a7dc59f3a9ee9b352eca15682a2232f013e306e2855ecedb594c44930c55ef4a1ed1c360f7f6d6809c71030f097e676877242964e2f844dbb1e40e603"
+        }
+      ],
+      "address_preprod": "addr_test1qp0fhjvlnyv4lm33pf3wslq8zestwqekqt64ekhg8cgtrmyngj5pw9fkaxwrxn57wsl9z62hgps089wknuj4jr23q2fqc06cc2",
+      "address_mainnet": "addr1q90fhjvlnyv4lm33pf3wslq8zestwqekqt64ekhg8cgtrmyngj5pw9fkaxwrxn57wsl9z62hgps089wknuj4jr23q2fqme8c54"
+    },
+    {
+      "phrase": "indoor tower purse hen chief bonus inspire van venture whale repair diet analyst brand town exercise remain orient daughter refuse bargain gospel place marine",
+      "source": "cardano-cli generate-mnemonic",
+      "keys": [
+        {
+          "account": 0,
+          "role": 0,
+          "index": 0,
+          "xprv": "d064be34e8bfa1739572532b7ef9f87fd527fd693d8e73b51e06f16187d75a57762576b57d43da21e9f5c47fca534e3563ae5b59d8146f4b93751c299118c848669ad8b3487efb73cd6e032b17f3402a2ef13d03675ebba3e8f8082932df5f460c66250846319f1c33efc5f2e5a3e216d699638b872571274aa36a7139952b39",
+          "signature": "c38e7bd7431e99c6f3c64bb7fa3d980ec69c01a084f1efe028202e39ada80d529cfd40805253ff79313004a04a88029693a8c92b8222a2a3ffa7fc645317df05"
+        },
+        {
+          "account": 0,
+          "role": 2,
+          "index": 0,
+          "xprv": "38f3db1c3772e5517b3ef6ab8bfd9ccae40978004c7c17419b7643a683d75a57188d5192baceb20aa250c831860ff22c15285423c68f4abd2b151440b61c3c34ed3071e6f243671dc349bc42832173e0b3baa9b4f6bb6ef2d7430fecfd47d57d34d1c72790b19ff98c0ad6bbfac8f8fe528ffb760175f0655b6e5da593cb8cb2",
+          "signature": "ed463c3af8c7ced4040cd86f2e9053fb8bfa9c10d1a606c35307ab165305fa890b8350e1d6500b3c1f31e7fe6384c347eea3d7128b8ae917c126edc9a145b505"
+        },
+        {
+          "account": 0,
+          "role": 0,
+          "index": 1,
+          "xprv": "e81444247f039dd3334bb645045f0843c6160339d7172e8a341e99e688d75a572a3c2e4c66c4528a39ada9d9c87d16d7951b6ee7a8018b9daa7813c36fed342645034bae558f29b0157c9f1a11d8f7b34d5143287d183061ef847d14f523cdd7f140a0639da396c76f236e011391b96f51ee99f1f6e2e5c15f2d3d0241f17356",
+          "signature": "b6dd51d0836201ce754d7830fec2c0c46b6d5aed0f20312f1e8d05244faa5522f5dc31b4d76a27c750056bbbbc21ea20f3df0a27c146a363df9a00150fda5709"
+        },
+        {
+          "account": 7,
+          "role": 0,
+          "index": 19,
+          "xprv": "78e1ea0b3c513ed971f7200e058453121963786fd105c5f2676ca0fc92d75a572f69e65af95553d9ecec9b2457df270f4d17f377d96df5561af2badd77334df058e81a5634beb4892a88c0cc801ec54d902221a5d9edb23938ce9819cf8cef777414a476414db3776aa39bd9cd4b2c13ab39f3ef445c9e6a40617867f6d76786",
+          "signature": "0604ca6cf06a6bf0fd79fe6dedd105d55d7e7143cd4ad471d68a7132b3720685787ff44159e34abf2ec0212fe84a0caf640e068ddbfc2779c8a1839465990e0e"
+        },
+        {
+          "account": 2147483647,
+          "role": 0,
+          "index": 2147483647,
+          "xprv": "18275d3131a62a907e592263f8f7f86c3eaa260c7e0ae73ea648129690d75a576176cab72da1864a53a11bf1c49dff5b13cc7040cb2efdfb9f4a97f195f3144a6afed543ecb27b62427f4cb0435dab351c0e3a0f8101f96555bf7c34d278429e452886eeb949343ecc60fc2de40314f4bc1c4767e5493032f98dd5240fc05468",
+          "signature": "08e377e9d605dbc2503b85647add65be0139ad92bd0ca3204497bfbb1e76ecec98d78c5432929c3c1bebc902d5afca377bb422bb15bcce20a1ef039bc8545506"
+        },
+        {
+          "account": 2147483647,
+          "role": 2,
+          "index": 0,
+          "xprv": "2825f9be438e204f0c9054655baa757e2e59223f24a5967d72ad5d7a90d75a57eb57f85e8dff594ae812bb7384f8518faf124ddac0a71f663f4b0e98e7b0e4024dc03a3970dfee1d5b80671ae0ef04bc72e987fa8ad375e3a2731bd8493d3040a31da54587ceea10f755a7fa932aec799053eb42707b18a98baff878bebe2acc",
+          "signature": "b05066839366abf91ccd94acc0a9ecb1dc7ca8731eafcad2f93d342c31ee9c0b7dc7f142007c77b16ee9e46932e0799dd14c026c0ac9a03cb6ce89a7fbd6cd0f"
+        }
+      ],
+      "address_preprod": "addr_test1qqh4craatl5xr8ynfpe8yp6k63prggqnuarz03djekshllgqc2ddk74pdtmr20x9rwz4su5na3vx2ergyp7cdw0n2r8s0pwtwq",
+      "address_mainnet": "addr1qyh4craatl5xr8ynfpe8yp6k63prggqnuarz03djekshllgqc2ddk74pdtmr20x9rwz4su5na3vx2ergyp7cdw0n2r8svhntzl"
+    }
+  ]
+}
