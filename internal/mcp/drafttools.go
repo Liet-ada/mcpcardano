@@ -183,11 +183,12 @@ func (s *Server) buildConsolidation(ctx context.Context, a consolidationArg) (dr
 
 // build reads what the draft needs from the data source, outside the
 // drafts' lock, and creates it. For a wallet of mode B or C, the wallet
-// process gives its policy as it is now and what it has spent.
+// process gives its policy as it is now, what it has spent and which of the
+// draft's destinations it knows.
 func (s *Server) build(ctx context.Context, w Wallet, intent model.Intent, ttl uint32) (draftView, error) {
 	var u policy.Usage
 	if w.Mode != model.ModeA {
-		ps, err := s.status(ctx, w.ID)
+		ps, err := s.status(ctx, w.ID, destinations(w.Address, intent)...)
 		if err != nil {
 			return draftView{}, err
 		}

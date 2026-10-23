@@ -5,7 +5,8 @@
 // server would attack it: one test per row of the attack matrix of section
 // 11.6, named with its ID (criterion 2 of milestone H-2), and the crash tests
 // of section 9.1, which kill the real binary between the steps of a
-// signature (criterion 3).
+// signature (criterion 3). Rows M-16 to M-18 come from a malware that runs
+// as the person and cannot touch the FIDO2 key (keys_test.go).
 package wallet
 
 import (

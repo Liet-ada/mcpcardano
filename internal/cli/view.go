@@ -1,0 +1,34 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Liet-ada
+
+package cli
+
+import (
+	"errors"
+	"fmt"
+	"os"
+
+	"github.com/Liet-ada/mcpcardano/internal/ipc"
+	"github.com/Liet-ada/mcpcardano/internal/tui"
+)
+
+// view opens the interactive view (section 6.4) on the terminal. It keeps
+// its own connection to the admin socket, which it makes again if the
+// wallet restarts.
+func (a *admin) view(*options, []string) error {
+	in, okIn := a.in.(*os.File)
+	out, okOut := a.out.(*os.File)
+	if !okIn || !okOut || !isTerminal(int(in.Fd())) || !isTerminal(int(out.Fd())) {
+		return errors.New("the view needs a terminal; the other commands work without one")
+	}
+	conn := &tui.Conn{Socket: a.socket, Hello: a.hello}
+	defer conn.Close()
+	if _, err := conn.Status(a.ctx); err != nil {
+		var e *ipc.Error
+		if !errors.As(err, &e) {
+			err = fmt.Errorf("%w at %s: %v", errUnreachable, a.socket, err)
+		}
+		return err
+	}
+	return tui.Run(a.ctx, conn, a.keys.open, a.network, in, out)
+}

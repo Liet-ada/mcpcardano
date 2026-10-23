@@ -4,12 +4,15 @@
 package walletd
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 
+	"github.com/Liet-ada/mcpcardano/internal/authz"
 	"github.com/Liet-ada/mcpcardano/internal/cborx"
 	"github.com/Liet-ada/mcpcardano/internal/ipc"
 	"github.com/Liet-ada/mcpcardano/internal/model"
@@ -36,6 +39,17 @@ type record struct {
 	BudgetSince uint64     `cbor:"budget_since"`
 }
 
+// keyRecord is a registered FIDO2 key in state.cbor: its public data and the
+// last counter it gave (section 7.1).
+type keyRecord struct {
+	Name         string `cbor:"name"`
+	CredentialID []byte `cbor:"credential_id"`
+	Alg          int    `cbor:"alg"`
+	PublicKey    []byte `cbor:"public_key"`
+	Counter      uint32 `cbor:"counter"`
+	Added        int64  `cbor:"added"` // Unix seconds
+}
+
 // state is state.cbor (section 7.1). Only the person changes it, through the
 // admin socket, except for the wallets the agent creates with the template
 // and for freezing, which only lowers the risk.
@@ -46,6 +60,11 @@ type state struct {
 	// Created maps the idempotency key of each CreateWallet to its wallet,
 	// so that a repeated request gives back the same one (section 9.4).
 	Created map[string]string `cbor:"created"`
+	// Keys are the registered FIDO2 keys, and Recovery a recovery without
+	// keys that is waiting (decision 123). A state without them is written
+	// as before.
+	Keys     []keyRecord   `cbor:"keys,omitempty"`
+	Recovery *ipc.Recovery `cbor:"recovery,omitempty"`
 }
 
 func newState(n model.Network) state {
@@ -124,6 +143,38 @@ func (st *state) check(n model.Network) error {
 			return fmt.Errorf("idempotency key of an unknown wallet")
 		}
 	}
+	return st.checkKeys()
+}
+
+// checkKeys validates the registered keys and the recovery: unique ids and
+// names, public keys of the size of their algorithm, and a recovery only
+// while there are keys to recover from.
+func (st *state) checkKeys() error {
+	if len(st.Keys) > ipc.MaxKeys {
+		return fmt.Errorf("%d keys, at most %d", len(st.Keys), ipc.MaxKeys)
+	}
+	ids, names := map[string]bool{}, map[string]bool{}
+	for i, k := range st.Keys {
+		info := k.info()
+		if err := info.Validate(); err != nil {
+			return fmt.Errorf("key %d: %v", i, err)
+		}
+		if size := map[int]int{ipc.AlgES256: 65, ipc.AlgEdDSA: 32}[k.Alg]; len(k.PublicKey) != size {
+			return fmt.Errorf("key %d: a public key of %d bytes", i, len(k.PublicKey))
+		}
+		if ids[string(k.CredentialID)] || names[k.Name] {
+			return fmt.Errorf("key %d: repeated", i)
+		}
+		ids[string(k.CredentialID)], names[k.Name] = true, true
+	}
+	if r := st.Recovery; r != nil {
+		if err := r.Validate(); err != nil {
+			return fmt.Errorf("recovery: %v", err)
+		}
+		if len(st.Keys) == 0 {
+			return fmt.Errorf("a recovery with no key to recover from")
+		}
+	}
 	return nil
 }
 
@@ -134,6 +185,21 @@ func (st *state) save(path string) error {
 		return err
 	}
 	return writeFile(path, data)
+}
+
+// key returns the registered key with this credential id, or -1.
+func (st *state) key(credentialID []byte) int {
+	return slices.IndexFunc(st.Keys, func(k keyRecord) bool { return bytes.Equal(k.CredentialID, credentialID) })
+}
+
+// info returns a key as the protocol carries it.
+func (k keyRecord) info() ipc.KeyInfo {
+	return ipc.KeyInfo{Name: k.Name, CredentialID: k.CredentialID, Alg: k.Alg, Added: k.Added}
+}
+
+// authz returns a key as authz verifies it.
+func (k keyRecord) authz() authz.Key {
+	return authz.Key{CredentialID: k.CredentialID, Alg: k.Alg, PublicKey: k.PublicKey, Counter: k.Counter}
 }
 
 // find returns the wallet with this id.

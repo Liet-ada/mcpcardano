@@ -35,6 +35,12 @@ func password(ok bool) func() error {
 	}
 }
 
+// attempt checks a password as the wallet does: through Attempt, with its
+// wait.
+func attempt(a *Authorizer, check func() error) func(*Authorization) error {
+	return func(*Authorization) error { return a.Attempt(check) }
+}
+
 func TestCanonicalMessage(t *testing.T) {
 	a, c := newAuthorizer()
 	det := map[string]any{"seconds": uint64(3600), "max": uint64(50_000_000)}
@@ -69,19 +75,19 @@ func TestCanonicalMessage(t *testing.T) {
 func TestCompleteOnce(t *testing.T) {
 	a, c := newAuthorizer()
 	au, _ := a.Begin("unfreeze", wallet, nil, "params")
-	got, err := a.Complete(au.ID, password(true))
+	got, err := a.Complete(au.ID, attempt(a, password(true)))
 	if err != nil || got.Params != "params" || got.Action != "unfreeze" {
 		t.Fatalf("complete: %+v, %v", got, err)
 	}
-	if _, err := a.Complete(au.ID, password(true)); !errors.Is(err, ErrExpired) {
+	if _, err := a.Complete(au.ID, attempt(a, password(true))); !errors.Is(err, ErrExpired) {
 		t.Errorf("used twice: %v", err)
 	}
-	if _, err := a.Complete([IDSize]byte{1}, password(true)); !errors.Is(err, ErrExpired) {
+	if _, err := a.Complete([IDSize]byte{1}, attempt(a, password(true))); !errors.Is(err, ErrExpired) {
 		t.Errorf("an unknown id: %v", err)
 	}
 	au, _ = a.Begin("unfreeze", wallet, nil, nil)
 	c.advance(DefaultTTL)
-	if _, err := a.Complete(au.ID, password(true)); !errors.Is(err, ErrExpired) {
+	if _, err := a.Complete(au.ID, attempt(a, password(true))); !errors.Is(err, ErrExpired) {
 		t.Errorf("expired: %v", err)
 	}
 }
@@ -98,18 +104,18 @@ func TestUnrunParamsAreWiped(t *testing.T) {
 	a, c := newAuthorizer()
 	run, opened, checked, swept := &secret{}, &secret{}, &secret{}, &secret{}
 	au, _ := a.Begin("restore_wallet", "", nil, run)
-	if _, err := a.Complete(au.ID, password(true)); err != nil || run.wiped {
+	if _, err := a.Complete(au.ID, attempt(a, password(true))); err != nil || run.wiped {
 		t.Fatalf("completed: %v, wiped %v", err, run.wiped)
 	}
 	au, _ = a.Begin("restore_wallet", "", nil, checked)
-	expire := func() error { c.advance(DefaultTTL); return nil }
+	expire := func(*Authorization) error { c.advance(DefaultTTL); return nil }
 	if _, err := a.Complete(au.ID, expire); !errors.Is(err, ErrExpired) || !checked.wiped {
 		t.Errorf("expired during the check: %v, wiped %v", err, checked.wiped)
 	}
 	au, _ = a.Begin("restore_wallet", "", nil, opened)
 	a.Begin("restore_wallet", "", nil, swept)
 	c.advance(DefaultTTL)
-	if _, err := a.Complete(au.ID, password(true)); !errors.Is(err, ErrExpired) || !opened.wiped {
+	if _, err := a.Complete(au.ID, attempt(a, password(true))); !errors.Is(err, ErrExpired) || !opened.wiped {
 		t.Errorf("expired: %v, wiped %v", err, opened.wiped)
 	}
 	if a.Begin("unfreeze", wallet, nil, nil); !swept.wiped {
@@ -124,24 +130,24 @@ func TestWrongPasswordDoublesTheWait(t *testing.T) {
 	check := func(ok bool) func() error {
 		return func() error { ran++; return password(ok)() }
 	}
-	if _, err := a.Complete(au.ID, check(false)); !errors.Is(err, ErrWrongPassword) {
+	if _, err := a.Complete(au.ID, attempt(a, check(false))); !errors.Is(err, ErrWrongPassword) {
 		t.Fatalf("first wrong password: %v", err)
 	}
 	for n, want := range []time.Duration{time.Second, 2 * time.Second, 4 * time.Second, 8 * time.Second} {
 		// Too soon: refused without checking, even with the right password.
 		ran = 0
-		_, err := a.Complete(au.ID, check(true))
+		_, err := a.Complete(au.ID, attempt(a, check(true)))
 		var w *WaitError
 		if !errors.As(err, &w) || w.Wait != want || ran != 0 {
 			t.Fatalf("attempt %d too soon: %v, ran %d", n, err, ran)
 		}
 		c.advance(want)
 		if n < 3 {
-			a.Complete(au.ID, check(false))
+			a.Complete(au.ID, attempt(a, check(false)))
 		}
 	}
 	// The challenge stayed open through the wrong passwords.
-	if _, err := a.Complete(au.ID, check(true)); err != nil {
+	if _, err := a.Complete(au.ID, attempt(a, check(true))); err != nil {
 		t.Fatalf("right password after waiting: %v", err)
 	}
 	// Success resets the wait.

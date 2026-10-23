@@ -184,26 +184,42 @@ func (a *ApprovalStatus) Validate() error {
 }
 
 // GetPolicyStatus asks for a wallet's policy and the state of its budget.
+// Destinations are those of a draft about to be built, raw and in order: the
+// answer says which of them the wallet's record knows, so the server counts
+// the new ones as the wallet will.
 type GetPolicyStatus struct {
-	WalletID string `cbor:"wallet_id"`
+	WalletID     string   `cbor:"wallet_id"`
+	Destinations [][]byte `cbor:"destinations,omitempty"`
 }
 
 // Validate implements Body.
-func (g *GetPolicyStatus) Validate() error { return walletID(g.WalletID) }
+func (g *GetPolicyStatus) Validate() error {
+	if err := walletID(g.WalletID); err != nil {
+		return err
+	}
+	return destinations(g.Destinations, "destinations")
+}
 
 // PolicyStatus is a wallet's mode, its whole policy and what it has spent
-// (section 3.9). Pending lists the transactions it signed whose TTL has not
-// passed, for the server to follow after a restart (section 9.5).
+// (section 3.9): lovelace, transactions and new destinations, counted as the
+// wallet counts them when it signs. Known are the destinations of the
+// request that its record already holds. Pending lists the transactions it
+// signed whose TTL has not passed, for the server to follow after a restart
+// (section 9.5).
 type PolicyStatus struct {
-	Mode            string      `cbor:"mode"`
-	Policy          Policy      `cbor:"policy"`
-	Session         *Session    `cbor:"session,omitempty"`
-	SpentHour       uint64      `cbor:"spent_hour"`
-	SpentDay        uint64      `cbor:"spent_day"`
-	BudgetRemaining uint64      `cbor:"budget_remaining"`
-	Locked          uint64      `cbor:"locked"`
-	Committed       uint64      `cbor:"committed"`
-	Pending         []PendingTx `cbor:"pending"`
+	Mode                string      `cbor:"mode"`
+	Policy              Policy      `cbor:"policy"`
+	Session             *Session    `cbor:"session,omitempty"`
+	SpentHour           uint64      `cbor:"spent_hour"`
+	SpentDay            uint64      `cbor:"spent_day"`
+	TxHour              uint32      `cbor:"tx_hour"`
+	NewDestinationsHour uint32      `cbor:"new_destinations_hour"`
+	NewDestinationsDay  uint32      `cbor:"new_destinations_day"`
+	Known               [][]byte    `cbor:"known,omitempty"`
+	BudgetRemaining     uint64      `cbor:"budget_remaining"`
+	Locked              uint64      `cbor:"locked"`
+	Committed           uint64      `cbor:"committed"`
+	Pending             []PendingTx `cbor:"pending"`
 }
 
 // Session is an open session: when it ends and how much it still allows.
@@ -224,6 +240,9 @@ func (p *PolicyStatus) Validate() error {
 		return malformed("mode")
 	}
 	if err := p.Policy.Validate(); err != nil {
+		return err
+	}
+	if err := destinations(p.Known, "known destinations"); err != nil {
 		return err
 	}
 	for _, t := range p.Pending {

@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/Liet-ada/mcpcardano/internal/audit"
@@ -21,10 +22,18 @@ import (
 	"github.com/Liet-ada/mcpcardano/internal/model"
 )
 
-// status is what `mcpcardano status` shows (section 6.7).
-func (d *Daemon) status() *ipc.StatusReport {
+// status is what `mcpcardano status`, `key list` and `recover status` show
+// (section 6.7).
+func (d *Daemon) status() (*ipc.StatusReport, error) {
+	if err := d.settleRecovery(); err != nil {
+		return nil, err
+	}
 	now := d.now()
-	rep := &ipc.StatusReport{Unlocked: !d.store.Locked(), Wallets: []ipc.WalletStatus{}, Approvals: []ipc.Approval{}}
+	rep := &ipc.StatusReport{Unlocked: !d.store.Locked(), Wallets: []ipc.WalletStatus{}, Approvals: []ipc.Approval{},
+		Keys: []ipc.KeyInfo{}, Recovery: d.st.Recovery}
+	for _, k := range d.st.Keys {
+		rep.Keys = append(rep.Keys, k.info())
+	}
 	if t := d.ledger.LastTime(); !t.IsZero() {
 		rep.LastLedgerEntry = t.Unix()
 	}
@@ -36,7 +45,7 @@ func (d *Daemon) status() *ipc.StatusReport {
 	for _, a := range d.pendingApprovals() {
 		rep.Approvals = append(rep.Approvals, ipc.Approval{ID: a.id, WalletID: a.wallet, Spend: wireSpend(a.spend), ExpiresAt: a.expires.Unix()})
 	}
-	return rep
+	return rep, nil
 }
 
 // unlock decrypts the key store. Wrong passwords go through the same doubling
@@ -79,6 +88,8 @@ func authError(err error) error {
 		return fail(ipc.RateLimited, "too many authorizations open")
 	case errors.As(err, &wait):
 		return fail(ipc.RateLimited, "wait %v before trying another password", wait.Wait.Round(time.Second))
+	case authz.IsKeyError(err):
+		return fail(ipc.AuthFailed, "%s", strings.TrimPrefix(err.Error(), "authz: "))
 	}
 	return err
 }
@@ -97,6 +108,9 @@ func (d *Daemon) begin(b *ipc.BeginAuthorization) (*ipc.Challenge, error) {
 	if err := d.unlocked(); err != nil {
 		return nil, err
 	}
+	if err := d.settleRecovery(); err != nil {
+		return nil, err
+	}
 	params, err := d.codec.DecodeParams(b)
 	clear(b.Params) // the encoded params, which may carry a recovery phrase
 	if err != nil {
@@ -113,11 +127,14 @@ func (d *Daemon) begin(b *ipc.BeginAuthorization) (*ipc.Challenge, error) {
 		return nil, authError(err)
 	}
 	d.record("authorization.begun", map[string]any{"action": b.Action, "wallet_id": p.wallet})
-	return &ipc.Challenge{AuthID: au.ID[:], Summary: fit(p.summary), Methods: []string{ipc.MethodPassword},
-		ExpiresAt: au.Expires.Unix()}, nil
+	return d.challenge(au, p.summary), nil
 }
 
 func (d *Daemon) prepare(action string, params ipc.Body) (prepared, error) {
+	switch action {
+	case ipc.ActAddKey, ipc.ActRemoveKey, ipc.ActStartRecovery, ipc.ActCancelRecovery:
+		return d.prepareKey(action, params)
+	}
 	switch p := params.(type) {
 	case *ipc.ApproveDraft:
 		a, err := d.pendingApproval(p.ApprovalID)
@@ -222,17 +239,24 @@ func (d *Daemon) hash(b ipc.Body) []byte {
 	return h[:]
 }
 
-// completeAuthorization checks the password against an open authorization
-// and runs its action once (section 6.2, steps 4 and 5).
+// completeAuthorization checks the password or the key's assertion against
+// an open authorization and runs its action once (section 6.2, steps 4 and
+// 5).
 func (d *Daemon) completeAuthorization(ctx context.Context, b *ipc.CompleteAuthorization) (*ipc.Completed, error) {
 	defer clear(b.Password)
-	au, err := d.authz.Complete([authz.IDSize]byte(b.AuthID), func() error { return d.checkPassword(b.Password) })
+	if err := d.settleRecovery(); err != nil {
+		return nil, err
+	}
+	au, err := d.authz.Complete([authz.IDSize]byte(b.AuthID), func(au *authz.Authorization) error { return d.check(au, b) })
 	if err != nil {
 		return nil, authError(err)
 	}
 	result, err := d.run(ctx, au)
 	defer model.Wipe(result) // that of show_recovery_phrase carries the phrase
-	e := map[string]any{"action": au.Action, "wallet_id": string(au.Wallet)}
+	e := map[string]any{"action": au.Action, "wallet_id": string(au.Wallet), "method": ipc.MethodPassword}
+	if b.Assertion != nil {
+		e["method"], e["key"] = ipc.MethodKey, authz.KeyID(b.Assertion.CredentialID)
+	}
 	if err != nil {
 		e["error"] = string(d.failureCode(err))
 	}
@@ -249,6 +273,10 @@ func (d *Daemon) completeAuthorization(ctx context.Context, b *ipc.CompleteAutho
 
 // run carries out an authorized action.
 func (d *Daemon) run(ctx context.Context, au *authz.Authorization) (ipc.Body, error) {
+	switch au.Action {
+	case ipc.ActAddKey, ipc.ActRemoveKey, ipc.ActStartRecovery, ipc.ActCancelRecovery:
+		return d.runKey(au)
+	}
 	switch p := au.Params.(type) {
 	case *ipc.ApproveDraft:
 		return &ipc.Empty{}, d.approve(ctx, p.ApprovalID)

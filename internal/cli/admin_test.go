@@ -18,13 +18,25 @@ import (
 
 	"github.com/Liet-ada/mcpcardano/internal/ipc"
 	"github.com/Liet-ada/mcpcardano/internal/model"
+	"github.com/Liet-ada/mcpcardano/test/softkey"
 	"github.com/Liet-ada/mcpcardano/test/walletkit"
 )
 
-// person runs the CLI against a real wallet process, typing input.
+// person runs the CLI against a real wallet process, typing input, with the
+// security keys of slot, if any, and never a real one.
 type person struct {
-	t *testing.T
-	w *walletkit.Wallet
+	t    *testing.T
+	w    *walletkit.Wallet
+	slot *softkey.Slot
+}
+
+// keysIn reaches the keys of slot, never waiting for one and never opening a
+// real one.
+func keysIn(slot *softkey.Slot) keys {
+	if slot == nil {
+		slot = &softkey.Slot{}
+	}
+	return keys{open: slot.Open, wait: 0}
 }
 
 type result struct {
@@ -36,7 +48,7 @@ func (p person) run(input, command string, args ...string) result {
 	p.t.Helper()
 	full := append(strings.Fields(command), "-admin", p.w.Config.AdminSocket)
 	var out, errOut bytes.Buffer
-	code := Admin(context.Background(), append(full, args...), "test", strings.NewReader(input), &out, &errOut)
+	code := runAdmin(context.Background(), append(full, args...), "test", strings.NewReader(input), &out, &errOut, keysIn(p.slot))
 	return result{code, out.String(), errOut.String()}
 }
 
@@ -58,7 +70,7 @@ var password = string(walletkit.Password) + "\n"
 // others do not, and each ends with its exit code of section 6.5.
 func TestAdminCommands(t *testing.T) {
 	w := walletkit.Start(t)
-	p := person{t, w}
+	p := person{t: t, w: w}
 
 	// Locked: status says so, and what needs the keys waits for unlock.
 	if r := p.must("", "status"); !strings.Contains(r.out, "locked; unlock it") {
@@ -214,7 +226,7 @@ func TestAdminCommands(t *testing.T) {
 	}
 	other := walletkit.Start(t)
 	walletkit.Unlock(t, other.Admin(t))
-	q := person{t, other}
+	q := person{t: t, w: other}
 	r = q.must(strings.Join(words, " ")+"\n"+password, "wallet restore", "-label", "back")
 	if !strings.Contains(r.errOut, "Address: "+m[2]) || !strings.Contains(r.out, m[2]) {
 		t.Errorf("restore:\n%s%s", r.out, r.errOut)
@@ -268,7 +280,7 @@ func writeJSON(t *testing.T, path string, v any) {
 func TestAdminExitCodes(t *testing.T) {
 	w := walletkit.Start(t)
 	walletkit.Unlock(t, w.Admin(t))
-	p := person{t, w}
+	p := person{t: t, w: w}
 	id := walletkit.CreateWallet(t, w.Service(t), "agent").ID
 	dir := t.TempDir()
 	write := func(name, text string) string {

@@ -67,12 +67,19 @@ func TestSignInModeC(t *testing.T) {
 		t.Errorf("spend %+v", res.Spend)
 	}
 
+	// The counts of the windows, and which destinations of a next draft the
+	// record knows: the one just paid, not another.
+	paid, other := walletkit.Address(6, 7, 0), walletkit.Address(6, 8, 0)
 	var ps ipc.PolicyStatus
-	if err := service.Call(ctx, ipc.MsgGetPolicyStatus, &ipc.GetPolicyStatus{WalletID: wallet.ID}, &ps); err != nil {
+	req := &ipc.GetPolicyStatus{WalletID: wallet.ID, Destinations: [][]byte{paid, other}}
+	if err := service.Call(ctx, ipc.MsgGetPolicyStatus, req, &ps); err != nil {
 		t.Fatal(err)
 	}
 	if ps.SpentHour != 5_170_000 || ps.BudgetRemaining != 100_000_000-5_170_000 || len(ps.Pending) != 1 {
 		t.Errorf("policy status %+v", ps)
+	}
+	if ps.TxHour != 1 || ps.NewDestinationsHour != 1 || ps.NewDestinationsDay != 1 || !slices.EqualFunc(ps.Known, [][]byte{paid}, bytes.Equal) {
+		t.Errorf("counts %d, %d and %d, known %x", ps.TxHour, ps.NewDestinationsHour, ps.NewDestinationsDay, ps.Known)
 	}
 
 	// The same body again: the same signature, counted once (M-13).
@@ -80,9 +87,10 @@ func TestSignInModeC(t *testing.T) {
 	if again := signed(t, res, err, wallet, body); !bytes.Equal(again.Signature, wit.Signature) {
 		t.Error("another signature for the same body")
 	}
+	ps = ipc.PolicyStatus{}
 	service.Call(ctx, ipc.MsgGetPolicyStatus, &ipc.GetPolicyStatus{WalletID: wallet.ID}, &ps)
-	if ps.SpentHour != 5_170_000 {
-		t.Errorf("counted twice: %d", ps.SpentHour)
+	if ps.SpentHour != 5_170_000 || ps.TxHour != 1 || ps.Known != nil {
+		t.Errorf("counted twice: %d lovelace, %d transactions; known %x", ps.SpentHour, ps.TxHour, ps.Known)
 	}
 }
 

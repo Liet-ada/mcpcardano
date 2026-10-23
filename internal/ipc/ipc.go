@@ -25,7 +25,7 @@ import (
 
 // Version is the protocol version (section 5.7). Any change to a message
 // raises it; there is no partial compatibility.
-const Version = 1
+const Version = 2
 
 // IDSize is the size of a request id.
 const IDSize = 16

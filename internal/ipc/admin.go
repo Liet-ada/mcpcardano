@@ -29,8 +29,7 @@ const (
 	MsgVerifyAudit           = "VerifyAudit"
 )
 
-// Actions that need an authorization (section 6.3). add_key and remove_key
-// arrive with the FIDO2 key in H-3.
+// Actions that need an authorization (section 6.3).
 const (
 	ActApproveDraft       = "approve_draft"
 	ActOpenSession        = "open_session"
@@ -41,6 +40,10 @@ const (
 	ActCreateWallet       = "create_wallet"
 	ActRestoreWallet      = "restore_wallet"
 	ActShowRecoveryPhrase = "show_recovery_phrase"
+	ActAddKey             = "add_key"
+	ActRemoveKey          = "remove_key"
+	ActStartRecovery      = "start_recovery"
+	ActCancelRecovery     = "cancel_recovery"
 )
 
 // actions gives, for each action, the type of its parameters and of the
@@ -55,6 +58,10 @@ var actions = map[string]struct{ params, result func() Body }{
 	ActCreateWallet:       {func() Body { return new(CreateWallet) }, func() Body { return new(Wallet) }},
 	ActRestoreWallet:      {func() Body { return new(RestoreWallet) }, func() Body { return new(Wallet) }},
 	ActShowRecoveryPhrase: {func() Body { return new(WalletRef) }, func() Body { return new(RecoveryPhrase) }},
+	ActAddKey:             {func() Body { return new(AddKey) }, func() Body { return new(Empty) }},
+	ActRemoveKey:          {func() Body { return new(KeyRef) }, func() Body { return new(Empty) }},
+	ActStartRecovery:      {func() Body { return new(Empty) }, func() Body { return new(Recovery) }},
+	ActCancelRecovery:     {func() Body { return new(Empty) }, func() Body { return new(Empty) }},
 }
 
 // NewParams returns an empty parameter body for action, or nil if there is no
@@ -75,14 +82,54 @@ func NewResult(action string) Body {
 	return nil
 }
 
-// StatusReport is the answer to Status: what `mcpcardano status` shows
-// (section 6.1). LastLedgerEntry is the time of the last entry of the
-// spending record, so the person notices a restored copy (section 7.7).
+// StatusReport is the answer to Status: what `mcpcardano status`, `key
+// list` and `recover status` show (section 6.1). LastLedgerEntry is the time
+// of the last entry of the spending record, so the person notices a restored
+// copy (section 7.7).
 type StatusReport struct {
 	Unlocked        bool           `cbor:"unlocked"`
 	Wallets         []WalletStatus `cbor:"wallets"`
 	Approvals       []Approval     `cbor:"approvals"`
 	LastLedgerEntry int64          `cbor:"last_ledger_entry"` // Unix seconds; 0 if none
+	Keys            []KeyInfo      `cbor:"keys"`
+	Recovery        *Recovery      `cbor:"recovery,omitempty"` // a recovery without keys, waiting
+}
+
+// KeyInfo is a registered FIDO2 key: only public data.
+type KeyInfo struct {
+	Name         string `cbor:"name"`
+	CredentialID []byte `cbor:"credential_id"`
+	Alg          int    `cbor:"alg"`   // COSE: -7 ES256, -8 EdDSA
+	Added        int64  `cbor:"added"` // Unix seconds
+}
+
+// Validate checks a key.
+func (k *KeyInfo) Validate() error {
+	if !text(k.Name, MaxLabel) {
+		return malformed("key name")
+	}
+	if err := credentialID(k.CredentialID); err != nil {
+		return err
+	}
+	if k.Alg != AlgES256 && k.Alg != AlgEdDSA {
+		return malformed("key algorithm")
+	}
+	return nil
+}
+
+// Recovery is a recovery without keys: when it started and when its wait
+// ends. Until then every wallet stays frozen (section 6.1).
+type Recovery struct {
+	StartedAt int64 `cbor:"started_at"` // Unix seconds
+	EndsAt    int64 `cbor:"ends_at"`
+}
+
+// Validate implements Body.
+func (r *Recovery) Validate() error {
+	if r.EndsAt < r.StartedAt {
+		return malformed("a recovery that ends before it starts")
+	}
+	return nil
 }
 
 // WalletStatus is one wallet in the status: its session, if open, and
@@ -118,6 +165,17 @@ func (s *StatusReport) Validate() error {
 		if err := a.Spend.Validate(); err != nil {
 			return err
 		}
+	}
+	if len(s.Keys) > MaxKeys {
+		return malformed("more than %d keys", MaxKeys)
+	}
+	for i := range s.Keys {
+		if err := s.Keys[i].Validate(); err != nil {
+			return err
+		}
+	}
+	if s.Recovery != nil {
+		return s.Recovery.Validate()
 	}
 	return nil
 }
@@ -158,17 +216,35 @@ func (c *Codec) DecodeParams(b *BeginAuthorization) (Body, error) {
 	return p, nil
 }
 
-// Methods of authorization. In H-2 there is only the password; the FIDO2 key
-// arrives in H-3.
-const MethodPassword = "password"
+// Methods of authorization: the password, or the touch of a registered FIDO2
+// key. With a key registered the key is the method, except to start a
+// recovery, which takes the password (section 6.1).
+const (
+	MethodPassword = "password"
+	MethodKey      = "fido2"
+)
+
+// The COSE algorithms of a key.
+const (
+	AlgES256 = -7
+	AlgEdDSA = -8
+)
 
 // Challenge is the answer to BeginAuthorization (section 6.2, step 2): the
-// summary the wallet computed itself, which the CLI shows as is.
+// summary the wallet computed itself, which the CLI shows as is. For the key
+// it also carries what the key needs: the relying party, the credentials
+// that may answer, whether the action needs the key's PIN, and the
+// clientDataHash to sign, the SHA-256 of the canonical message (section
+// 6.3).
 type Challenge struct {
-	AuthID    []byte   `cbor:"auth_id"`
-	Summary   []string `cbor:"summary"`
-	Methods   []string `cbor:"methods"`
-	ExpiresAt int64    `cbor:"expires_at"` // Unix seconds
+	AuthID         []byte   `cbor:"auth_id"`
+	Summary        []string `cbor:"summary"`
+	Methods        []string `cbor:"methods"`
+	ExpiresAt      int64    `cbor:"expires_at"` // Unix seconds
+	RPID           string   `cbor:"rp_id,omitempty"`
+	Credentials    [][]byte `cbor:"credentials,omitempty"`
+	PIN            bool     `cbor:"pin,omitempty"`
+	ClientDataHash []byte   `cbor:"client_data_hash,omitempty"`
 }
 
 // AuthIDSize is the size of an authorization id.
@@ -182,16 +258,43 @@ func (c *Challenge) Validate() error {
 	if err := summary(c.Summary); err != nil {
 		return err
 	}
-	if len(c.Methods) != 1 || c.Methods[0] != MethodPassword {
+	if len(c.Methods) != 1 {
 		return malformed("methods")
 	}
-	return nil
+	switch c.Methods[0] {
+	case MethodPassword:
+		if c.RPID != "" || c.Credentials != nil || c.PIN || c.ClientDataHash != nil {
+			return malformed("a password challenge with the fields of a key")
+		}
+		return nil
+	case MethodKey:
+		if !text(c.RPID, MaxLabel) || len(c.ClientDataHash) != 32 || len(c.Credentials) == 0 || len(c.Credentials) > MaxKeys {
+			return malformed("a key challenge without its relying party, credentials or hash")
+		}
+		for _, id := range c.Credentials {
+			if err := credentialID(id); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	return malformed("methods")
 }
 
-// CompleteAuthorization confirms an action (section 6.2, step 4).
+// CompleteAuthorization confirms an action (section 6.2, step 4) with the
+// password or the key's assertion, never both.
 type CompleteAuthorization struct {
-	AuthID   []byte       `cbor:"auth_id"`
-	Password model.Secret `cbor:"password"`
+	AuthID    []byte       `cbor:"auth_id"`
+	Password  model.Secret `cbor:"password,omitempty"`
+	Assertion *Assertion   `cbor:"assertion,omitempty"`
+}
+
+// Assertion is what the key returned for the challenge: it signed its
+// authenticator data followed by the clientDataHash.
+type Assertion struct {
+	CredentialID      []byte `cbor:"credential_id"`
+	AuthenticatorData []byte `cbor:"authenticator_data"`
+	Signature         []byte `cbor:"signature"`
 }
 
 // Validate implements Body.
@@ -199,7 +302,20 @@ func (c *CompleteAuthorization) Validate() error {
 	if len(c.AuthID) != AuthIDSize {
 		return malformed("authorization id")
 	}
-	return secret(c.Password, "password")
+	if (c.Password == nil) == (c.Assertion == nil) {
+		return malformed("either a password or an assertion")
+	}
+	if c.Assertion == nil {
+		return secret(c.Password, "password")
+	}
+	a := c.Assertion
+	if err := credentialID(a.CredentialID); err != nil {
+		return err
+	}
+	if len(a.AuthenticatorData) == 0 || len(a.AuthenticatorData) > MaxAuthData || len(a.Signature) == 0 || len(a.Signature) > MaxSignature {
+		return malformed("authenticator data or signature size")
+	}
+	return nil
 }
 
 // Completed is the answer to CompleteAuthorization: the result of the action,
@@ -342,6 +458,43 @@ func (r *RecoveryPhrase) Wipe() { r.Phrase.Wipe() }
 
 // Validate implements Body.
 func (r *RecoveryPhrase) Validate() error { return secret(r.Phrase, "recovery phrase") }
+
+// AddKey is the parameter of add_key: a name for the key and the
+// authenticator data the key returned when it created the credential, with
+// the credential id and the public key. The canonical message covers the
+// credential, so the authorization is for exactly this key (decision 123).
+type AddKey struct {
+	Name              string `cbor:"name"`
+	AuthenticatorData []byte `cbor:"authenticator_data"`
+}
+
+// Validate implements Body.
+func (a *AddKey) Validate() error {
+	if !text(a.Name, MaxLabel) {
+		return malformed("key name")
+	}
+	if len(a.AuthenticatorData) == 0 || len(a.AuthenticatorData) > MaxAuthData {
+		return malformed("authenticator data size")
+	}
+	return nil
+}
+
+// KeyRef names a registered key by its credential id, for remove_key.
+type KeyRef struct {
+	CredentialID []byte `cbor:"credential_id"`
+}
+
+// Validate implements Body.
+func (k *KeyRef) Validate() error { return credentialID(k.CredentialID) }
+
+// credentialID checks the size of a credential id: at most 1023 bytes
+// (WebAuthn, section 5.8.3).
+func credentialID(id []byte) error {
+	if len(id) == 0 || len(id) > MaxCredentialID {
+		return malformed("credential id")
+	}
+	return nil
+}
 
 // ApprovalRef names an approval, for Reject.
 type ApprovalRef struct {

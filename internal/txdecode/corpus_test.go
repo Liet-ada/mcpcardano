@@ -158,7 +158,7 @@ func TestCorpusSummaries(t *testing.T) {
 			check("fee", s.Fee, k.Fee)
 			check("ttl", s.TTLSlot, orEmpty(k.InvalidAfter))
 			check("validity start", s.ValidityStartSlot, orEmpty(k.InvalidBefore))
-			check("inputs", s.Inputs, k.Inputs)
+			check("inputs", max(len(s.Inputs), s.InputsCount), k.Inputs)
 			check("collateral inputs", s.CollateralInputs, k.CollateralInputs)
 			check("collateral return", s.CollateralReturn, k.CollateralOutput)
 			check("reference inputs", s.ReferenceInputs, k.ReferenceInputs)
