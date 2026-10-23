@@ -309,3 +309,15 @@ func TestReport(t *testing.T) {
 		t.Errorf("report:\n%s", out)
 	}
 }
+
+func TestNoControlReachesTheTerminal(t *testing.T) {
+	m := healthy()
+	m.server.Version = "v1\x1b]0;owned\x07\x1b[2J\u202eevil\nok    all is fine"
+	out := text(m.run())
+	if strings.ContainsAny(out, "\x1b\x07\u202e") || strings.Contains(out, "\nok    all is fine") {
+		t.Errorf("doctor wrote what the server said as it came:\n%q", out)
+	}
+	if !strings.Contains(out, "the server v1?]0;owned??[2J?evil?ok    all is fine") {
+		t.Errorf("doctor does not show the version, made visible:\n%s", out)
+	}
+}

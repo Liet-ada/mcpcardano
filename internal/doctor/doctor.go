@@ -21,6 +21,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/Liet-ada/mcpcardano/deploy"
 	"github.com/Liet-ada/mcpcardano/internal/fido"
@@ -52,11 +53,14 @@ func (r Report) Failed() bool {
 	return slices.ContainsFunc(r, func(x Result) bool { return x.Level == Fail })
 }
 
-// Write writes one line per check and a last one that counts them.
+// Write writes one line per check and a last one that counts them. A
+// detail may carry what the server, which may be compromised, or the wallet
+// said: only its visible characters reach the person's terminal, as in the
+// rest of the CLI.
 func (r Report) Write(w io.Writer) {
 	var n [3]int
 	for _, x := range r {
-		fmt.Fprintf(w, "%s  %s\n", x.Level, x.Detail)
+		fmt.Fprintf(w, "%s  %s\n", x.Level, visible(x.Detail))
 		n[x.Level]++
 	}
 	switch {
@@ -67,6 +71,18 @@ func (r Report) Write(w io.Writer) {
 	default:
 		fmt.Fprintln(w, "\nEverything is ok.")
 	}
+}
+
+// visible turns into "?" every character that is not visible, as
+// ipc.Detail does, so that no control sequence or change of direction
+// reaches a terminal.
+func visible(s string) string {
+	return strings.Map(func(r rune) rune {
+		if r != ' ' && (!unicode.IsGraphic(r) || unicode.IsSpace(r)) {
+			return '?'
+		}
+		return r
+	}, s)
 }
 
 // Wallet is what the wallet says on its admin socket.
