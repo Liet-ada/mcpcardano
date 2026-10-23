@@ -70,7 +70,7 @@ type Authorization struct {
 	ID      [IDSize]byte
 	Action  string
 	Wallet  model.WalletID // empty for actions of no wallet
-	Params  any            // what the action will run with, as the caller gave it
+	Params  any            // what the action will run with, as the caller gave it; see Wipe
 	Message []byte         // the canonical message, encoded
 	Expires time.Time
 }
@@ -109,7 +109,8 @@ func New(network model.Network) *Authorizer {
 // Begin opens a challenge for action on wallet (empty if the action is of no
 // wallet). det is the detail of the action in the canonical message (section
 // 6.3), nil for the actions whose detail is empty; params travel with the
-// authorization to be run when it completes.
+// authorization to be run when it completes, and are wiped if it is dropped
+// unrun.
 func (a *Authorizer) Begin(action string, wallet model.WalletID, det, params any) (*Authorization, error) {
 	if det == nil {
 		det = map[string]any{}
@@ -135,7 +136,7 @@ func (a *Authorizer) Begin(action string, wallet model.WalletID, det, params any
 	defer a.mu.Unlock()
 	for id, p := range a.pending {
 		if !now.Before(p.Expires) {
-			delete(a.pending, id)
+			a.drop(id)
 		}
 	}
 	if len(a.pending) >= a.MaxPending {
@@ -161,7 +162,7 @@ func (a *Authorizer) Complete(id [IDSize]byte, check func() error) (*Authorizati
 	defer a.mu.Unlock()
 	au, ok := a.pending[id]
 	if !ok || !a.Now().Before(au.Expires) {
-		delete(a.pending, id)
+		a.drop(id)
 		return nil, ErrExpired // used by another connection meanwhile, or expired during the check
 	}
 	delete(a.pending, id)
@@ -173,10 +174,28 @@ func (a *Authorizer) open(id [IDSize]byte) bool {
 	defer a.mu.Unlock()
 	au, ok := a.pending[id]
 	if ok && !a.Now().Before(au.Expires) {
-		delete(a.pending, id)
+		a.drop(id)
 		return false
 	}
 	return ok
+}
+
+// drop removes an open challenge that will not run, and wipes its params.
+func (a *Authorizer) drop(id [IDSize]byte) {
+	if au, ok := a.pending[id]; ok {
+		Wipe(au.Params)
+		delete(a.pending, id)
+	}
+}
+
+// Wipe overwrites the secret that params hold, if they have a Wipe method, as
+// those of restore_wallet do for the recovery phrase. The Authorizer calls it
+// for a challenge it drops unrun; the caller, for params that never reach
+// Begin.
+func Wipe(params any) {
+	if w, ok := params.(interface{ Wipe() }); ok {
+		w.Wipe()
+	}
 }
 
 // Attempt runs a password check unless the wait after the last wrong password

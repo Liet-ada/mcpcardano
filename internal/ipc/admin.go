@@ -324,6 +324,10 @@ func (r *RestoreWallet) Validate() error {
 	return secret(r.Phrase, "recovery phrase")
 }
 
+// Wipe overwrites the phrase with zeros, for an authorization that will not
+// run.
+func (r *RestoreWallet) Wipe() { r.Phrase.Wipe() }
+
 // RecoveryPhrase is the result of show_recovery_phrase.
 type RecoveryPhrase struct {
 	Phrase model.Secret `cbor:"phrase"`

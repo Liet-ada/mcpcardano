@@ -602,3 +602,11 @@ func TestPolicyConversion(t *testing.T) {
 		t.Errorf("spend round trip: %+v", got)
 	}
 }
+
+func TestRestoreWalletWipe(t *testing.T) {
+	r := &RestoreWallet{Label: "Savings", Phrase: model.Secret("abandon abandon about")}
+	r.Wipe()
+	if !bytes.Equal(r.Phrase, make([]byte, len(r.Phrase))) {
+		t.Error("the phrase is not wiped")
+	}
+}
