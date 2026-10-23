@@ -21,3 +21,9 @@ func transport() (authn.Transport, error) {
 	}
 	return t, err
 }
+
+// Attached lists the security keys attached, which only Linux can do for
+// now.
+func Attached() ([]Device, error) {
+	return nil, errors.New("fido: listing the security keys is supported on Linux only")
+}

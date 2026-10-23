@@ -36,6 +36,10 @@ func (e *ToolError) Error() string { return e.Code + ": " + e.Message }
 // Client is one MCP session. It is safe for concurrent use; calls go one at
 // a time.
 type Client struct {
+	// ServerVersion is the version the server gave when the session
+	// opened.
+	ServerVersion string
+
 	mu   sync.Mutex
 	conn net.Conn
 	in   *bufio.Scanner
@@ -56,9 +60,18 @@ func Dial(ctx context.Context, socket, version string) (*Client, error) {
 		"capabilities":    map[string]any{},
 		"clientInfo":      map[string]any{"name": "mcpcardano", "version": version},
 	}
-	if _, err := c.request(ctx, "initialize", init); err != nil {
+	res, err := c.request(ctx, "initialize", init)
+	if err != nil {
 		conn.Close()
 		return nil, err
+	}
+	var info struct {
+		ServerInfo struct {
+			Version string `json:"version"`
+		} `json:"serverInfo"`
+	}
+	if json.Unmarshal(res, &info) == nil {
+		c.ServerVersion = info.ServerInfo.Version
 	}
 	if err := c.send(map[string]any{"jsonrpc": "2.0", "method": "notifications/initialized"}); err != nil {
 		conn.Close()

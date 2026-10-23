@@ -74,6 +74,28 @@ func TestHidrawKeys(t *testing.T) {
 	}
 }
 
+func TestProbe(t *testing.T) {
+	sys, dev := t.TempDir(), t.TempDir()
+	for _, name := range []string{"hidraw1", "hidraw3"} {
+		dir := filepath.Join(sys, name, "device")
+		os.MkdirAll(dir, 0o755)
+		if err := os.WriteFile(filepath.Join(dir, "report_descriptor"), yubikeyFIDO, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// hidraw1 opens; hidraw3 is not there, as a node this user cannot open.
+	if err := os.WriteFile(filepath.Join(dev, "hidraw1"), nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got, err := probe(sys, dev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 || got[0].Path != filepath.Join(dev, "hidraw1") || got[0].Err != nil || got[1].Err == nil {
+		t.Errorf("probe: %+v", got)
+	}
+}
+
 // device is a hidraw device in memory: what is written goes to answer, which
 // may queue reports to read.
 type device struct {

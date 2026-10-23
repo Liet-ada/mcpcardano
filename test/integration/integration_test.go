@@ -3,11 +3,11 @@
 
 //go:build integration
 
-// Package integration runs mcpcardano as deploy/ installs it on Linux: the
-// wallet and the server as services of systemd, each with its own user, and
-// the person's CLI (section 11.1). run.sh prepares the machine; these tests
-// act as the person, a member of the group mcpcardano, and as the server's
-// user through sudo.
+// Package integration runs mcpcardano as mcpcardano install installs it on
+// Linux: the wallet and the server as services of systemd, each with its own
+// user, and the person's CLI (section 11.1). run.sh installs it; these tests
+// act as the person, a member of the group mcpcardano, as the server's user
+// through sudo, and as root to break what doctor must find.
 package integration
 
 import (
@@ -46,6 +46,26 @@ const (
 var shop = model.Address{Raw: append([]byte{0x60}, bytes.Repeat([]byte{0x5a}, 28)...)}.Bech32()
 
 var hello = ipc.Hello{Software: "integration", Network: string(model.Preprod)}
+
+// phase skips a test unless run.sh runs it in its phase: the tests that
+// break the installation, bind it to a TPM2 or remove it run after the
+// others, one phase at a time (MCPCARDANO_IT_PHASE).
+func phase(t *testing.T, name string) {
+	t.Helper()
+	if os.Getenv("MCPCARDANO_IT_PHASE") != name {
+		t.Skipf("run.sh runs it in the phase %s", name)
+	}
+}
+
+// work is run.sh's directory, with the binaries it built.
+func work(t *testing.T) string {
+	t.Helper()
+	dir := os.Getenv("MCPCARDANO_IT_WORK")
+	if dir == "" {
+		t.Fatal("MCPCARDANO_IT_WORK is not set")
+	}
+	return dir
+}
 
 // password is the key store's, which run.sh created.
 func password(t *testing.T) string {
@@ -416,10 +436,10 @@ func TestLockUnderLoad(t *testing.T) {
 }
 
 // TestUnlockByMachine checks the unlock bound to the machine (decision 132),
-// with the TPM2 that run.sh simulates and the credential it seals with it.
-// run.sh runs it last, since it leaves the wallet starting unlocked, which
-// the other tests do not expect, and twice: with the TPM2 that sealed the
-// credential (MCPCARDANO_IT_TPM=bind), and then with another (other).
+// with the TPM2 that run.sh simulates and the credential that install
+// -unlock machine seals with it. run.sh runs it after the others, since it
+// leaves the wallet starting unlocked, and twice: with the TPM2 that sealed
+// the credential (phase tpm-bind), and then with another (tpm-other).
 func TestUnlockByMachine(t *testing.T) {
 	const credential = "/etc/credstore.encrypted/mcpcardano-wallet.unlock"
 	// restart restarts the wallet and returns what mcpcardano status says.
@@ -439,8 +459,8 @@ func TestUnlockByMachine(t *testing.T) {
 	}
 	locked := func(out string) bool { return strings.Contains(out, "locked;") }
 
-	switch os.Getenv("MCPCARDANO_IT_TPM") {
-	case "bind":
+	switch os.Getenv("MCPCARDANO_IT_PHASE") {
+	case "tpm-bind":
 		// Not bound yet: it starts locked, and the password binds it.
 		if out := restart(); !locked(out) {
 			t.Fatalf("a start before binding:\n%s", out)
@@ -467,7 +487,7 @@ func TestUnlockByMachine(t *testing.T) {
 		if out := restart(); locked(out) {
 			t.Fatalf("bound again:\n%s", out)
 		}
-	case "other":
+	case "tpm-other":
 		// The credential does not decrypt with another TPM2, as after
 		// clearing it: systemd skips it, the wallet starts locked, and the
 		// password opens it.
@@ -476,6 +496,6 @@ func TestUnlockByMachine(t *testing.T) {
 		}
 		mustPerson(t, password(t), "unlock")
 	default:
-		t.Skip("run.sh runs it last, with a TPM2")
+		t.Skip("run.sh runs it in the phases tpm-bind and tpm-other, with a TPM2")
 	}
 }

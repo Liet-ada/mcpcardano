@@ -4,7 +4,8 @@
 # 0750 with the group mcpcardano; the kernel certifies the user at the other
 # end of each. It starts locked: the person unlocks it with mcpcardano unlock.
 # It locks its memory out of swap, which LimitMEMLOCK allows.
-# Create its key store once, before the first start (see deploy/README.md).
+# mcpcardano install creates its key store before the first start
+# (deploy/README.md).
 # With a TPM2 it can start unlocked: ImportCredential hands it the key of the
 # machine, if there is one in /etc/credstore.encrypted, and skips it if it is
 # missing or does not decrypt (decision 132). systemd before 254 ignores it.

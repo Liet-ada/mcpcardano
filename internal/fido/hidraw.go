@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -83,6 +84,31 @@ func hidrawKeys(sys, dev string) ([]hidrawDevice, error) {
 			continue
 		}
 		out = append(out, hidrawDevice{path: filepath.Join(dev, e.Name()), name: hidName(filepath.Join(dir, "uevent"), e.Name())})
+	}
+	return out, nil
+}
+
+// Device is a security key attached to the machine, and whether this user
+// can open it: Err is why not.
+type Device struct {
+	Name, Path string
+	Err        error
+}
+
+// probe lists the security keys under sys and dev, as hidrawKeys, and tries
+// to open each one, which a key does not notice.
+func probe(sys, dev string) ([]Device, error) {
+	keys, err := hidrawKeys(sys, dev)
+	if err != nil {
+		return nil, fmt.Errorf("fido: cannot look for a security key: %w", err)
+	}
+	var out []Device
+	for _, k := range keys {
+		f, err := os.OpenFile(k.path, os.O_RDWR, 0)
+		if err == nil {
+			f.Close()
+		}
+		out = append(out, Device{Name: k.name, Path: k.path, Err: err})
 	}
 	return out, nil
 }
