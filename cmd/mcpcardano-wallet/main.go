@@ -69,7 +69,8 @@ func run() int {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	d, err := walletd.Open(ctx, cfg, walletd.Options{Version: version, Logger: logger})
+	d, err := walletd.Open(ctx, cfg, walletd.Options{Version: version, Logger: logger,
+		Credentials: os.Getenv("CREDENTIALS_DIRECTORY")})
 	if err != nil {
 		logger.Error("start", "err", err)
 		return 1

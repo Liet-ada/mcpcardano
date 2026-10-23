@@ -414,3 +414,68 @@ func TestLockUnderLoad(t *testing.T) {
 		t.Error("the person waited longer than the wallet's per-message deadline")
 	}
 }
+
+// TestUnlockByMachine checks the unlock bound to the machine (decision 132),
+// with the TPM2 that run.sh simulates and the credential it seals with it.
+// run.sh runs it last, since it leaves the wallet starting unlocked, which
+// the other tests do not expect, and twice: with the TPM2 that sealed the
+// credential (MCPCARDANO_IT_TPM=bind), and then with another (other).
+func TestUnlockByMachine(t *testing.T) {
+	const credential = "/etc/credstore.encrypted/mcpcardano-wallet.unlock"
+	// restart restarts the wallet and returns what mcpcardano status says.
+	// It resets systemd's limit of 5 starts in 10 seconds first.
+	restart := func() string {
+		t.Helper()
+		sudo(t, "systemctl", "reset-failed", "mcpcardano-wallet")
+		sudo(t, "systemctl", "restart", "mcpcardano-wallet")
+		for range 50 {
+			if code, out := person(t, "", "status"); code == 0 {
+				return out
+			}
+			time.Sleep(200 * time.Millisecond)
+		}
+		t.Fatal("the wallet did not come back")
+		return ""
+	}
+	locked := func(out string) bool { return strings.Contains(out, "locked;") }
+
+	switch os.Getenv("MCPCARDANO_IT_TPM") {
+	case "bind":
+		// Not bound yet: it starts locked, and the password binds it.
+		if out := restart(); !locked(out) {
+			t.Fatalf("a start before binding:\n%s", out)
+		}
+		mustPerson(t, password(t), "unlock")
+		// From then on it starts unlocked, and the password still opens.
+		if out := restart(); locked(out) {
+			t.Fatalf("a start once bound:\n%s", out)
+		}
+		mustPerson(t, password(t), "unlock")
+
+		// Without the credential, as with the key store on another
+		// machine, it starts locked. The password opens it, and unbinds it.
+		sudo(t, "mv", credential, credential+".off")
+		if out := restart(); !locked(out) {
+			t.Fatalf("a start without the credential:\n%s", out)
+		}
+		mustPerson(t, password(t), "unlock")
+		sudo(t, "mv", credential+".off", credential)
+		if out := restart(); !locked(out) {
+			t.Fatalf("still bound after an unlock without the credential:\n%s", out)
+		}
+		mustPerson(t, password(t), "unlock")
+		if out := restart(); locked(out) {
+			t.Fatalf("bound again:\n%s", out)
+		}
+	case "other":
+		// The credential does not decrypt with another TPM2, as after
+		// clearing it: systemd skips it, the wallet starts locked, and the
+		// password opens it.
+		if out := restart(); !locked(out) {
+			t.Fatalf("a start with another TPM2:\n%s", out)
+		}
+		mustPerson(t, password(t), "unlock")
+	default:
+		t.Skip("run.sh runs it last, with a TPM2")
+	}
+}
