@@ -99,6 +99,9 @@ func (d *Daemon) accept(ctx context.Context, l *net.UnixListener, sock ipc.Socke
 			continue
 		}
 		wg.Go(func() {
+			// The slot is free before the connection closes, so that whoever
+			// sees it closed can connect again at once.
+			defer c.Close()
 			defer func() { <-slots }()
 			d.serveConn(ctx, c, sock, uid)
 		})
@@ -110,7 +113,6 @@ func (d *Daemon) accept(ctx context.Context, l *net.UnixListener, sock ipc.Socke
 // socket stays. Hello comes first; a request whose envelope does not decode
 // ends the connection, since it may have been read only in part.
 func (d *Daemon) serveConn(ctx context.Context, c *net.UnixConn, sock ipc.Socket, want uint32) {
-	defer c.Close()
 	stop := context.AfterFunc(ctx, func() { c.Close() })
 	defer stop()
 	if uid, err := ipc.PeerUID(c); err != nil || uid != want {
