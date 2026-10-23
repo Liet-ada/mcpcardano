@@ -42,15 +42,20 @@ type Options struct {
 	Version string           // of the binary, sent in Hello
 	Now     func() time.Time // the wallet's own clock; time.Now by default
 	Logger  *slog.Logger     // operation log (section 10.4); never a secret
+	// Credentials is the directory of the credentials that systemd hands
+	// over, $CREDENTIALS_DIRECTORY: the key of the machine, if the person
+	// chose the unlock bound to it (decision 132).
+	Credentials string
 }
 
 // Daemon is a running wallet.
 type Daemon struct {
-	cfg     Config
-	version string
-	now     func() time.Time
-	log     *slog.Logger
-	codec   *ipc.Codec
+	cfg         Config
+	version     string
+	now         func() time.Time
+	log         *slog.Logger
+	codec       *ipc.Codec
+	credentials string
 
 	store  *keystore.Store
 	ledger *ledger.Ledger
@@ -105,7 +110,7 @@ func Open(ctx context.Context, cfg Config, o Options) (*Daemon, error) {
 	if err := checkMode(cfg.DataDir, 0o700); err != nil {
 		return nil, err
 	}
-	d := &Daemon{cfg: cfg, version: o.Version, now: o.Now, log: o.Logger, codec: ipc.NewCodec(),
+	d := &Daemon{cfg: cfg, version: o.Version, now: o.Now, log: o.Logger, codec: ipc.NewCodec(), credentials: o.Credentials,
 		sessions: map[string]*session{}, approvals: map[string]*approval{}, crash: crashHook()}
 
 	var err error

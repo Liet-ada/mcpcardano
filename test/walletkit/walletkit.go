@@ -62,6 +62,9 @@ func (c *Clock) Slot() uint64 { return model.Preprod.Clock().Slot(c.Now()) }
 type Wallet struct {
 	Config walletd.Config
 	Clock  *Clock
+	// Credentials stands for the directory of systemd's credentials, with
+	// the key of the machine (decision 132); empty, as outside systemd.
+	Credentials string
 
 	cancel context.CancelFunc
 	done   chan error
@@ -111,7 +114,7 @@ func StartAt(t testing.TB, clock *Clock) *Wallet {
 func (w *Wallet) Run(t testing.TB) {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
-	d, err := walletd.Open(ctx, w.Config, walletd.Options{Version: "test", Now: w.Clock.Now})
+	d, err := walletd.Open(ctx, w.Config, walletd.Options{Version: "test", Now: w.Clock.Now, Credentials: w.Credentials})
 	if err != nil {
 		cancel()
 		t.Fatal(err)

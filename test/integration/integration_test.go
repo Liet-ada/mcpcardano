@@ -414,3 +414,57 @@ func TestLockUnderLoad(t *testing.T) {
 		t.Error("the person waited longer than the wallet's per-message deadline")
 	}
 }
+
+// TestUnlockByMachine checks the unlock bound to the machine (decision 132),
+// with the TPM2 that run.sh simulates and the credential it seals with it.
+// It runs only when run.sh asks, after the other tests, which expect the
+// wallet to start locked.
+func TestUnlockByMachine(t *testing.T) {
+	if os.Getenv("MCPCARDANO_IT_TPM") == "" {
+		t.Skip("run.sh runs it last, with a TPM2")
+	}
+	const dropIn = "/etc/systemd/system/mcpcardano-wallet.service.d/unlock.conf"
+	// restart restarts the wallet and returns what mcpcardano status says.
+	restart := func() string {
+		t.Helper()
+		sudo(t, "systemctl", "restart", "mcpcardano-wallet")
+		for range 50 {
+			if code, out := person(t, "", "status"); code == 0 {
+				return out
+			}
+			time.Sleep(200 * time.Millisecond)
+		}
+		t.Fatal("the wallet did not come back")
+		return ""
+	}
+	locked := func(out string) bool { return strings.Contains(out, "locked;") }
+
+	// Not bound yet: it starts locked, and the password binds it.
+	if out := restart(); !locked(out) {
+		t.Fatalf("a start before binding:\n%s", out)
+	}
+	mustPerson(t, password(t), "unlock")
+	// From then on it starts unlocked, and the password still opens.
+	if out := restart(); locked(out) {
+		t.Fatalf("a start once bound:\n%s", out)
+	}
+	mustPerson(t, password(t), "unlock")
+
+	// Without the credential, as with the key store on another machine, it
+	// starts locked. The password opens it, and unbinds it.
+	sudo(t, "mv", dropIn, dropIn+".off")
+	sudo(t, "systemctl", "daemon-reload")
+	if out := restart(); !locked(out) {
+		t.Fatalf("a start without the credential:\n%s", out)
+	}
+	mustPerson(t, password(t), "unlock")
+	sudo(t, "mv", dropIn+".off", dropIn)
+	sudo(t, "systemctl", "daemon-reload")
+	if out := restart(); !locked(out) {
+		t.Fatalf("still bound after an unlock without the credential:\n%s", out)
+	}
+	mustPerson(t, password(t), "unlock")
+	if out := restart(); locked(out) {
+		t.Fatalf("bound again:\n%s", out)
+	}
+}

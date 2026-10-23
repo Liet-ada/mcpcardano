@@ -20,9 +20,10 @@ import (
 // bounds the service socket's.
 const maxAdminConns = 4
 
-// Serve checks the isolation of section 10.3, creates the two sockets and
-// serves them until ctx ends. In development mode the isolation check is
-// skipped, and the audit log records it.
+// Serve checks the isolation of section 10.3, unlocks with the key of the
+// machine if there is one (decision 132), creates the two sockets and serves
+// them until ctx ends. In development mode the isolation check is skipped,
+// and the audit log records it.
 func (d *Daemon) Serve(ctx context.Context) error {
 	if d.cfg.Development {
 		d.record("isolation.skipped", map[string]any{"reason": "development mode"})
@@ -30,6 +31,7 @@ func (d *Daemon) Serve(ctx context.Context) error {
 		d.record("isolation.failed", map[string]any{"error": err.Error()})
 		return err
 	}
+	d.unlockByMachine()
 	service, err := listen(d.cfg.ServiceSocket)
 	if err != nil {
 		return err

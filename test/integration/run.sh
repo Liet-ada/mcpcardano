@@ -12,12 +12,14 @@ cd "$(dirname "$0")/../.."
 
 work=$(mktemp -d)
 koios=
+tpm=
 finish() {
 	status=$?
 	if [ "$status" -ne 0 ]; then
 		sudo journalctl -u mcpcardano-wallet -u mcpcardano-server --no-pager -o short-precise | tail -n 200 || true
 	fi
 	if [ -n "$koios" ]; then kill "$koios" || true; fi
+	if [ -n "$tpm" ]; then sudo pkill -f "swtpm chardev" || true; sudo rm -rf "$tpm"; fi
 	rm -rf "$work"
 	exit "$status"
 }
@@ -77,3 +79,37 @@ sudo ls -la /run/mcpcardano-wallet /run/mcpcardano-server
 
 echo "== tests, as the person"
 sg mcpcardano -c "MCPCARDANO_IT_PASSWORD=$work/password $(command -v go) test -tags integration -count=1 -v ./test/integration/"
+
+echo "== the unlock bound to the machine, with a simulated TPM2 (decision 132)"
+sudo apt-get install -y -qq swtpm swtpm-tools > /dev/null
+sudo modprobe tpm_vtpm_proxy
+tpm=$(sudo mktemp -d)
+sudo swtpm chardev --vtpm-proxy --tpm2 --tpmstate dir="$tpm" --flags startup-clear --daemon
+for _ in $(seq 50); do
+	if [ -e /dev/tpmrm0 ]; then break; fi
+	sleep 0.2
+done
+ls -la /dev/tpm*
+sudo systemd-creds has-tpm2 || true
+sudo install -d -m 0700 /etc/credstore.encrypted
+head -c 32 /dev/urandom | sudo systemd-creds encrypt --with-key=tpm2+host --name=unlock - /etc/credstore.encrypted/mcpcardano-wallet.unlock
+sudo install -D -m 0644 deploy/mcpcardano-wallet-unlock.conf /etc/systemd/system/mcpcardano-wallet.service.d/unlock.conf
+sudo systemctl daemon-reload
+sg mcpcardano -c "MCPCARDANO_IT_PASSWORD=$work/password MCPCARDANO_IT_TPM=1 $(command -v go) test -tags integration -count=1 -v -run TestUnlockByMachine ./test/integration/"
+
+echo "== the credential with another TPM2"
+sudo pkill -f "swtpm chardev"
+for _ in $(seq 50); do
+	if [ ! -e /dev/tpmrm0 ]; then break; fi
+	sleep 0.2
+done
+sudo rm -rf "$tpm"
+tpm=$(sudo mktemp -d)
+sudo swtpm chardev --vtpm-proxy --tpm2 --tpmstate dir="$tpm" --flags startup-clear --daemon
+for _ in $(seq 50); do
+	if [ -e /dev/tpmrm0 ]; then break; fi
+	sleep 0.2
+done
+if sudo systemctl restart mcpcardano-wallet; then echo "the wallet started"; else echo "the wallet did not start"; fi
+sudo systemctl status mcpcardano-wallet --no-pager | head -n 20 || true
+sudo journalctl -u mcpcardano-wallet --no-pager -n 20 || true
