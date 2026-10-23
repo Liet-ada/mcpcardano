@@ -191,6 +191,10 @@ func (m *Machine) mkdir(p string, mode fs.FileMode, uid, gid uint32) error {
 	if err := os.Mkdir(dir, mode); err != nil && !errors.Is(err, fs.ErrExist) {
 		return fmt.Errorf("install: %w", err)
 	}
+	// chmod follows a link: p must be the directory itself.
+	if fi, err := os.Lstat(dir); err != nil || !fi.IsDir() {
+		return fmt.Errorf("install: %s is not a directory", p)
+	}
 	if err := m.chown(dir, uid, gid); err != nil {
 		return fmt.Errorf("install: %w", err)
 	}
@@ -300,6 +304,11 @@ func (m *Machine) Check(o *Options) error {
 	}
 	if o.FIDOOwner && !m.fidoRule() {
 		return errors.New("install: -fido-owner needs systemd's rule 60-fido-id.rules, which marks the security keys")
+	}
+	// Whoever can write the directory of the binaries can replace them, the
+	// wallet's among them, as doctor says too.
+	if fi, err := os.Lstat(m.path(deploy.BinDir)); err == nil && fi.Mode().Perm()&0o022 != 0 {
+		return fmt.Errorf("install: %s has mode %04o, so others than root could replace the binaries, the wallet's among them: make it root's alone, as with chmod 755 %s, and run install again", deploy.BinDir, fi.Mode().Perm(), deploy.BinDir)
 	}
 	for _, b := range deploy.Binaries {
 		fi, err := os.Stat(filepath.Join(o.Source, b))

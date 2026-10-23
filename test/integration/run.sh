@@ -46,6 +46,9 @@ echo "== the clock"
 timedatectl show -p NTP -p NTPSynchronized || true
 
 echo "== install"
+# The runners of GitHub leave /usr/local/bin writable by everyone, where
+# anyone could replace the binaries: install refuses that, and doctor too.
+sudo chmod 0755 /usr/local/bin
 "$work/koios" -listen 127.0.0.1:18080 &
 koios=$!
 head -c 24 /dev/urandom | base64 > "$work/password"

@@ -479,6 +479,10 @@ func TestCheck(t *testing.T) {
 			f.systemd = "systemd 253 (253.5)\n"
 		}, "systemd 254"},
 		{"a binary missing", func(f *fake, o *Options) { os.Remove(filepath.Join(o.Source, "mcpcardano-server")) }, "mcpcardano-server must be next to"},
+		{"binaries anyone writes", func(f *fake, _ *Options) {
+			os.MkdirAll(f.m.path(deploy.BinDir), 0o755)
+			os.Chmod(f.m.path(deploy.BinDir), 0o777)
+		}, "/usr/local/bin has mode 0777"},
 		{"unsupported", func(f *fake, _ *Options) { f.m.unsupported = "for now it runs on Linux only" }, "Linux only"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
@@ -518,5 +522,16 @@ func TestSystemdVersion(t *testing.T) {
 		if got := systemdVersion(in); got != want {
 			t.Errorf("systemdVersion(%q) = %d, want %d", in, got, want)
 		}
+	}
+}
+
+func TestLinkInsteadOfADirectory(t *testing.T) {
+	f := newFake(t)
+	os.MkdirAll(f.m.path("/var/lib"), 0o755)
+	if err := os.Symlink(t.TempDir(), f.m.path(deploy.WalletData)); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.install(f.options(), "correct horse"); err == nil || !strings.Contains(err.Error(), deploy.WalletData+" is not a directory") {
+		t.Errorf("a link for the wallet's data: %v", err)
 	}
 }
