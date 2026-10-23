@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/Liet-ada/mcpcardano/internal/cborx"
+	"github.com/Liet-ada/mcpcardano/internal/model"
 )
 
 // Version is the protocol version (section 5.7). Any change to a message
@@ -126,6 +127,7 @@ func (c *Codec) exact(data []byte, v any) error {
 	if err != nil {
 		return err
 	}
+	defer clear(b) // the encoding of v, which may carry a password or a phrase
 	if !bytes.Equal(b, data) {
 		return errNotExact
 	}
@@ -156,12 +158,18 @@ func (c *Codec) DecodeRequest(s Socket, frame []byte) (Request, error) {
 }
 
 // DecodeBody decodes and validates a body into v, which must be a pointer:
-// step 4 of section 5.4.
+// step 4 of section 5.4. A body it refuses is wiped (model.Wipe), since the
+// caller drops it.
 func (c *Codec) DecodeBody(raw cborx.Raw, v Body) error {
 	if err := c.exact(raw, v); err != nil {
+		model.Wipe(v)
 		return malformed("body: %v", err)
 	}
-	return v.Validate()
+	if err := v.Validate(); err != nil {
+		model.Wipe(v)
+		return err
+	}
+	return nil
 }
 
 // EncodeRequest encodes a request of type t with the given id.

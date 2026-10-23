@@ -13,6 +13,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+
+	"filippo.io/edwards25519"
 )
 
 // The FIDO2 key (section 6.3 and paper, section 6.6). The CLI talks CTAP to
@@ -154,7 +156,7 @@ func Verify(k Key, msg []byte, a Assertion, r Rules) (uint32, error) {
 	if err != nil {
 		return 0, err
 	}
-	if len(ad.rest) != 0 {
+	if ad.flags&flagAT != 0 || len(ad.rest) != 0 { // AT is for a new credential
 		return 0, ErrKeyData
 	}
 	h := sha256.Sum256(msg)
@@ -230,7 +232,10 @@ func (a *Authorizer) Credential(authenticatorData []byte, r Rules) (Key, error) 
 	}
 	k := Key{CredentialID: bytes.Clone(id), Alg: c.Alg, Counter: ad.counter}
 	switch {
-	case c.Kty == ktyOKP && c.Alg == AlgEdDSA && c.Crv == crvEd25519 && len(c.X) == ed25519.PublicKeySize && c.Y == nil:
+	case c.Kty == ktyOKP && c.Alg == AlgEdDSA && c.Crv == crvEd25519 && c.Y == nil:
+		if !ed25519Key(c.X) {
+			return Key{}, fmt.Errorf("%w: public key: not a canonical point of large order", ErrKeyData)
+		}
 		k.PublicKey = bytes.Clone(c.X)
 	case c.Kty == ktyEC2 && c.Alg == AlgES256 && c.Crv == crvP256 && len(c.X) == 32 && len(c.Y) == 32:
 		k.PublicKey = append(append([]byte{0x04}, c.X...), c.Y...)
@@ -241,4 +246,16 @@ func (a *Authorizer) Credential(authenticatorData []byte, r Rules) (Key, error) 
 		return Key{}, fmt.Errorf("%w: a public key that is neither EdDSA nor ES256", ErrKeyData)
 	}
 	return k, nil
+}
+
+// ed25519Key reports whether x is the canonical encoding of an Ed25519 point
+// of large order, as ParseUncompressedPublicKey checks the point of an ES256
+// key. A key of small order has no secret: the signature of the identity
+// with S = 0 verifies for any message.
+func ed25519Key(x []byte) bool {
+	p, err := new(edwards25519.Point).SetBytes(x)
+	if err != nil || !bytes.Equal(p.Bytes(), x) { // SetBytes takes non-canonical encodings
+		return false
+	}
+	return new(edwards25519.Point).MultByCofactor(p).Equal(edwards25519.NewIdentityPoint()) == 0
 }

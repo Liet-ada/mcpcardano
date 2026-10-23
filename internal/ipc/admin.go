@@ -190,6 +190,9 @@ type Unlock struct {
 // Validate implements Body.
 func (u *Unlock) Validate() error { return secret(u.Password, "password") }
 
+// Wipe overwrites the password with zeros, for a body that is refused.
+func (u *Unlock) Wipe() { u.Password.Wipe() }
+
 // BeginAuthorization starts an action (section 6.2, step 1).
 type BeginAuthorization struct {
 	Action string    `cbor:"action"`
@@ -317,6 +320,9 @@ func (c *CompleteAuthorization) Validate() error {
 	}
 	return nil
 }
+
+// Wipe overwrites the password with zeros, for a body that is refused.
+func (c *CompleteAuthorization) Wipe() { c.Password.Wipe() }
 
 // Completed is the answer to CompleteAuthorization: the result of the action,
 // decoded with the body that NewResult gives for it.

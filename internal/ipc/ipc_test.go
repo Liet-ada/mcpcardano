@@ -649,12 +649,44 @@ func TestWipe(t *testing.T) {
 	restore := &RestoreWallet{Label: "Savings", Phrase: model.Secret("abandon abandon about")}
 	shown := &RecoveryPhrase{Phrase: model.Secret("abandon abandon about")}
 	completed := &Completed{Result: cborx.Raw("abandon abandon about")}
-	for _, b := range []Body{restore, shown, completed} {
+	unlock := &Unlock{Password: model.Secret("password")}
+	confirm := &CompleteAuthorization{AuthID: filled(16, 1), Password: model.Secret("password")}
+	for _, b := range []Body{restore, shown, completed, unlock, confirm} {
 		model.Wipe(b)
 	}
-	for _, secret := range [][]byte{restore.Phrase, shown.Phrase, completed.Result} {
+	for _, secret := range [][]byte{restore.Phrase, shown.Phrase, completed.Result, unlock.Password, confirm.Password} {
 		if !bytes.Equal(secret, make([]byte, len(secret))) {
 			t.Errorf("not wiped: %q", secret)
+		}
+	}
+}
+
+// TestRefusedWiped: DecodeBody wipes a body it read and then refused, since
+// the caller drops it with the secret it may carry.
+func TestRefusedWiped(t *testing.T) {
+	c := NewCodec()
+	// {"password": h'68756e7465723232'}, with a length of one byte more
+	// than it needs.
+	long, _ := hex.DecodeString("a1" + "6870617373776f7264" + "5808" + "68756e7465723232")
+	for _, tc := range []struct {
+		name   string
+		body   []byte
+		into   Body
+		secret func(Body) []byte
+	}{
+		{"a phrase with an empty label", raw(t, &RestoreWallet{Phrase: model.Secret("abandon abandon about")}), new(RestoreWallet),
+			func(b Body) []byte { return b.(*RestoreWallet).Phrase }},
+		{"a password and an assertion", raw(t, &CompleteAuthorization{AuthID: filled(16, 1), Password: model.Secret("password"),
+			Assertion: &Assertion{CredentialID: filled(64, 9), AuthenticatorData: filled(37, 1), Signature: filled(70, 2)}}), new(CompleteAuthorization),
+			func(b Body) []byte { return b.(*CompleteAuthorization).Password }},
+		{"a password not in canonical CBOR", long, new(Unlock),
+			func(b Body) []byte { return b.(*Unlock).Password }},
+	} {
+		if err := c.DecodeBody(tc.body, tc.into); !isCode(err, Malformed) {
+			t.Fatalf("%s: %v", tc.name, err)
+		}
+		if s := tc.secret(tc.into); len(s) == 0 || !bytes.Equal(s, make([]byte, len(s))) {
+			t.Errorf("%s: not wiped: %q", tc.name, s)
 		}
 	}
 }
