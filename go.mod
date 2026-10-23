@@ -1,6 +1,6 @@
 module github.com/Liet-ada/mcpcardano
 
-go 1.26.8
+go 1.27.1
 
 toolchain go1.27.3
 
@@ -8,6 +8,8 @@ require (
 	filippo.io/edwards25519 v1.2.0
 	github.com/blinklabs-io/gouroboros v0.213.4
 	github.com/fxamacker/cbor/v2 v2.9.6
+	github.com/go-authn/fido v0.6.2
+	github.com/go-macos/fido v0.5.0
 	github.com/google/jsonschema-go v0.4.3
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	golang.org/x/crypto v0.57.0
@@ -24,6 +26,8 @@ require (
 	github.com/consensys/gnark-crypto v0.22.0 // indirect
 	github.com/decred/dcrd/crypto/blake256 v1.1.0 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0 // indirect
+	github.com/ebitengine/purego v0.11.1 // indirect
+	github.com/go-macos/iokit v0.13.1 // indirect
 	github.com/jinzhu/copier v0.4.0 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.3 // indirect
 	github.com/minio/sha256-simd v1.0.1 // indirect

@@ -146,6 +146,8 @@ func TestExternalDependenciesStayEncapsulated(t *testing.T) {
 		"github.com/blinklabs-io/gouroboros": internal("chain"),
 		"github.com/blinklabs-io/plutigo":    internal("plutus"),
 		mcpSDK:                               internal("mcp"),
+		"github.com/go-authn/fido":           internal("fido"),
+		"github.com/go-macos/":               internal("fido"),
 	}
 	cmd := exec.Command("go", "list", "-json", "./...")
 	cmd.Dir = repoRoot(t)

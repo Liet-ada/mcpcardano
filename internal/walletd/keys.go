@@ -146,9 +146,13 @@ func (d *Daemon) prepareKey(action string, params ipc.Body) (prepared, error) {
 			return prepared{}, err
 		}
 		wait := d.cfg.recoveryWait()
+		keys := fmt.Sprintf("the %d registered keys are", len(d.st.Keys))
+		if len(d.st.Keys) == 1 {
+			keys = "the registered key is"
+		}
 		return prepared{"", map[string]any{"seconds": uint64(wait / time.Second)}, []string{
-			"Start a recovery without keys: every wallet is frozen now, and after " + wait.String() +
-				fmt.Sprintf(" the %d registered keys are removed and the password authorizes again.", len(d.st.Keys)),
+			fmt.Sprintf("Start a recovery without keys: every wallet is frozen now, and after %s %s removed and the password authorizes again.",
+				hours(wait), keys),
 			"Until then, a touch of a registered key cancels it (mcpcardano recover cancel).",
 		}}, nil
 	case ipc.ActCancelRecovery:
@@ -255,6 +259,17 @@ func (d *Daemon) settleRecovery() error {
 	}
 	d.record("recovery.completed", map[string]any{"keys_removed": n})
 	return nil
+}
+
+// hours writes a wait of whole hours as hours, and any other as Go does.
+func hours(d time.Duration) string {
+	switch {
+	case d == time.Hour:
+		return "1 hour"
+	case d%time.Hour == 0:
+		return fmt.Sprintf("%d hours", d/time.Hour)
+	}
+	return d.String()
 }
 
 func algName(alg int) string {
