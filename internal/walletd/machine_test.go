@@ -98,7 +98,7 @@ func TestUnlockByMachine(t *testing.T) {
 
 	// A key that cannot be read, or none, leaves the wallet locked; the
 	// password opens, and unbinds it.
-	for _, k := range [][]byte{other[:31], nil} {
+	for _, k := range [][]byte{other[:31], append(bytes.Clone(other), 0), nil} {
 		setKey(other)
 		w.Restart(t)
 		setKey(k)

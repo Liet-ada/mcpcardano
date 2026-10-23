@@ -6,6 +6,7 @@ package walletd
 import (
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -28,16 +29,23 @@ func (d *Daemon) machineKey() ([]byte, error) {
 	if d.credentials == "" {
 		return nil, nil
 	}
-	k, err := os.ReadFile(filepath.Join(d.credentials, machineCredential))
+	f, err := os.Open(filepath.Join(d.credentials, machineCredential))
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, fmt.Errorf("walletd: the key of the machine: %w", err)
 	}
+	defer f.Close()
+	// One byte more than a key, to tell a longer file without reading it all.
+	k, err := io.ReadAll(io.LimitReader(f, keystore.MachineKeySize+1))
+	if err != nil {
+		clear(k)
+		return nil, fmt.Errorf("walletd: the key of the machine: %w", err)
+	}
 	if len(k) != keystore.MachineKeySize {
 		clear(k)
-		return nil, fmt.Errorf("walletd: the key of the machine has %d bytes, not %d", len(k), keystore.MachineKeySize)
+		return nil, fmt.Errorf("walletd: the key of the machine is not of %d bytes", keystore.MachineKeySize)
 	}
 	return k, nil
 }

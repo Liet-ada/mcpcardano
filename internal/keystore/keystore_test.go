@@ -36,6 +36,20 @@ func newStore(t *testing.T) (string, *Store) {
 	return dir, s
 }
 
+// TestParamsBounds: a store is never created, nor opened to be raised, with
+// parameters that a master.key may not hold. With no passes, Argon2id panics.
+func TestParamsBounds(t *testing.T) {
+	dir, _ := newStore(t)
+	for _, p := range []Params{{0, 64, 1}, {MaxTime + 1, 64, 1}, {1, 31, 4}, {1, MaxMemoryKiB + 1, 1}, {1, 64, 0}} {
+		if err := Create(filepath.Join(t.TempDir(), "keystore"), model.Secret("correct horse"), p); !errors.Is(err, ErrParams) {
+			t.Errorf("Create with %+v: %v", p, err)
+		}
+		if _, err := Open(dir, p); !errors.Is(err, ErrParams) {
+			t.Errorf("Open with %+v: %v", p, err)
+		}
+	}
+}
+
 // unlock unlocks s with the password, on a machine without a key.
 func unlock(s *Store, password string) error {
 	_, err := s.Unlock(model.Secret(password), nil)
@@ -191,6 +205,8 @@ func TestTamperedFiles(t *testing.T) {
 		func(m *master) { m.KDF.MemoryKiB, m.KDF.Threads = 31, 4 },
 		func(m *master) { m.KDF.Threads = 0 },
 		func(m *master) { m.CT = make([]byte, maxFile) },
+		func(m *master) { m.CT = m.CT[:len(m.CT)-1] },
+		func(m *master) { m.CT = nil },
 	} {
 		c := m
 		change(&c)

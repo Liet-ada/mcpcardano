@@ -56,6 +56,7 @@ var (
 	ErrWrongPassword = errors.New("keystore: wrong password")
 	ErrMachineKey    = errors.New("keystore: the key of the machine does not open the key store")
 	ErrNotBound      = errors.New("keystore: the key store has no envelope of the machine")
+	ErrParams        = fmt.Errorf("keystore: Argon2id needs 1 to %d passes, at least 1 lane, 8 KiB per lane and at most %d MiB", MaxTime, MaxMemoryKiB>>10)
 	ErrLocked        = errors.New("keystore: locked")
 	ErrExists        = errors.New("keystore: already exists")
 	ErrNotFound      = errors.New("keystore: no such key store or seed")
@@ -156,8 +157,12 @@ type Store struct {
 
 // Create makes a key store in dir, which it creates with mode 0700 if
 // missing, with a new data key wrapped by password. It fails with ErrExists
-// if there is already one.
+// if there is already one, and with ErrParams if p is beyond what a
+// master.key may hold.
 func Create(dir string, password model.Secret, p Params) error {
+	if !p.valid() {
+		return ErrParams
+	}
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return fmt.Errorf("keystore: %w", err)
 	}
@@ -177,9 +182,13 @@ func Create(dir string, password model.Secret, p Params) error {
 }
 
 // Open reads the key store in dir, locked. Unlock raises its Argon2id
-// parameters to p if they are lower. It refuses a directory or file that
-// other users could read (section 7.1).
+// parameters to p if they are lower; ErrParams if p is beyond what a
+// master.key may hold. It refuses a directory or file that other users could
+// read (section 7.1).
 func Open(dir string, p Params) (*Store, error) {
+	if !p.valid() {
+		return nil, ErrParams
+	}
 	if err := checkMode(dir, 0o700); err != nil {
 		return nil, err
 	}
@@ -213,6 +222,7 @@ func (s *Store) readMaster() (master, error) {
 	body, ok := bytes.CutPrefix(b, []byte(masterMagic))
 	if !ok || s.codec.Unmarshal(body, &m) != nil || m.V != FormatVersion ||
 		len(m.Salt) != saltSize || len(m.Nonce) != chacha20poly1305.NonceSizeX || !m.KDF.valid() ||
+		len(m.CT) != keySize+chacha20poly1305.Overhead ||
 		m.Machine != nil && (len(m.Machine.Nonce) != chacha20poly1305.NonceSizeX || len(m.Machine.CT) != keySize+chacha20poly1305.Overhead) {
 		return m, ErrFormat
 	}
