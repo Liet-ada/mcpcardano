@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/binary"
+	"encoding/hex"
 	"errors"
 	"testing"
 
@@ -60,6 +61,12 @@ func TestVerify(t *testing.T) {
 			{"a credential that may be synced", func() Assertion { return sign(fidokit.Options{Synced: true}) }, Rules{}, ErrKeySynced},
 			{"a synced credential the person allowed", func() Assertion { return sign(fidokit.Options{Synced: true}) }, Rules{AllowSynced: true}, nil},
 			{"extensions", func() Assertion { return sign(fidokit.Options{Extensions: true}) }, Rules{}, ErrKeyData},
+			{"the flag of a new credential, signed", func() Assertion {
+				s := sign(fidokit.Options{})
+				s.AuthenticatorData[32] |= flagAT
+				s.Signature = sk.Sign(append(bytes.Clone(s.AuthenticatorData), hash(msg)...))
+				return s
+			}, Rules{}, ErrKeyData},
 			{"short authenticator data", func() Assertion {
 				s := sign(fidokit.Options{})
 				s.AuthenticatorData = s.AuthenticatorData[:36]
@@ -105,6 +112,15 @@ func TestCounter(t *testing.T) {
 	sk.NoCounter, sk.Counter = true, 0
 	if _, err := Verify(k, msg, assertion(sk.GetAssertion(hash(msg), fidokit.Options{})), Rules{}); !errors.Is(err, ErrKeyCounter) {
 		t.Errorf("a counter of 0 after 1: %v", err)
+	}
+
+	// A key with one counter for all its credentials gives it already when
+	// it creates one; the first assertion gives more.
+	global := fidokit.New(AlgEdDSA)
+	global.Counter = 41
+	kg, _ := a.Credential(global.MakeCredential(fidokit.Options{}), Rules{})
+	if n, err := Verify(kg, msg, assertion(global.GetAssertion(hash(msg), fidokit.Options{})), Rules{}); kg.Counter != 41 || err != nil || n != 42 {
+		t.Errorf("a counter at registration: %d, then %d, %v", kg.Counter, n, err)
 	}
 
 	none := fidokit.New(AlgEdDSA)
@@ -172,6 +188,10 @@ func TestCredential(t *testing.T) {
 		return append(bytes.Clone(good[:authDataSize+18+int(n)]), pub...)
 	}
 	x := bytes.Repeat([]byte{1}, 32)
+	ed := func(h string) []byte {
+		x, _ := hex.DecodeString(h)
+		return withKey(map[int]any{1: 1, 3: -8, -1: 6, -2: x})
+	}
 	for _, tc := range []struct {
 		name string
 		data []byte
@@ -197,6 +217,16 @@ func TestCredential(t *testing.T) {
 		{"RS256", withKey(map[int]any{1: 3, 3: -257, -1: []byte{1}, -2: []byte{1}}), Rules{}, ErrKeyData},
 		{"EdDSA on another curve", withKey(map[int]any{1: 1, 3: -8, -1: 7, -2: x}), Rules{}, ErrKeyData},
 		{"an unknown parameter", withKey(map[int]any{1: 1, 3: -8, -1: 6, -2: x, -4: x}), Rules{}, ErrKeyData},
+		// Ed25519 keys of small order verify the identity with S = 0 for
+		// any message; an encoding of y at or above p is not canonical.
+		{"EdDSA, the identity", ed("0100000000000000000000000000000000000000000000000000000000000000"), Rules{}, ErrKeyData},
+		{"EdDSA, a point of order 2", ed("ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f"), Rules{}, ErrKeyData},
+		{"EdDSA, a point of order 4", ed("0000000000000000000000000000000000000000000000000000000000000000"), Rules{}, ErrKeyData},
+		{"EdDSA, a point of order 8", ed("c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac037a"), Rules{}, ErrKeyData},
+		{"EdDSA, the identity with y = 1 + p", ed("eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f"), Rules{}, ErrKeyData},
+		{"EdDSA, a point of large order with y = 3 + p", ed("f0ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f"), Rules{}, ErrKeyData},
+		{"EdDSA, off the curve", ed("0200000000000000000000000000000000000000000000000000000000000000"), Rules{}, ErrKeyData},
+		{"EdDSA, 31 bytes", ed("01000000000000000000000000000000000000000000000000000000000000"), Rules{}, ErrKeyData},
 	} {
 		if _, err := a.Credential(tc.data, tc.r); !errors.Is(err, tc.want) {
 			t.Errorf("%s: %v, want %v", tc.name, err, tc.want)
