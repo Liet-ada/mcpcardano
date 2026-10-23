@@ -111,6 +111,19 @@ func TestEvaluate(t *testing.T) {
 			in.View.Mint = map[model.AssetID]int64{token: 1}
 			in.Policy.Structure.Mint = true
 		}, NeedsApproval, RuleModeA, ""},
+		// A burn is tokens leaving the wallet: the list and its caps apply.
+		{"burn within the cap", func(in *Input) {
+			in.View.Mint = map[model.AssetID]int64{token: -100}
+			in.Policy.Structure.Mint = true
+		}, NeedsApproval, RuleModeA, ""},
+		{"burn above the cap", func(in *Input) {
+			in.View.Mint = map[model.AssetID]int64{token: -101}
+			in.Policy.Structure.Mint = true
+		}, Blocked, RuleAsset, CodePolicyBlocked},
+		{"burn of an unlisted token", func(in *Input) {
+			in.View.Mint = map[model.AssetID]int64{stranger: -1}
+			in.Policy.Structure.Mint = true
+		}, Blocked, RuleAsset, CodePolicyBlocked},
 		{"vote", func(in *Input) { in.View.Votes = 1 }, Blocked, RuleGovernance, CodePolicyBlocked},
 		{"proposal", func(in *Input) { in.View.Proposals = 1 }, Blocked, RuleGovernance, CodePolicyBlocked},
 		{"donation", func(in *Input) { in.View.Donation = 1 }, Blocked, RuleDonation, CodePolicyBlocked},
@@ -225,6 +238,17 @@ func TestComputeSpend(t *testing.T) {
 	}
 	if len(s.Destinations) != 2 || !s.Destinations[0].Equal(shop) || !s.Destinations[1].Equal(ownPayOtherStake) {
 		t.Errorf("destinations %v", s.Destinations)
+	}
+
+	// What is burned adds to what leaves in outputs; what is minted does not
+	// count, since it only leaves in an output that is not own.
+	in.View.Mint = map[model.AssetID]int64{token: -2, stranger: 5}
+	if s, _ := ComputeSpend(in.View); len(s.Assets) != 1 || s.Assets[token] != 5 {
+		t.Errorf("assets with a burn and a mint %v", s.Assets)
+	}
+	in.View.Mint = map[model.AssetID]int64{stranger: math.MinInt64}
+	if s, _ := ComputeSpend(in.View); s.Assets[stranger] != 1<<63 {
+		t.Errorf("the largest burn: %v", s.Assets)
 	}
 }
 

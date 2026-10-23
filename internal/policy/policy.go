@@ -132,7 +132,8 @@ type Spend struct {
 	// Lovelace is the sum of the outputs that are not the wallet's own, the
 	// fee and the donation.
 	Lovelace uint64
-	// Assets is the quantity of each token in outputs that are not own.
+	// Assets is the quantity of each token in outputs that are not own, plus
+	// the quantity burned.
 	Assets map[model.AssetID]uint64
 	// Destinations are the addresses of the outputs that are not own, once
 	// each, in order of appearance.
@@ -144,6 +145,13 @@ type Spend struct {
 func ComputeSpend(v model.TxView) (Spend, error) {
 	var s Spend
 	var err error
+	addAsset := func(a model.AssetID, q uint64) (err error) {
+		if s.Assets == nil {
+			s.Assets = make(map[model.AssetID]uint64)
+		}
+		s.Assets[a], err = model.Add(s.Assets[a], q)
+		return err
+	}
 	if s.Lovelace, err = model.Add(v.Fee, v.Donation); err != nil {
 		return Spend{}, err
 	}
@@ -158,15 +166,23 @@ func ComputeSpend(v model.TxView) (Spend, error) {
 			if q == 0 {
 				continue
 			}
-			if s.Assets == nil {
-				s.Assets = make(map[model.AssetID]uint64)
-			}
-			if s.Assets[a], err = model.Add(s.Assets[a], q); err != nil {
+			if err := addAsset(a, q); err != nil {
 				return Spend{}, err
 			}
 		}
 		if !containsAddress(s.Destinations, o.Address) {
 			s.Destinations = append(s.Destinations, o.Address)
+		}
+	}
+	// A burn takes tokens out of the wallet with no output, so it counts as
+	// those tokens leaving: the list of assets and its caps apply to it.
+	for a, q := range v.Mint {
+		if q >= 0 {
+			continue
+		}
+		// -q of -2^63 is -2^63 again, which converts to 2^63, as it should.
+		if err := addAsset(a, uint64(-q)); err != nil {
+			return Spend{}, err
 		}
 	}
 	return s, nil
