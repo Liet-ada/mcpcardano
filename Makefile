@@ -3,7 +3,7 @@
 GO ?= go
 FUZZTIME ?= 10s
 
-.PHONY: check fmt vet test boundaries fuzz vuln live oracle corpus e8-agents e8-record
+.PHONY: check fmt vet test boundaries fuzz vuln live oracle corpus cli-vectors e8-agents e8-record
 
 check: fmt vet test boundaries
 
@@ -47,6 +47,12 @@ live:
 # from a separate module so Apollo never enters ours.
 oracle:
 	cd test/apollo-oracle && $(GO) run .
+
+# Regenerates internal/hdkey/testdata/cardano_cli.json, hdkey's cross vectors
+# with cardano-cli (step 3 of H-3). It needs cardano-cli 11 or later.
+CARDANO_CLI ?= cardano-cli
+cli-vectors:
+	$(GO) run test/cardano-cli/record.go -cli $(CARDANO_CLI)
 
 # Refetches the real transactions of test/corpus/txs.txt from Koios, with what
 # Koios says they contain; the decoding tests compare against it.
