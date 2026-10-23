@@ -12,6 +12,10 @@ import (
 	authn "github.com/go-authn/fido"
 )
 
+// Attached lists the security keys attached, and whether this user can open
+// each one.
+func Attached() ([]Device, error) { return probe("/sys/class/hidraw", "/dev") }
+
 // transport opens the first security key among the hidraw devices. The
 // person's user needs access to it, which the udev rules of most
 // distributions give to whoever has a session at the machine.
