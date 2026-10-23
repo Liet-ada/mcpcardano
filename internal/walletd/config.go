@@ -36,7 +36,7 @@ type Config struct {
 	ServiceUID *uint32 `json:"service_uid"`
 	AdminUID   *uint32 `json:"admin_uid"`
 	// Argon2MemoryMiB is the memory of Argon2id for a key store created with
-	// this configuration: 256 by default, at least 64 (decision 104).
+	// this configuration: 256 by default, from 64 to 4096 (decision 104).
 	Argon2MemoryMiB uint32 `json:"argon2_memory_mib,omitempty"`
 	// AllowSyncedKeys accepts FIDO2 credentials that may be synced to a
 	// cloud, which the wallet refuses by default (paper, section 6.6).
@@ -105,6 +105,9 @@ func (c Config) Check() error {
 		return fail("the two sockets must be different")
 	case c.ServiceUID == nil || c.AdminUID == nil:
 		return fail("service_uid and admin_uid are required")
+	case c.Argon2MemoryMiB > keystore.MaxMemoryKiB>>10:
+		// Checked before KeystoreParams, whose shift to KiB would overflow.
+		return fail("argon2_memory_mib may be at most %d", keystore.MaxMemoryKiB>>10)
 	}
 	if err := c.KeystoreParams().Check(); err != nil {
 		return fail("argon2_memory_mib: %v", err)

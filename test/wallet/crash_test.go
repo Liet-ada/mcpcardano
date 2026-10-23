@@ -187,6 +187,46 @@ func TestCrashWhileSigning(t *testing.T) {
 	}
 }
 
+// TestFrozenAfterCrash freezes the wallet after a crash while signing: the
+// repeated request gets no signature, neither the one the crash kept from
+// being made nor the one made before it.
+func TestFrozenAfterCrash(t *testing.T) {
+	for _, c := range []struct {
+		point   string
+		entries []string
+	}{
+		{"after-reserve", []string{ledger.TypeReserved}},
+		{"after-sign", []string{ledger.TypeReserved, ledger.TypeSigned}},
+	} {
+		t.Run(c.point, func(t *testing.T) {
+			p := newProcess(t)
+			p.start(t, c.point)
+			admin := walletkit.Dial(t, p.cfg.AdminSocket)
+			walletkit.Unlock(t, admin)
+			service := walletkit.Dial(t, p.cfg.ServiceSocket)
+			wallet := walletkit.CreateWallet(t, service, "agent")
+			body := walletkit.Encode(t, walletkit.Payment(wallet.Address, walletkit.Address(6, 7, 0), 5_000_000, walletkit.RealClock()))
+			walletkit.Sign(service, wallet.ID, body, nil)
+			p.killed(t)
+
+			p.start(t, "")
+			admin = walletkit.Dial(t, p.cfg.AdminSocket)
+			walletkit.Unlock(t, admin)
+			if err := admin.Call(context.Background(), ipc.MsgFreeze, &ipc.Freeze{WalletID: wallet.ID}, &ipc.Empty{}); err != nil {
+				t.Fatal(err)
+			}
+			service = walletkit.Dial(t, p.cfg.ServiceSocket)
+			res, err := walletkit.Sign(service, wallet.ID, body, nil)
+			if err != nil || res.Status != ipc.Rejected || res.Rejection.Code != ipc.Frozen || len(res.Witnesses) != 0 {
+				t.Fatalf("the repeated request to a frozen wallet: %+v, %v", res, err)
+			}
+			if got := p.entries(t); !slices(got, c.entries) {
+				t.Errorf("record at the end: %v, want %v", got, c.entries)
+			}
+		})
+	}
+}
+
 func spentHour(t *testing.T, service *ipc.Client, wallet string) uint64 {
 	t.Helper()
 	var ps ipc.PolicyStatus
