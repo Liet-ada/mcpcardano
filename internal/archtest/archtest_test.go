@@ -25,7 +25,7 @@ var common = []string{"model", "policy", "ipc", "audit", "cborx"}
 var (
 	serverOnly = []string{"server", "mcp", "drafts", "txbuild", "txdecode", "sanitize", "plutus", "chain", "datasource", "venues"}
 	walletOnly = []string{"walletd", "txcheck", "keystore", "ledger", "hdkey", "authz"}
-	cliOnly    = []string{"cli", "fido", "approvalpage", "signer", "mcpclient"}
+	cliOnly    = []string{"cli", "fido", "tui", "signer", "mcpclient"}
 
 	// External modules the wallet must never link (section 2.4).
 	walletForbiddenExternal = []string{
@@ -148,6 +148,8 @@ func TestExternalDependenciesStayEncapsulated(t *testing.T) {
 		mcpSDK:                               internal("mcp"),
 		"github.com/go-authn/fido":           internal("fido"),
 		"github.com/go-macos/":               internal("fido"),
+		"github.com/charmbracelet/":          internal("tui"),
+		"charm.land/":                        internal("tui"),
 	}
 	cmd := exec.Command("go", "list", "-json", "./...")
 	cmd.Dir = repoRoot(t)

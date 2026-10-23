@@ -15,6 +15,9 @@
 //	mcpcardano budget pending | budget release
 //	mcpcardano wallet create | wallet restore | wallet backup
 //	mcpcardano audit show | audit verify
+//	mcpcardano key add | key remove | key list
+//	mcpcardano recover start | recover status | recover cancel
+//	mcpcardano view                                  the interactive view
 package main
 
 import (
