@@ -30,7 +30,7 @@ func (s *Server) registerLookups() error {
 			description: "A native token, by asset_id (<policy_hex>.<name_hex>) or CIP-14 fingerprint: its identity, total supply, standard (CIP-25 or CIP-68), metadata and whether a wallet's policy lists it. The identity of a token is its policy and name, never its displayed name, which anyone can copy."},
 			s.assetInfo),
 		addTool(s, tool{name: "get_transaction", readOnly: true, openWorld: true,
-			description: "A transaction in the chain: whether it is there, its block and confirmations, its inputs and its summary decoded from its own bytes, with outputs, fee and metadata. Amounts are lovelace as decimal strings."},
+			description: "A transaction in the chain: whether it is there, its block and confirmations, and its summary decoded from its own bytes, with inputs, outputs, fee and metadata. Amounts are lovelace as decimal strings."},
 			s.transaction),
 	} {
 		if err != nil {
@@ -375,7 +375,6 @@ type transactionView struct {
 	Status             string            `json:"status"` // confirmed or unknown
 	Block              *blockView        `json:"block,omitempty"`
 	Confirmations      uint64            `json:"confirmations,omitempty"`
-	InputRefs          []string          `json:"input_refs,omitempty"`
 	Summary            *txdecode.Summary `json:"summary,omitempty"`
 	MetadataUnverified any               `json:"metadata_unverified,omitempty"`
 }
@@ -413,9 +412,6 @@ func (s *Server) transaction(ctx context.Context, a txQuery) (transactionView, e
 	}
 	if tip.Height >= t.BlockHeight {
 		out.Confirmations = tip.Height - t.BlockHeight + 1
-	}
-	for _, in := range tx.Inputs()[:min(len(tx.Inputs()), maxPage)] {
-		out.InputRefs = append(out.InputRefs, in.String())
 	}
 	out.Summary = &summary
 	out.MetadataUnverified = tx.MetadataUnverified()

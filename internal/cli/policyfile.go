@@ -280,5 +280,6 @@ func (a *admin) policySet(o *options, args []string) error {
 		return err
 	}
 	a.printf("Done. The audit log records it as %x.\n", h.Hash)
+	a.suggestKey()
 	return nil
 }

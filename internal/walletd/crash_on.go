@@ -8,6 +8,7 @@ package walletd
 import (
 	"os"
 	"syscall"
+	"time"
 )
 
 // crashHook kills the process at the point that MCPCARDANO_WALLET_CRASH
@@ -18,6 +19,12 @@ func crashHook() func(point string) {
 	return func(point string) {
 		if point == at {
 			syscall.Kill(os.Getpid(), syscall.SIGKILL)
+			// The signal arrives asynchronously, and under load the caller
+			// went on and wrote what comes after the point before the
+			// process died. Nothing may run past the point meanwhile.
+			for {
+				time.Sleep(time.Hour)
+			}
 		}
 	}
 }

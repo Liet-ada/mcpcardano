@@ -47,7 +47,7 @@ func (s *Server) registerRead() error {
 			description: "Balance of a wallet (lovelace and tokens), its UTxOs, what drafts hold, live drafts, and the health of its UTxOs with a suggestion. Amounts are lovelace or token units as decimal strings."},
 			s.walletOverview),
 		addTool(s, tool{name: "get_policy_status", readOnly: true,
-			description: "The policy of a wallet: mode, limits, allowed destinations and tokens, live drafts and whether it is frozen; in modes B and C also what it spent in the last hour and day, the budget left and the open session, as the wallet process counts them. The agent cannot change it. Amounts are lovelace as decimal strings."},
+			description: "The policy of a wallet: mode, limits, allowed destinations and tokens, live drafts and whether it is frozen; in modes B and C also what it spent in the last hour and day, the transactions of the last hour and the new destinations of the last hour and day (each against the limit of the same name), the budget left and the open session, as the wallet process counts them. The agent cannot change it. Amounts are lovelace as decimal strings."},
 			s.policyStatus),
 		addTool(s, tool{name: "list_utxos", readOnly: true, openWorld: true,
 			description: "Unspent outputs of a wallet (wallet_id) or of any payment address (address), by pages of at most 100 with a cursor. Amounts are lovelace or token units as decimal strings."},
@@ -311,13 +311,18 @@ type policyStatus struct {
 	// SpendTracked says whether spending windows and budgets are counted. In
 	// mode A they are not: the person confirms every payment on the device.
 	SpendTracked bool `json:"spend_tracked"`
-	// In modes B and C, what the wallet process counts (section 3.9).
-	SpentHour       string       `json:"spent_hour,omitempty"`
-	SpentDay        string       `json:"spent_day,omitempty"`
-	BudgetRemaining string       `json:"budget_remaining,omitempty"`
-	Locked          string       `json:"locked,omitempty"`
-	Committed       string       `json:"committed,omitempty"`
-	Session         *sessionView `json:"session,omitempty"`
+	// In modes B and C, what the wallet process counts (section 3.9). The
+	// counts of the last hour and the last day go against the limits of the
+	// same names.
+	SpentHour           string       `json:"spent_hour,omitempty"`
+	SpentDay            string       `json:"spent_day,omitempty"`
+	TransactionsHour    *uint32      `json:"transactions_hour,omitempty"`
+	NewDestinationsHour *uint32      `json:"new_destinations_hour,omitempty"`
+	NewDestinationsDay  *uint32      `json:"new_destinations_day,omitempty"`
+	BudgetRemaining     string       `json:"budget_remaining,omitempty"`
+	Locked              string       `json:"locked,omitempty"`
+	Committed           string       `json:"committed,omitempty"`
+	Session             *sessionView `json:"session,omitempty"`
 }
 
 // sessionView is an open session: until when, and the lovelace it still
@@ -370,6 +375,7 @@ func (s *Server) policyStatus(ctx context.Context, a walletArg) (policyStatus, e
 	}
 	if ps != nil {
 		out.SpentHour, out.SpentDay, out.BudgetRemaining = f(ps.SpentHour), f(ps.SpentDay), f(ps.BudgetRemaining)
+		out.TransactionsHour, out.NewDestinationsHour, out.NewDestinationsDay = &ps.TxHour, &ps.NewDestinationsHour, &ps.NewDestinationsDay
 		out.Locked, out.Committed = f(ps.Locked), f(ps.Committed)
 		if ps.Session != nil {
 			out.Session = &sessionView{ExpiresAt: time.Unix(ps.Session.ExpiresAt, 0).UTC().Format(time.RFC3339),

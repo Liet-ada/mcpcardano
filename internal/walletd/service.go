@@ -28,8 +28,9 @@ func (d *Daemon) listWallets() *ipc.WalletList {
 }
 
 // policyStatus is a wallet's mode, its policy and what it has spent (section
-// 5.3). Pending lists its signed transactions whose TTL has not passed, for
-// the server to follow after a restart (section 9.5).
+// 5.3), with the destinations asked about that its record knows. Pending
+// lists its signed transactions whose TTL has not passed, for the server to
+// follow after a restart (section 9.5).
 func (d *Daemon) policyStatus(b *ipc.GetPolicyStatus) (*ipc.PolicyStatus, error) {
 	r, err := d.wallet(b.WalletID)
 	if err != nil {
@@ -38,9 +39,15 @@ func (d *Daemon) policyStatus(b *ipc.GetPolicyStatus) (*ipc.PolicyStatus, error)
 	now := d.now()
 	u := d.usage(r, now)
 	ps := &ipc.PolicyStatus{Mode: r.Mode, Policy: r.Policy, Session: wireSession(d.openSession(r.ID, now)),
-		SpentHour: u.Hour.Lovelace, SpentDay: u.Day.Lovelace, Pending: []ipc.PendingTx{}}
+		SpentHour: u.Hour.Lovelace, SpentDay: u.Day.Lovelace, TxHour: u.Hour.Transactions,
+		NewDestinationsHour: u.Hour.NewDestinations, NewDestinationsDay: u.Day.NewDestinations, Pending: []ipc.PendingTx{}}
 	if b := r.Policy.Limits.Budget; u.BudgetSpent < b {
 		ps.BudgetRemaining = b - u.BudgetSpent
+	}
+	for _, a := range b.Destinations {
+		if u.Known != nil && u.Known(model.Address{Raw: a}) {
+			ps.Known = append(ps.Known, a)
+		}
 	}
 	slot := d.slot()
 	for _, rec := range d.ledger.Records(model.WalletID(r.ID)) {

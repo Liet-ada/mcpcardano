@@ -70,13 +70,13 @@ bin/mcpcardano-wallet -config wallet.json
 }
 ```
 
-`service_uid` and `admin_uid` are the users the kernel must certify at the other end of each socket: the server's and the person's. The wallet starts locked, and refuses to start if it can reach the network; `"development": true` skips that check, and its audit log records it. `"argon2_memory_mib"` lowers the memory of Argon2id from 256 to as little as 64 on small machines, before `init`.
+`service_uid` and `admin_uid` are the users the kernel must certify at the other end of each socket: the server's and the person's. The wallet starts locked, and refuses to start if it can reach the network; `"development": true` skips that check, and its audit log records it. `"argon2_memory_mib"` lowers the memory of Argon2id from 256 to as little as 64 on small machines, before `init`. The wallet refuses FIDO2 credentials that may be synced to a cloud unless `"allow_synced_keys": true`, and `"recovery_wait_hours"` sets how long a recovery without keys keeps the wallets frozen before it removes the keys: 72 by default.
 
 The server talks to the wallet when its `config.json` names the service socket in `"wallet_socket"`. Its wallets then appear in `list_wallets` next to those of mode A, and the agent can create one with `create_wallet`, which gets the person's template. `authorize_draft` asks the wallet to sign: in mode C it signs within the policy and the budget and the server sends the transaction at once; in mode B, above the approval threshold, the draft waits in `pending_approval` until the person approves it. While the wallet is locked, `authorize_draft` answers `WALLET_UNAVAILABLE` and the draft waits for the agent to ask again.
 
 ### The person's commands
 
-`mcpcardano` talks to the wallet's admin socket (`-admin`, or `MCPCARDANO_ADMIN_SOCKET`) on its network (`-network`, or `MCPCARDANO_NETWORK`; preprod by default). What lowers the risk needs nothing; what raises what can be spent shows the summary the wallet computed and asks for the password, without echo.
+`mcpcardano` talks to the wallet's admin socket (`-admin`, or `MCPCARDANO_ADMIN_SOCKET`) on its network (`-network`, or `MCPCARDANO_NETWORK`; preprod by default). What lowers the risk needs nothing; what raises what can be spent shows the summary the wallet computed and asks for the password, without echo, or, once a FIDO2 security key is registered, for its touch.
 
 ```
 mcpcardano unlock                                   # after each start of the wallet
@@ -89,7 +89,14 @@ mcpcardano policy set -wallet id policy.json        # or -template; mode B or C
 mcpcardano budget pending | budget release -wallet id [transaction ...]
 mcpcardano wallet create -label name | wallet restore -label name | wallet backup -wallet id
 mcpcardano audit show [-from seq] | audit verify
+mcpcardano key add -name name | key remove -name name | key list
+mcpcardano recover start | recover status | recover cancel
+mcpcardano view                                     # the interactive view, in a terminal
 ```
+
+`mcpcardano view` follows the wallet as it changes: the wallets, their sessions and the approvals waiting, refreshed every two seconds. Enter reads an approval with the summary the wallet computed, `a` approves it with a registered key's touch, or the password when there is none, and `r` rejects it; `f` freezes every wallet at once, and `q` quits. It talks only to the admin socket, like every other command, and opens no port.
+
+A security key replaces the password for every authorization; changing policies, adding or removing keys and showing a recovery phrase also take its PIN. `key add` needs a key with a PIN set, and the password, or a registered key's touch once there is one: the CLI creates the credential on the new key, then asks for a registered one. Register a second key as a backup. With every key lost, `recover start` takes the password, freezes every wallet and, after 72 hours, removes the keys, so the password authorizes again; until then a registered key's touch cancels it, and every command warns of it. The CLI talks to the key over USB, through IOKit on macOS and hidraw on Linux, where the person's user needs access to the key's `/dev/hidraw*`.
 
 `policy show` writes the policy in the JSON of the server's `config.json`, with the mode, `session_required` and `structure` besides; edit it and give it to `policy set`. Freezing is not in it: `freeze` and `unfreeze` change it. Amounts are lovelace. Exit codes: 0 done, 1 error, 2 wrong usage, 3 authorization refused, expired or declined, 4 the wallet does not answer or is locked.
 

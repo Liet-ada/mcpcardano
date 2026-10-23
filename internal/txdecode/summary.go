@@ -26,9 +26,10 @@ const (
 )
 
 // Limits per response, since flooding the context is an attack too (paper,
-// section 7.1). A summary shows at most MaxOutputs outputs and MaxTokens
-// tokens in all; a list that is cut says how long it was.
+// section 7.1). A summary shows at most MaxInputs inputs, MaxOutputs outputs
+// and MaxTokens tokens in all; a list that is cut says how long it was.
 const (
+	MaxInputs  = 100
 	MaxOutputs = 100
 	MaxTokens  = 100
 )
@@ -59,7 +60,8 @@ func Tokens(b *Budget, m map[model.AssetID]uint64) (list []Asset, count int) {
 // when present, so nothing in the body goes unseen.
 type Summary struct {
 	TxID              string   `json:"tx_id"`
-	Inputs            int      `json:"inputs"`
+	Inputs            []Input  `json:"inputs"`
+	InputsCount       int      `json:"inputs_count,omitempty"` // only when the list is cut
 	Outputs           []Output `json:"outputs"`
 	OutputsCount      int      `json:"outputs_count,omitempty"` // only when the list is cut
 	Fee               string   `json:"fee"`
@@ -84,6 +86,18 @@ type Summary struct {
 	Votes            int      `json:"votes,omitempty"`
 	Proposals        int      `json:"proposals,omitempty"`
 	Donation         string   `json:"donation,omitempty"`
+}
+
+// Input is one input of the summary: the output it spends, by transaction id
+// and index. Own and the value are present only when the summary knows that
+// output, as for a draft, whose inputs the server chose; they are what the
+// data source says.
+type Input struct {
+	Ref         string  `json:"ref"`
+	Own         *bool   `json:"own,omitempty"`
+	Lovelace    string  `json:"lovelace,omitempty"`
+	Assets      []Asset `json:"assets,omitempty"`
+	AssetsCount int     `json:"assets_count,omitempty"` // only when the list is cut
 }
 
 // Output is one output of the summary. Own is present only when the summary
@@ -130,7 +144,8 @@ type Options struct {
 	// as in decode_transaction.
 	Wallet *model.Address
 	// Spent are the outputs the inputs consume. With a wallet and every
-	// input among them, the summary has a net effect.
+	// input among them, the summary has a net effect. Each input among them
+	// shows its value.
 	Spent []chain.UTxO
 	// Verified marks the tokens the person listed in the policy of a wallet.
 	Verified func(model.AssetID) bool
@@ -142,7 +157,7 @@ func (t *Tx) Summary(o Options) (Summary, error) {
 	d, v := t.d, t.d.View
 	s := Summary{
 		TxID:             hex.EncodeToString(d.ID[:]),
-		Inputs:           len(d.Inputs),
+		Inputs:           []Input{},
 		Outputs:          []Output{},
 		Fee:              model.FormatAmount(v.Fee),
 		NetworkID:        v.NetworkID,
@@ -170,8 +185,9 @@ func (t *Tx) Summary(o Options) (Summary, error) {
 	}
 
 	// The net effect goes first: it is what the person most needs to see.
+	spent := byInput(o.Spent)
 	if o.Wallet != nil {
-		s.NetEffect = netEffect(d, *o.Wallet, o.Spent, budget)
+		s.NetEffect = netEffect(d, *o.Wallet, spent, budget)
 	}
 	outs := v.Outputs
 	if len(outs) > MaxOutputs {
@@ -195,6 +211,8 @@ func (t *Tx) Summary(o Options) (Summary, error) {
 		}
 		s.Outputs = append(s.Outputs, so)
 	}
+	// The inputs go after the outputs, which take the tokens first.
+	s.Inputs, s.InputsCount = inputs(d.Inputs, o.Wallet, spent, budget)
 
 	for _, c := range v.Certificates {
 		s.Certificates = append(s.Certificates, c.Kind)
@@ -209,6 +227,38 @@ func (t *Tx) Summary(o Options) (Summary, error) {
 	}
 	s.MessageUnverified = message(d.Message)
 	return s, nil
+}
+
+// byInput indexes the outputs the inputs consume.
+func byInput(spent []chain.UTxO) map[chain.TxIn]chain.UTxO {
+	m := make(map[chain.TxIn]chain.UTxO, len(spent))
+	for _, u := range spent {
+		m[u.In] = u
+	}
+	return m
+}
+
+// inputs lists the inputs in body order, at most MaxInputs of them, with the
+// value of those whose output the summary knows. If it cuts the list, count
+// is how many there are.
+func inputs(ins []chain.TxIn, wallet *model.Address, spent map[chain.TxIn]chain.UTxO, b *Budget) (list []Input, count int) {
+	if len(ins) > MaxInputs {
+		count, ins = len(ins), ins[:MaxInputs]
+	}
+	list = make([]Input, 0, len(ins))
+	for _, in := range ins {
+		i := Input{Ref: in.String()}
+		if u, ok := spent[in]; ok {
+			i.Lovelace = model.FormatAmount(u.Value.Lovelace)
+			i.Assets, i.AssetsCount = Tokens(b, u.Value.Assets)
+			if wallet != nil {
+				own := u.Address.Equal(*wallet)
+				i.Own = &own
+			}
+		}
+		list = append(list, i)
+	}
+	return list, count
 }
 
 // assets lists a token map in the fixed order of section 8.2, as far as the
@@ -259,13 +309,9 @@ func message(lines []string) []string {
 
 // netEffect is what the outputs leave at the wallet's address minus what the
 // inputs take from it. It is nil unless every input is among spent.
-func netEffect(d *chain.DecodedTx, wallet model.Address, spent []chain.UTxO, b *Budget) *Effect {
+func netEffect(d *chain.DecodedTx, wallet model.Address, spent map[chain.TxIn]chain.UTxO, b *Budget) *Effect {
 	if len(d.Inputs) == 0 {
 		return nil
-	}
-	byIn := make(map[chain.TxIn]chain.UTxO, len(spent))
-	for _, u := range spent {
-		byIn[u.In] = u
 	}
 	lovelace := new(big.Int)
 	tokens := map[model.AssetID]*big.Int{}
@@ -279,7 +325,7 @@ func netEffect(d *chain.DecodedTx, wallet model.Address, spent []chain.UTxO, b *
 		}
 	}
 	for _, in := range d.Inputs {
-		u, ok := byIn[in]
+		u, ok := spent[in]
 		if !ok {
 			return nil
 		}

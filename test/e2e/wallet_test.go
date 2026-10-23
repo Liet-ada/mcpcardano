@@ -164,7 +164,7 @@ func code(err error) string {
 // addresses of other people, on preprod.
 var (
 	shop   = "addr_test1vz2fxv2umyhttkxyxp8x0dlpdt3k6cwng5pxj3jhsydzerspjrlsz"
-	others = []string{enterprise(1), enterprise(2)}
+	others = []string{enterprise(1), enterprise(2), enterprise(3)}
 )
 
 // enterprise is the preprod enterprise address of a key hash of b's.
@@ -228,13 +228,15 @@ func TestModesBAndCEndToEnd(t *testing.T) {
 		t.Fatalf("policy status %+v, %v", ps, err)
 	}
 
-	// Beyond what the server can see: a third new destination within the
-	// hour passes the server's verdict and the wallet refuses it.
+	// The server counts new destinations as the wallet does, but when it
+	// builds: two drafts to new destinations built before either is signed
+	// both pass its verdict, and the wallet refuses the one beyond the limit
+	// of the hour.
 	second := st.pay(w.WalletID, others[0], "2000000")
+	third := st.pay(w.WalletID, others[1], "2000000")
 	if err := st.call("authorize_draft", map[string]any{"draft_id": second.DraftID}, &second); err != nil || second.State != "submitted" {
 		t.Fatalf("second destination: %+v, %v", second, err)
 	}
-	third := st.pay(w.WalletID, others[1], "2000000")
 	err := st.call("authorize_draft", map[string]any{"draft_id": third.DraftID}, &third)
 	if code(err) != "BUDGET_EXCEEDED" || !strings.Contains(err.Error(), "limits.new_destinations_per_hour") {
 		t.Fatalf("a third new destination: %v", err)
@@ -242,6 +244,13 @@ func TestModesBAndCEndToEnd(t *testing.T) {
 	st.call("get_draft", map[string]any{"draft_id": third.DraftID}, &third)
 	if third.State != "rejected" {
 		t.Errorf("the refused draft is %s", third.State)
+	}
+	// With the limit reached, a draft to another new destination comes out
+	// blocked; the shop, already paid, is not new and is paid below.
+	err = st.call("build_payment", map[string]any{"wallet_id": w.WalletID,
+		"outputs": []any{map[string]any{"address": others[2], "lovelace": "2000000"}}}, &draft{})
+	if code(err) != "BUDGET_EXCEEDED" || !strings.Contains(err.Error(), "limits.new_destinations_per_hour") {
+		t.Fatalf("a new destination beyond the limit: %v", err)
 	}
 
 	// A wallet the person creates is one the server learns of when the

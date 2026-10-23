@@ -4,9 +4,8 @@
 // Package authz authorizes what raises the capacity to spend (section 6.2 of
 // the specification). BeginAuthorization makes a single-use challenge around
 // the canonical message of section 6.3; CompleteAuthorization checks the
-// password and hands the action back to be executed once. In H-2 the password
-// is the only method; the FIDO2 key, which signs the hash of the same
-// message, arrives in H-3.
+// password or the FIDO2 key's signature over the hash of that message, and
+// hands the action back to be executed once.
 //
 // Every password check, the unlock at start included, goes through Attempt:
 // after each wrong password the wait before the next one is accepted doubles.
@@ -146,16 +145,18 @@ func (a *Authorizer) Begin(action string, wallet model.WalletID, det, params any
 	return au, nil
 }
 
-// Complete checks the password against an open challenge, through Attempt.
-// On success the challenge is used up and returned, to be run once; a wrong
-// password leaves it open until it expires. An id that is not open, because
-// it expired, was used, or the wallet restarted since, gives ErrExpired: to
-// the person they are all the same.
-func (a *Authorizer) Complete(id [IDSize]byte, check func() error) (*Authorization, error) {
-	if !a.open(id) {
+// Complete runs check against an open challenge: the password through
+// Attempt, or Verify on the key's assertion over its message. On success the
+// challenge is used up and returned, to be run once; a failed check leaves it
+// open until it expires. An id that is not open, because it expired, was
+// used, or the wallet restarted since, gives ErrExpired: to the person they
+// are all the same.
+func (a *Authorizer) Complete(id [IDSize]byte, check func(*Authorization) error) (*Authorization, error) {
+	au := a.open(id)
+	if au == nil {
 		return nil, ErrExpired
 	}
-	if err := a.Attempt(check); err != nil {
+	if err := check(au); err != nil {
 		return nil, err
 	}
 	a.mu.Lock()
@@ -169,15 +170,16 @@ func (a *Authorizer) Complete(id [IDSize]byte, check func() error) (*Authorizati
 	return au, nil
 }
 
-func (a *Authorizer) open(id [IDSize]byte) bool {
+// open returns the open challenge with this id, or nil.
+func (a *Authorizer) open(id [IDSize]byte) *Authorization {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	au, ok := a.pending[id]
 	if ok && !a.Now().Before(au.Expires) {
 		a.drop(id)
-		return false
+		return nil
 	}
-	return ok
+	return au
 }
 
 // drop removes an open challenge that will not run, and wipes its params.

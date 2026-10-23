@@ -49,6 +49,7 @@ func defaultNetwork() string {
 // it takes.
 type options struct {
 	wallet, label string
+	name          string
 	template      bool
 	duration      time.Duration
 	max           string
@@ -98,7 +99,14 @@ var commands = map[string]command{
 		fs.Uint64Var(&o.from, "from", 0, "the first entry")
 		fs.UintVar(&o.limit, "limit", 20, fmt.Sprintf("how many entries, up to %d", ipc.MaxAuditPage))
 	}, 0, (*admin).auditShow},
-	"audit verify": {"", nil, 0, (*admin).auditVerify},
+	"audit verify":   {"", nil, 0, (*admin).auditVerify},
+	"key add":        {"-name name", nameFlag, 0, (*admin).keyAdd},
+	"key remove":     {"-name name", nameFlag, 0, (*admin).keyRemove},
+	"key list":       {"", nil, 0, (*admin).keyList},
+	"recover start":  {"", nil, 0, (*admin).recoverStart},
+	"recover status": {"", nil, 0, (*admin).recoverStatus},
+	"recover cancel": {"", nil, 0, (*admin).recoverCancel},
+	"view":           {"", nil, 0, (*admin).view},
 }
 
 func policyFlags(fs *flag.FlagSet, o *options) {
@@ -134,9 +142,16 @@ var errUnreachable = errors.New("the wallet does not answer")
 
 // Admin runs one of the person's commands on the wallet's admin socket
 // (section 6.1). Reducing the risk needs no authorization; what raises what
-// can be spent asks for the password after showing the summary the wallet
-// computed (section 6.2). The exit code is that of section 6.5.
+// can be spent shows the summary the wallet computed and asks for a touch of
+// a registered security key, or the password when there is none (section
+// 6.2). The exit code is that of section 6.5.
 func Admin(ctx context.Context, args []string, version string, in io.Reader, out, errOut io.Writer) int {
+	return runAdmin(ctx, args, version, in, out, errOut, defaultKeys)
+}
+
+// runAdmin is Admin with the way to the security key, which the tests
+// replace with a key in software.
+func runAdmin(ctx context.Context, args []string, version string, in io.Reader, out, errOut io.Writer, k keys) int {
 	name, rest := args[0], args[1:]
 	if _, ok := commands[name]; !ok && len(rest) > 0 {
 		name, rest = name+" "+rest[0], rest[1:]
@@ -163,7 +178,7 @@ func Admin(ctx context.Context, args []string, version string, in io.Reader, out
 		return usage()
 	}
 	a := &admin{ctx: ctx, socket: *socket, hello: ipc.Hello{Software: "mcpcardano " + version, Network: *network},
-		codec: ipc.NewCodec(), in: in, out: out, errOut: errOut, network: *network}
+		codec: ipc.NewCodec(), in: in, out: out, errOut: errOut, network: *network, keys: k, command: name}
 	defer a.close()
 	err = c.run(a, &o, args)
 	if errors.Is(err, errUsage) {
@@ -207,9 +222,10 @@ func report(errOut io.Writer, err error) int {
 	}
 	var e *ipc.Error
 	if !errors.As(err, &e) {
-		fmt.Fprintln(errOut, "mcpcardano:", err)
+		// The error may carry what a security key said about itself.
+		fmt.Fprintln(errOut, "mcpcardano:", ipc.Detail(err.Error()))
 		switch {
-		case errors.Is(err, errCancelled):
+		case errors.Is(err, errCancelled), errors.Is(err, errKeyRefused):
 			return ExitRejected
 		case errors.Is(err, errUnreachable):
 			return ExitUnavailable
@@ -245,6 +261,9 @@ type admin struct {
 	in          io.Reader
 	out, errOut io.Writer
 	network     string
+	keys        keys
+	command     string            // the command's name, as "recover status"
+	st          *ipc.StatusReport // the status when the command connected
 }
 
 func (a *admin) call(t string, req, resp ipc.Body) error {
@@ -258,6 +277,13 @@ func (a *admin) call(t string, req, resp ipc.Body) error {
 			return err
 		}
 		a.client = c
+		// Every command learns the status first, to warn of a recovery that
+		// is waiting and to know whether a key is registered.
+		var st ipc.StatusReport
+		if c.Call(a.ctx, ipc.MsgStatus, &ipc.Empty{}, &st) == nil {
+			a.st = &st
+			a.warnRecovery(&st)
+		}
 	}
 	return a.client.Call(a.ctx, t, req, resp)
 }
@@ -276,8 +302,10 @@ func (a *admin) secret(prompt string) (model.Secret, error) {
 }
 
 // authorize runs an action that raises what can be spent (section 6.2): it
-// shows the summary the wallet computed, as it comes, asks for the password
-// and decodes the action's result into result. An empty password declines.
+// shows the summary the wallet computed, as it comes, asks for a touch of a
+// registered key, with its PIN if the action needs it, or for the password,
+// and decodes the action's result into result. An empty password or PIN
+// declines.
 func (a *admin) authorize(action string, params, result ipc.Body) error {
 	raw, err := a.codec.Encode(params)
 	if err != nil {
@@ -292,13 +320,19 @@ func (a *admin) authorize(action string, params, result ipc.Body) error {
 	for _, line := range ch.Summary {
 		fmt.Fprintln(a.errOut, "  "+line)
 	}
-	password, err := a.secret(fmt.Sprintf("Password, before %s (empty to decline): ", clock(ch.ExpiresAt)))
-	if err != nil {
-		return err
+	complete := &ipc.CompleteAuthorization{AuthID: ch.AuthID}
+	if ch.Methods[0] == ipc.MethodKey {
+		if complete.Assertion, err = a.assert(&ch); err != nil {
+			return err
+		}
+	} else {
+		if complete.Password, err = a.secret(fmt.Sprintf("Password, before %s (empty to decline): ", clock(ch.ExpiresAt))); err != nil {
+			return err
+		}
+		defer clear(complete.Password)
 	}
-	defer clear(password)
 	var done ipc.Completed
-	if err := a.call(ipc.MsgCompleteAuthorization, &ipc.CompleteAuthorization{AuthID: ch.AuthID, Password: password}, &done); err != nil {
+	if err := a.call(ipc.MsgCompleteAuthorization, complete, &done); err != nil {
 		return err
 	}
 	if result == nil {

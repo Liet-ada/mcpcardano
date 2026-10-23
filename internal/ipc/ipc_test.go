@@ -24,6 +24,15 @@ import (
 
 func filled(n int, b byte) []byte { return bytes.Repeat([]byte{b}, n) }
 
+// manyAddresses returns n distinct enterprise addresses, in order.
+func manyAddresses(n int) [][]byte {
+	out := make([][]byte, n)
+	for i := range out {
+		out[i] = append([]byte{0x60, byte(i)}, filled(27, 8)...)
+	}
+	return out
+}
+
 var (
 	walletA   = mustID(model.NewWalletID(bytes.NewReader(filled(16, 1))))
 	walletB   = mustID(model.NewWalletID(bytes.NewReader(filled(16, 2))))
@@ -85,9 +94,10 @@ func samples(t testing.TB) map[string][2]Body {
 		},
 		MsgCreateWallet:      {&CreateWallet{Label: "Agent wallet", IdempotencyKey: "k1"}, &WalletCreated{Wallet: sampleWallet(walletA), Policy: p}},
 		MsgGetApprovalStatus: {&GetApprovalStatus{ApprovalID: approval}, &ApprovalStatus{Status: ApprovalApproved, Witnesses: witness(), ExpiresAt: 1_792_000_000}},
-		MsgGetPolicyStatus: {&GetPolicyStatus{WalletID: walletA}, &PolicyStatus{
+		MsgGetPolicyStatus: {&GetPolicyStatus{WalletID: walletA, Destinations: [][]byte{filled(29, 0x60), filled(29, 0x61)}}, &PolicyStatus{
 			Mode: "B", Policy: p, Session: &Session{ExpiresAt: 1_792_000_000, Remaining: 10_000_000},
-			SpentHour: 1, SpentDay: 2, BudgetRemaining: 3, Pending: []PendingTx{{TxID: filled(32, 6), TTL: 81_234_567}},
+			SpentHour: 1, SpentDay: 2, TxHour: 4, NewDestinationsHour: 5, NewDestinationsDay: 6, Known: [][]byte{filled(29, 0x61)},
+			BudgetRemaining: 3, Pending: []PendingTx{{TxID: filled(32, 6), TTL: 81_234_567}},
 		}},
 		MsgPing:        {&Empty{}, &PingResult{AnyFrozen: true, Slot: 81_234_000}},
 		MsgListWallets: {&Empty{}, &WalletList{Wallets: []Wallet{sampleWallet(walletA), sampleWallet(walletB)}}},
@@ -97,16 +107,22 @@ func samples(t testing.TB) map[string][2]Body {
 			Wallets:         []WalletStatus{{Wallet: sampleWallet(walletA), Session: &Session{ExpiresAt: 1, Remaining: 2}, OpenDestinations: true}},
 			Approvals:       []Approval{{ID: approval, WalletID: walletA, Spend: sampleSpend(), ExpiresAt: 1_792_000_000}},
 			LastLedgerEntry: 1_791_000_000,
+			Keys:            []KeyInfo{{Name: "YubiKey", CredentialID: filled(64, 9), Alg: AlgEdDSA, Added: 1_790_000_000}},
+			Recovery:        &Recovery{StartedAt: 1_791_000_000, EndsAt: 1_791_259_200},
 		}},
 		MsgUnlock: {&Unlock{Password: model.Secret("correct horse")}, &Empty{}},
 		MsgBeginAuthorization: {
 			&BeginAuthorization{Action: ActOpenSession, Params: raw(t, &OpenSession{WalletID: walletA, Seconds: 3600, MaxLovelace: 50_000_000})},
-			&Challenge{AuthID: filled(16, 3), Summary: []string{"Open a session on Agent wallet", "for 1 hour, up to 50 ADA"}, Methods: []string{MethodPassword}, ExpiresAt: 1},
+			&Challenge{AuthID: filled(16, 3), Summary: []string{"Open a session on Agent wallet", "for 1 hour, up to 50 ADA"}, Methods: []string{MethodKey},
+				ExpiresAt: 1, RPID: "mcpcardano", Credentials: [][]byte{filled(64, 9), filled(48, 8)}, PIN: true, ClientDataHash: filled(32, 7)},
 		},
-		MsgCompleteAuthorization: {&CompleteAuthorization{AuthID: filled(16, 3), Password: model.Secret("correct horse")}, &Completed{Result: raw(t, &Empty{})}},
-		MsgReject:                {&ApprovalRef{ApprovalID: approval}, &Empty{}},
-		MsgFreeze:                {&Freeze{}, &Empty{}},
-		MsgCloseSession:          {&WalletRef{WalletID: walletA}, &Empty{}},
+		MsgCompleteAuthorization: {
+			&CompleteAuthorization{AuthID: filled(16, 3), Assertion: &Assertion{CredentialID: filled(64, 9), AuthenticatorData: filled(37, 1), Signature: filled(70, 2)}},
+			&Completed{Result: raw(t, &Empty{})},
+		},
+		MsgReject:       {&ApprovalRef{ApprovalID: approval}, &Empty{}},
+		MsgFreeze:       {&Freeze{}, &Empty{}},
+		MsgCloseSession: {&WalletRef{WalletID: walletA}, &Empty{}},
 		MsgListExpired: {&ListExpired{WalletID: walletA}, &ExpiredList{Entries: []Expired{
 			{WalletID: walletA, BodyHash: filled(32, 4), Spend: Spend{Lovelace: 1}, TTL: 9, Time: 8},
 		}}},
@@ -175,6 +191,10 @@ func TestEveryActionHasBodies(t *testing.T) {
 		ActCreateWallet:       &CreateWallet{Label: "Savings"},
 		ActRestoreWallet:      &RestoreWallet{Label: "Savings", Phrase: model.Secret("abandon abandon about")},
 		ActShowRecoveryPhrase: &WalletRef{WalletID: walletA},
+		ActAddKey:             &AddKey{Name: "YubiKey", AuthenticatorData: filled(200, 1)},
+		ActRemoveKey:          &KeyRef{CredentialID: filled(64, 9)},
+		ActStartRecovery:      &Empty{},
+		ActCancelRecovery:     &Empty{},
 	}
 	for action := range actions {
 		p, ok := params[action]
@@ -232,8 +252,8 @@ func TestEnvelopeRejections(t *testing.T) {
 		t.Fatalf("a valid Ping: %v", err)
 	}
 	unsorted, _ := hex.DecodeString("a4" + "61" + hex.EncodeToString([]byte("t")) + "6450696e67" +
-		"61" + hex.EncodeToString([]byte("v")) + "01" + "6162a0" + "626964" + "50" + hex.EncodeToString(reqID))
-	nonMinimal := bytes.Replace(ping, []byte{0x61, 'v', 0x01}, []byte{0x61, 'v', 0x18, 0x01}, 1)
+		"61" + hex.EncodeToString([]byte("v")) + hex.EncodeToString([]byte{Version}) + "6162a0" + "626964" + "50" + hex.EncodeToString(reqID))
+	nonMinimal := bytes.Replace(ping, []byte{0x61, 'v', Version}, []byte{0x61, 'v', 0x18, Version}, 1)
 	indefinite := append([]byte{0xbf}, ping[1:]...)
 	indefinite = append(indefinite, 0xff)
 	deep := enc(t, map[string]any{"v": uint64(Version), "id": reqID, "t": MsgPing,
@@ -249,7 +269,7 @@ func TestEnvelopeRejections(t *testing.T) {
 		{"no id", Service, envelope(t, map[string]any{"id": nil}), Malformed},
 		{"a short id", Service, envelope(t, map[string]any{"id": filled(15, 1)}), Malformed},
 		{"the id as text", Service, envelope(t, map[string]any{"id": "0123456789abcdef"}), Malformed},
-		{"another version", Service, envelope(t, map[string]any{"v": uint64(2)}), ProtocolMismatch},
+		{"another version", Service, envelope(t, map[string]any{"v": uint64(Version + 1)}), ProtocolMismatch},
 		{"an unknown type", Service, envelope(t, map[string]any{"t": "Sign"}), Malformed},
 		{"an admin message on the service socket", Service, envelope(t, map[string]any{"t": MsgUnlock}), Malformed},
 		{"a service message on the admin socket", Admin, envelope(t, map[string]any{"t": MsgSignDraft}), Malformed},
@@ -320,9 +340,29 @@ func TestBodyRejections(t *testing.T) {
 		{"an unknown network", pol(func(p *Policy) { p.Networks = []string{"testnet"} })},
 		{"any destination with a list", pol(func(p *Policy) { p.Destinations.Any = true })},
 		{"destinations repeated", pol(func(p *Policy) { p.Destinations.Allowed = [][]byte{addr, addr} })},
+		{"draft destinations out of order", &GetPolicyStatus{WalletID: walletA, Destinations: [][]byte{filled(29, 2), filled(29, 1)}}},
+		{"an empty draft destination", &GetPolicyStatus{WalletID: walletA, Destinations: [][]byte{{}}}},
+		{"more draft destinations than a payment has outputs", &GetPolicyStatus{WalletID: walletA, Destinations: manyAddresses(model.MaxPaymentOutputs + 1)}},
+		{"known destinations repeated", &PolicyStatus{Mode: "B", Policy: samplePolicy(), Known: [][]byte{addr, addr}, Pending: []PendingTx{}}},
 		{"an asset name too long", pol(func(p *Policy) { p.Assets = []AssetCap{{Policy: policyID, Name: filled(33, 1)}} })},
 		{"a short policy id", pol(func(p *Policy) { p.Assets = []AssetCap{{Policy: filled(27, 1)}} })},
 		{"two methods", &Challenge{AuthID: filled(16, 1), Summary: []string{"x"}, Methods: []string{"password", "fido2"}}},
+		{"an unknown method", &Challenge{AuthID: filled(16, 1), Summary: []string{"x"}, Methods: []string{"face"}}},
+		{"a password challenge with a key's fields", &Challenge{AuthID: filled(16, 1), Summary: []string{"x"}, Methods: []string{MethodPassword}, PIN: true}},
+		{"a key challenge without credentials", &Challenge{AuthID: filled(16, 1), Summary: []string{"x"}, Methods: []string{MethodKey},
+			RPID: "mcpcardano", ClientDataHash: filled(32, 1)}},
+		{"a key challenge with a short hash", &Challenge{AuthID: filled(16, 1), Summary: []string{"x"}, Methods: []string{MethodKey},
+			RPID: "mcpcardano", Credentials: [][]byte{filled(64, 9)}, ClientDataHash: filled(31, 1)}},
+		{"a password and an assertion", &CompleteAuthorization{AuthID: filled(16, 1), Password: model.Secret("x"),
+			Assertion: &Assertion{CredentialID: filled(64, 9), AuthenticatorData: filled(37, 1), Signature: filled(70, 2)}}},
+		{"neither a password nor an assertion", &CompleteAuthorization{AuthID: filled(16, 1)}},
+		{"an assertion without signature", &CompleteAuthorization{AuthID: filled(16, 1),
+			Assertion: &Assertion{CredentialID: filled(64, 9), AuthenticatorData: filled(37, 1)}}},
+		{"a credential id too long", &KeyRef{CredentialID: filled(MaxCredentialID+1, 9)}},
+		{"a key without a name", &AddKey{AuthenticatorData: filled(200, 1)}},
+		{"a key of another algorithm", &StatusReport{Wallets: []WalletStatus{}, Approvals: []Approval{},
+			Keys: []KeyInfo{{Name: "RSA", CredentialID: filled(64, 9), Alg: -257}}}},
+		{"a recovery that ends before it starts", &Recovery{StartedAt: 2, EndsAt: 1}},
 		{"an empty summary", &Challenge{AuthID: filled(16, 1), Methods: []string{"password"}}},
 		{"an empty password", &Unlock{}},
 		{"a password too long", &Unlock{Password: model.Secret(filled(MaxSecret+1, 'a'))}},
@@ -347,6 +387,7 @@ func TestBodyRejections(t *testing.T) {
 		{"a missing field", enc(t, map[string]any{"wallet_id": walletA}), new(SignDraft)},
 		{"an unknown field", enc(t, map[string]any{"wallet_id": walletA, "extra": 1}), new(GetPolicyStatus)},
 		{"an optional field sent empty", enc(t, map[string]any{"label": "x", "idempotency_key": ""}), new(CreateWallet)},
+		{"no draft destinations sent empty", enc(t, map[string]any{"wallet_id": walletA, "destinations": []any{}}), new(GetPolicyStatus)},
 		{"a negative amount", enc(t, map[string]any{"lovelace": -1}), new(Released)},
 		{"a string as bytes", enc(t, map[string]any{"password": "secret"}), new(Unlock)},
 		{"null", []byte{0xf6}, new(Empty)},
@@ -377,13 +418,13 @@ func TestResponses(t *testing.T) {
 		frame []byte
 		code  Code
 	}{
-		{"ok with an error", enc(t, map[string]any{"v": 1, "id": reqID, "ok": true, "b": cborx.Raw{0xa0}, "err": map[string]any{"code": "INTERNAL", "detail": ""}}), Malformed},
-		{"ok without a body", enc(t, map[string]any{"v": 1, "id": reqID, "ok": true}), Malformed},
-		{"failed without an error", enc(t, map[string]any{"v": 1, "id": reqID, "ok": false}), Malformed},
-		{"failed with a body", enc(t, map[string]any{"v": 1, "id": reqID, "ok": false, "b": cborx.Raw{0xa0}, "err": map[string]any{"code": "INTERNAL", "detail": ""}}), Malformed},
-		{"an unknown code", enc(t, map[string]any{"v": 1, "id": reqID, "ok": false, "err": map[string]any{"code": "OOPS", "detail": ""}}), Malformed},
-		{"a detail with a newline", enc(t, map[string]any{"v": 1, "id": reqID, "ok": false, "err": map[string]any{"code": "INTERNAL", "detail": "a\nb"}}), Malformed},
-		{"another version", enc(t, map[string]any{"v": 2, "id": reqID, "ok": true, "b": cborx.Raw{0xa0}}), ProtocolMismatch},
+		{"ok with an error", enc(t, map[string]any{"v": Version, "id": reqID, "ok": true, "b": cborx.Raw{0xa0}, "err": map[string]any{"code": "INTERNAL", "detail": ""}}), Malformed},
+		{"ok without a body", enc(t, map[string]any{"v": Version, "id": reqID, "ok": true}), Malformed},
+		{"failed without an error", enc(t, map[string]any{"v": Version, "id": reqID, "ok": false}), Malformed},
+		{"failed with a body", enc(t, map[string]any{"v": Version, "id": reqID, "ok": false, "b": cborx.Raw{0xa0}, "err": map[string]any{"code": "INTERNAL", "detail": ""}}), Malformed},
+		{"an unknown code", enc(t, map[string]any{"v": Version, "id": reqID, "ok": false, "err": map[string]any{"code": "OOPS", "detail": ""}}), Malformed},
+		{"a detail with a newline", enc(t, map[string]any{"v": Version, "id": reqID, "ok": false, "err": map[string]any{"code": "INTERNAL", "detail": "a\nb"}}), Malformed},
+		{"another version", enc(t, map[string]any{"v": Version + 1, "id": reqID, "ok": true, "b": cborx.Raw{0xa0}}), ProtocolMismatch},
 	} {
 		if err := c.DecodeResponse(tc.frame, reqID, new(PingResult)); !isCode(err, tc.code) {
 			t.Errorf("%s: %v, want %s", tc.name, err, tc.code)
