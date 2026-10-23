@@ -170,6 +170,7 @@ func (c *Codec) EncodeRequest(t string, id []byte, body Body) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer clear(b) // the body may carry a secret, and the request has a copy
 	return c.c.Marshal(Request{V: Version, ID: id, T: t, B: b})
 }
 
@@ -179,6 +180,7 @@ func (c *Codec) EncodeResponse(id []byte, body Body) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer clear(b) // the body may carry a secret, and the response has a copy
 	return c.c.Marshal(Response{V: Version, ID: id, OK: true, B: b})
 }
 
@@ -216,6 +218,7 @@ func (c *Codec) DecodeResponse(frame, id []byte, v Body) error {
 	if !bytes.Equal(r.ID, id) {
 		return malformed("response to another request")
 	}
+	defer clear(r.B) // decoded: v holds the only copy left
 	return c.DecodeBody(r.B, v)
 }
 

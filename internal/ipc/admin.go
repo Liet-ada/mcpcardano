@@ -327,6 +327,10 @@ type Completed struct {
 // Validate implements Body.
 func (*Completed) Validate() error { return nil }
 
+// Wipe overwrites the result, which may carry a recovery phrase, once it is
+// sent.
+func (c *Completed) Wipe() { clear(c.Result) }
+
 // ApproveDraft is the parameter of approve_draft.
 type ApproveDraft struct {
 	ApprovalID string `cbor:"approval_id"`
@@ -448,6 +452,9 @@ func (r *RestoreWallet) Wipe() { r.Phrase.Wipe() }
 type RecoveryPhrase struct {
 	Phrase model.Secret `cbor:"phrase"`
 }
+
+// Wipe overwrites the phrase with zeros, once it is encoded.
+func (r *RecoveryPhrase) Wipe() { r.Phrase.Wipe() }
 
 // Validate implements Body.
 func (r *RecoveryPhrase) Validate() error { return secret(r.Phrase, "recovery phrase") }

@@ -32,6 +32,7 @@ func WriteFrame(w io.Writer, payload []byte, max int) error {
 		return ErrFrameTooLarge
 	}
 	buf := make([]byte, FrameHeaderSize+len(payload))
+	defer clear(buf) // a copy of the payload, which may carry a secret
 	binary.BigEndian.PutUint32(buf, uint32(len(payload)))
 	copy(buf[FrameHeaderSize:], payload)
 	if _, err := w.Write(buf); err != nil {

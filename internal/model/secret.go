@@ -37,3 +37,11 @@ func (Secret) MarshalJSON() ([]byte, error) { return []byte(`"` + redacted + `"`
 // Wipe overwrites the bytes with zeros. Go may have copied them elsewhere,
 // so it narrows the exposure; it does not end it.
 func (s Secret) Wipe() { clear(s) }
+
+// Wipe overwrites the secrets that v holds, if it has a Wipe method, as the
+// messages that carry a password or a recovery phrase do.
+func Wipe(v any) {
+	if w, ok := v.(interface{ Wipe() }); ok {
+		w.Wipe()
+	}
+}

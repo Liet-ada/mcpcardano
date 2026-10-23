@@ -3,6 +3,7 @@
 # its own user and no network. Its sockets live in /run/mcpcardano-wallet,
 # 0750 with the group mcpcardano; the kernel certifies the user at the other
 # end of each. It starts locked: the person unlocks it with mcpcardano unlock.
+# It locks its memory out of swap, which LimitMEMLOCK allows.
 # Create its key store once, before the first start (see deploy/README.md).
 [Unit]
 Description=mcpcardano wallet
@@ -32,6 +33,7 @@ MemoryDenyWriteExecute=yes
 SystemCallFilter=@system-service
 SystemCallArchitectures=native
 LimitCORE=0
+LimitMEMLOCK=infinity
 ProtectKernelTunables=yes
 ProtectKernelModules=yes
 ProtectKernelLogs=yes

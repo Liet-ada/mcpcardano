@@ -59,6 +59,14 @@ func run() int {
 		return initialize(cfg, os.Stdin, logger)
 	}
 
+	// Before any secret can enter. In development mode the memory may go to
+	// swap, as the isolation check is skipped too.
+	if !cfg.Development {
+		if err := walletd.LockMemory(); err != nil {
+			logger.Error("start", "err", err)
+			return 1
+		}
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	d, err := walletd.Open(ctx, cfg, walletd.Options{Version: version, Logger: logger})

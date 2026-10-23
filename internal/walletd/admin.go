@@ -112,17 +112,18 @@ func (d *Daemon) begin(b *ipc.BeginAuthorization) (*ipc.Challenge, error) {
 		return nil, err
 	}
 	params, err := d.codec.DecodeParams(b)
+	clear(b.Params) // the encoded params, which may carry a recovery phrase
 	if err != nil {
 		return nil, err
 	}
 	p, err := d.prepare(b.Action, params)
 	if err != nil {
-		authz.Wipe(params)
+		model.Wipe(params)
 		return nil, err
 	}
 	au, err := d.authz.Begin(b.Action, model.WalletID(p.wallet), p.det, params)
 	if err != nil {
-		authz.Wipe(params)
+		model.Wipe(params)
 		return nil, authError(err)
 	}
 	d.record("authorization.begun", map[string]any{"action": b.Action, "wallet_id": p.wallet})
@@ -251,6 +252,7 @@ func (d *Daemon) completeAuthorization(ctx context.Context, b *ipc.CompleteAutho
 		return nil, authError(err)
 	}
 	result, err := d.run(ctx, au)
+	defer model.Wipe(result) // that of show_recovery_phrase carries the phrase
 	e := map[string]any{"action": au.Action, "wallet_id": string(au.Wallet), "method": ipc.MethodPassword}
 	if b.Assertion != nil {
 		e["method"], e["key"] = ipc.MethodKey, authz.KeyID(b.Assertion.CredentialID)
