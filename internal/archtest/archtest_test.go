@@ -25,7 +25,10 @@ var common = []string{"model", "policy", "ipc", "audit", "cborx"}
 var (
 	serverOnly = []string{"server", "mcp", "drafts", "txbuild", "txdecode", "sanitize", "plutus", "chain", "datasource", "venues"}
 	walletOnly = []string{"walletd", "txcheck", "keystore", "ledger", "hdkey", "authz"}
-	cliOnly    = []string{"cli", "fido", "tui", "signer", "mcpclient"}
+	cliOnly    = []string{"cli", "fido", "tui", "signer", "mcpclient", "install", "doctor"}
+
+	// deployPkg holds what install writes, which only the CLI carries.
+	deployPkg = module + "/deploy"
 
 	// External modules the wallet must never link (section 2.4).
 	walletForbiddenExternal = []string{
@@ -99,7 +102,8 @@ func internals(names []string) []string {
 }
 
 func TestWalletDependencies(t *testing.T) {
-	forbidden := append(append(internals(serverOnly), internals(cliOnly)...), walletForbiddenExternal...)
+	forbidden := append(append(internals(serverOnly), internals(cliOnly)...), deployPkg)
+	forbidden = append(forbidden, walletForbiddenExternal...)
 	for _, p := range deps(t, "mcpcardano-wallet", "purego") {
 		if hasPrefix(p.ImportPath, forbidden...) {
 			t.Errorf("wallet links forbidden package %s", p.ImportPath)
