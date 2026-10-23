@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/Liet-ada/mcpcardano/internal/model"
@@ -40,13 +41,17 @@ func TestDefaultParams(t *testing.T) {
 	if p := DefaultParams(); p != (Params{Time: 3, MemoryKiB: 262144, Threads: 4}) || p.Check() != nil {
 		t.Errorf("DefaultParams = %+v", p)
 	}
-	for _, p := range []Params{{3, 65535, 4}, {0, 65536, 4}, {3, 65536, 0}, fast} {
+	for _, p := range []Params{{3, 65535, 4}, {0, 65536, 4}, {3, 65536, 0}, fast,
+		{MaxTime + 1, 65536, 4}, {3, MaxMemoryKiB + 1, 4}} {
 		if p.Check() == nil {
 			t.Errorf("%+v passes Check", p)
 		}
 	}
 	if (Params{Time: 1, MemoryKiB: 65536, Threads: 1}).Check() != nil {
 		t.Error("the minimum fails Check")
+	}
+	if (Params{Time: MaxTime, MemoryKiB: MaxMemoryKiB, Threads: 255}).Check() != nil {
+		t.Error("the maximum fails Check")
 	}
 	for _, id := range []model.WalletID{walletA, walletB} {
 		if id.Validate() != nil {
@@ -149,8 +154,8 @@ func TestTamperedFiles(t *testing.T) {
 		t.Errorf("a changed ciphertext: %v", err)
 	}
 
-	master := filepath.Join(dir, "master.key")
-	orig, _ := os.ReadFile(master)
+	masterPath := filepath.Join(dir, "master.key")
+	orig, _ := os.ReadFile(masterPath)
 	for _, tc := range []struct {
 		name string
 		data []byte
@@ -162,10 +167,88 @@ func TestTamperedFiles(t *testing.T) {
 		{"cut short", orig[:len(orig)-10], ErrFormat},
 		{"empty", nil, ErrFormat},
 	} {
-		os.WriteFile(master, tc.data, 0o600)
+		os.WriteFile(masterPath, tc.data, 0o600)
 		if err := s.Unlock(model.Secret("correct horse")); !errors.Is(err, tc.want) {
 			t.Errorf("%s: %v, want %v", tc.name, err, tc.want)
 		}
+	}
+
+	// Argon2id parameters out of bounds never reach it: with no passes it
+	// panics, and the others would hang or take all the memory. Nor does a
+	// ciphertext bigger than any file the store writes.
+	var m master
+	s.codec.Unmarshal(orig[5:], &m)
+	for _, change := range []func(*master){
+		func(m *master) { m.KDF.Time = 0 },
+		func(m *master) { m.KDF.Time = MaxTime + 1 },
+		func(m *master) { m.KDF.MemoryKiB = MaxMemoryKiB + 1 },
+		func(m *master) { m.KDF.MemoryKiB, m.KDF.Threads = 31, 4 },
+		func(m *master) { m.KDF.Threads = 0 },
+		func(m *master) { m.CT = make([]byte, maxFile) },
+	} {
+		c := m
+		change(&c)
+		b, _ := s.codec.Marshal(c)
+		os.WriteFile(masterPath, append([]byte(masterMagic), b...), 0o600)
+		if err := s.Unlock(model.Secret("correct horse")); !errors.Is(err, ErrFormat) {
+			t.Errorf("parameters %+v and %d bytes of ciphertext: %v", c.KDF, len(c.CT), err)
+		}
+	}
+}
+
+func TestReadFileBound(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "f")
+	os.WriteFile(path, make([]byte, maxFile), 0o600)
+	if _, err := readFile(path); err != nil {
+		t.Errorf("a file of maxFile bytes: %v", err)
+	}
+	os.WriteFile(path, make([]byte, maxFile+1), 0o600)
+	if _, err := readFile(path); !errors.Is(err, ErrFormat) {
+		t.Errorf("a file of maxFile+1 bytes: %v", err)
+	}
+}
+
+// TestSeedNeverReplaced has stores on the same files, as two processes would
+// be, write the same seed at once: only the first one is kept, because the
+// link that puts it in place fails if there is one.
+func TestSeedNeverReplaced(t *testing.T) {
+	dir, _ := newStore(t)
+	stores := make([]*Store, 8)
+	for i := range stores {
+		s, err := Open(dir, fast)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := s.Unlock(model.Secret("correct horse")); err != nil {
+			t.Fatal(err)
+		}
+		stores[i] = s
+	}
+	errs := make([]error, len(stores))
+	var wg sync.WaitGroup
+	for i, s := range stores {
+		wg.Go(func() { errs[i] = s.PutSeed(walletA, model.Secret(bytes.Repeat([]byte{byte(i)}, 32))) })
+	}
+	wg.Wait()
+	first := -1
+	for i, err := range errs {
+		switch {
+		case err == nil && first < 0:
+			first = i
+		case err == nil:
+			t.Errorf("stores %d and %d both wrote the seed", first, i)
+		case !errors.Is(err, ErrExists):
+			t.Errorf("store %d: %v", i, err)
+		}
+	}
+	if first < 0 {
+		t.Fatal("no store wrote the seed")
+	}
+	if got, err := stores[0].Seed(walletA); err != nil || !bytes.Equal(got, bytes.Repeat([]byte{byte(first)}, 32)) {
+		t.Errorf("the seed is not the one written: %v", err)
+	}
+	if left, _ := filepath.Glob(filepath.Join(dir, ".*")); len(left) != 0 {
+		t.Errorf("temporary files left: %v", left)
 	}
 }
 
@@ -202,6 +285,12 @@ func TestParamsRaised(t *testing.T) {
 	s3.Unlock(model.Secret("correct horse"))
 	if m, _ := s3.readMaster(); m.KDF != stronger {
 		t.Errorf("parameters were lowered to %+v", m.KDF)
+	}
+	// Nor does raising one lower the others.
+	s4, _ := Open(dir, Params{Time: 1, MemoryKiB: 256, Threads: 1})
+	s4.Unlock(model.Secret("correct horse"))
+	if m, _ := s4.readMaster(); m.KDF != (Params{Time: 2, MemoryKiB: 256, Threads: 2}) {
+		t.Errorf("parameters after raising the memory alone: %+v", m.KDF)
 	}
 }
 

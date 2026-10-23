@@ -127,6 +127,9 @@ func TestOpen(t *testing.T) {
 		func(c *walletd.Config) { c.AdminSocket = c.ServiceSocket },
 		func(c *walletd.Config) { c.ServiceUID = nil },
 		func(c *walletd.Config) { c.Argon2MemoryMiB = 32 },
+		func(c *walletd.Config) { c.Argon2MemoryMiB = 4097 },
+		// Shifted to KiB in 32 bits, it would wrap to 64 MiB.
+		func(c *walletd.Config) { c.Argon2MemoryMiB = 4<<20 + 64 },
 	}
 	for i, change := range bad {
 		c := cfg

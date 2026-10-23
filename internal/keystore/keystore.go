@@ -74,19 +74,36 @@ func DefaultParams() Params { return Params{Time: 3, MemoryKiB: 256 << 10, Threa
 // small machines: the 64 MiB of RFC 9106's second option.
 const MinMemoryKiB = 64 << 10
 
+// MaxMemoryKiB and MaxTime bound what a master.key may ask of Argon2id, so
+// that a damaged one is refused instead of taking all the memory or hanging.
+const (
+	MaxMemoryKiB = 4 << 20
+	MaxTime      = 64
+)
+
 // Check reports whether p may be configured: at least one pass and one lane,
-// and at least MinMemoryKiB. A store is never lowered once written, so a
-// small machine sets them before the store is created.
+// and from MinMemoryKiB to MaxMemoryKiB. A store is never lowered once
+// written, so a small machine sets them before the store is created.
 func (p Params) Check() error {
-	if p.Time < 1 || p.Threads < 1 || p.MemoryKiB < MinMemoryKiB {
-		return fmt.Errorf("keystore: Argon2id needs at least 1 pass, 1 lane and %d MiB", MinMemoryKiB>>10)
+	if !p.valid() || p.MemoryKiB < MinMemoryKiB {
+		return fmt.Errorf("keystore: Argon2id needs 1 to %d passes, at least 1 lane and %d to %d MiB",
+			MaxTime, MinMemoryKiB>>10, MaxMemoryKiB>>10)
 	}
 	return nil
 }
 
-// weaker reports whether p falls short of q in any parameter.
-func (p Params) weaker(q Params) bool {
-	return p.Time < q.Time || p.MemoryKiB < q.MemoryKiB || p.Threads < q.Threads
+// valid reports whether a master.key may hold p: what Argon2id accepts, with
+// 8 KiB per lane at least (RFC 9106, section 3.1), up to MaxTime and
+// MaxMemoryKiB. With no passes, Argon2id panics.
+func (p Params) valid() bool {
+	return p.Time >= 1 && p.Time <= MaxTime && p.Threads >= 1 &&
+		p.MemoryKiB >= 8*uint32(p.Threads) && p.MemoryKiB <= MaxMemoryKiB
+}
+
+// raised returns p with each parameter that falls short of q's raised to it,
+// so that no parameter is ever lowered.
+func (p Params) raised(q Params) Params {
+	return Params{Time: max(p.Time, q.Time), MemoryKiB: max(p.MemoryKiB, q.MemoryKiB), Threads: max(p.Threads, q.Threads)}
 }
 
 type master struct {
@@ -132,15 +149,12 @@ func Create(dir string, password model.Secret, p Params) error {
 	if err := checkMode(dir, 0o700); err != nil {
 		return err
 	}
-	if _, err := os.Stat(filepath.Join(dir, masterFile)); err == nil {
-		return ErrExists
-	}
 	var key [keySize]byte
 	if _, err := rand.Read(key[:]); err != nil {
 		return fmt.Errorf("keystore: %w", err)
 	}
 	defer clear(key[:])
-	return writeMaster(newCodec(), dir, &key, password, p)
+	return writeMaster(newCodec(), dir, &key, password, p, false)
 }
 
 // Open reads the key store in dir, locked. Unlock raises its Argon2id
@@ -173,17 +187,13 @@ func checkMode(path string, max fs.FileMode) error {
 
 func (s *Store) readMaster() (master, error) {
 	var m master
-	path := filepath.Join(s.dir, masterFile)
-	if err := checkMode(path, 0o600); err != nil {
-		return m, err
-	}
-	b, err := os.ReadFile(path)
+	b, err := readFile(filepath.Join(s.dir, masterFile))
 	if err != nil {
-		return m, fmt.Errorf("keystore: %w", err)
+		return m, err
 	}
 	body, ok := bytes.CutPrefix(b, []byte(masterMagic))
 	if !ok || s.codec.Unmarshal(body, &m) != nil || m.V != FormatVersion ||
-		len(m.Salt) != saltSize || len(m.Nonce) != chacha20poly1305.NonceSizeX || m.KDF.Threads == 0 {
+		len(m.Salt) != saltSize || len(m.Nonce) != chacha20poly1305.NonceSizeX || !m.KDF.valid() {
 		return m, ErrFormat
 	}
 	return m, nil
@@ -200,7 +210,9 @@ func associated(magic string, id string) []byte {
 	return append([]byte(magic), append([]byte{FormatVersion}, id...)...)
 }
 
-func writeMaster(c *cborx.Codec, dir string, key *[keySize]byte, password model.Secret, p Params) error {
+// writeMaster wraps key in a new master.key. Without replace, it fails with
+// ErrExists if there is one.
+func writeMaster(c *cborx.Codec, dir string, key *[keySize]byte, password model.Secret, p Params, replace bool) error {
 	m := master{V: FormatVersion, KDF: p, Salt: make([]byte, saltSize), Nonce: make([]byte, chacha20poly1305.NonceSizeX)}
 	rand.Read(m.Salt)
 	rand.Read(m.Nonce)
@@ -215,7 +227,7 @@ func writeMaster(c *cborx.Codec, dir string, key *[keySize]byte, password model.
 	if err != nil {
 		return fmt.Errorf("keystore: %w", err)
 	}
-	return writeFile(dir, masterFile, append([]byte(masterMagic), b...))
+	return writeFile(dir, masterFile, append([]byte(masterMagic), b...), replace)
 }
 
 // unwrap returns the data key in master.key, or ErrWrongPassword.
@@ -239,10 +251,10 @@ func (s *Store) unwrap(m master, password model.Secret) (*[keySize]byte, error) 
 	return key, nil
 }
 
-// Unlock opens the data key with the password and keeps it in memory. If
-// master.key has weaker Argon2id parameters than the store's, it is written
-// again with them and a new salt, as section 7.6 asks; the data key, and so
-// the seeds, stay the same.
+// Unlock opens the data key with the password and keeps it in memory. If an
+// Argon2id parameter of master.key is lower than the store's, it is written
+// again with that one raised and a new salt, as section 7.6 asks; the data
+// key, and so the seeds, stay the same.
 func (s *Store) Unlock(password model.Secret) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -254,8 +266,8 @@ func (s *Store) Unlock(password model.Secret) error {
 	if err != nil {
 		return err
 	}
-	if m.KDF.weaker(s.params) {
-		if err := writeMaster(s.codec, s.dir, key, password, s.params); err != nil {
+	if p := m.KDF.raised(s.params); p != m.KDF {
+		if err := writeMaster(s.codec, s.dir, key, password, p, true); err != nil {
 			clear(key[:])
 			return err
 		}
@@ -320,9 +332,6 @@ func (s *Store) PutSeed(id model.WalletID, entropy model.Secret) error {
 	if err != nil {
 		return err
 	}
-	if _, err := os.Stat(seedPath(s.dir, id)); err == nil {
-		return ErrExists
-	}
 	f := seed{V: FormatVersion, WalletID: string(id), Nonce: make([]byte, chacha20poly1305.NonceSizeX)}
 	rand.Read(f.Nonce)
 	f.CT = aead.Seal(nil, f.Nonce, entropy, associated(seedMagic, string(id)))
@@ -330,7 +339,7 @@ func (s *Store) PutSeed(id model.WalletID, entropy model.Secret) error {
 	if err != nil {
 		return fmt.Errorf("keystore: %w", err)
 	}
-	return writeFile(s.dir, string(id)+seedSuffix, append([]byte(seedMagic), b...))
+	return writeFile(s.dir, string(id)+seedSuffix, append([]byte(seedMagic), b...), false)
 }
 
 // Seed returns the entropy of a wallet's recovery phrase. The caller wipes it.
@@ -344,13 +353,9 @@ func (s *Store) Seed(id model.WalletID) (model.Secret, error) {
 	if err != nil {
 		return nil, err
 	}
-	path := seedPath(s.dir, id)
-	if err := checkMode(path, 0o600); err != nil {
-		return nil, err
-	}
-	b, err := os.ReadFile(path)
+	b, err := readFile(seedPath(s.dir, id))
 	if err != nil {
-		return nil, fmt.Errorf("keystore: %w", err)
+		return nil, err
 	}
 	var f seed
 	body, ok := bytes.CutPrefix(b, []byte(seedMagic))
