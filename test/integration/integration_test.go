@@ -141,12 +141,15 @@ func TestIsolation(t *testing.T) {
 		}
 	}
 	// The wallet's memory is locked out of swap: all of it, since it locks
-	// what it maps later too.
+	// what it maps later too. Each page is locked when first used, so what
+	// nobody touches takes no RAM, and at rest the wallet holds a few MB.
 	status := sudo(t, "cat", "/proc/"+mainPID(t, "mcpcardano-wallet")+"/status")
 	locked := regexp.MustCompile(`(?m)^VmLck:\s+(\d+) kB`).FindStringSubmatch(status)
 	rss := regexp.MustCompile(`(?m)^VmRSS:\s+(\d+) kB`).FindStringSubmatch(status)
 	if locked == nil || rss == nil || locked[1] == "0" {
 		t.Errorf("the wallet's memory is not locked:\n%s", status)
+	} else if n, _ := strconv.Atoi(rss[1]); n > 64<<10 {
+		t.Errorf("the wallet holds %s kB at rest, with %s kB locked", rss[1], locked[1])
 	} else {
 		t.Logf("the wallet has %s kB locked and %s kB resident", locked[1], rss[1])
 	}
