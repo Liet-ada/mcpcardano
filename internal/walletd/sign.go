@@ -64,10 +64,15 @@ func (d *Daemon) signDraft(ctx context.Context, b *ipc.SignDraft) (res *ipc.Sign
 
 	// A body seen before gets the same answer and counts once (section 9.4,
 	// M-13). A reservation that a crash left unsigned is signed now, without
-	// counting it again (section 9.1).
+	// counting it again (section 9.1). A frozen wallet gives no signature,
+	// not even one it gave before.
 	if rec, ok := d.ledger.Lookup(tx.ID); ok {
 		if string(rec.WalletID) != r.ID {
 			return nil, fail(ipc.Malformed, "the transaction belongs to another wallet")
+		}
+		if r.Policy.Frozen {
+			return &ipc.SignDraftResult{Status: ipc.Rejected, Spend: recordSpend(rec),
+				Rejection: &ipc.Error{Code: ipc.Frozen, Detail: ipc.Detail(string(policy.RuleFrozen) + ": the wallet is frozen")}}, nil
 		}
 		w, err := d.finish(ctx, r, rec)
 		if err != nil {
