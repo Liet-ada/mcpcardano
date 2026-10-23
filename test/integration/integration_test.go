@@ -150,6 +150,23 @@ func TestIsolation(t *testing.T) {
 	} else {
 		t.Logf("the wallet has %s kB locked and %s kB resident", locked[1], rss[1])
 	}
+	// Temporary: where the resident memory goes, mapping by mapping.
+	for unit := range map[string]bool{"mcpcardano-wallet": true, "mcpcardano-server": true} {
+		st := sudo(t, "cat", "/proc/"+mainPID(t, unit)+"/status")
+		t.Logf("%s: %s", unit, strings.Join(regexp.MustCompile(`(?m)^(VmLck|VmRSS|RssAnon|RssFile|VmSize):.*$`).FindAllString(st, -1), " | "))
+	}
+	smaps := sudo(t, "cat", "/proc/"+mainPID(t, "mcpcardano-wallet")+"/smaps")
+	var b strings.Builder
+	for _, line := range strings.Split(smaps, "\n") {
+		f := strings.Fields(line)
+		switch {
+		case len(f) >= 5 && strings.Contains(f[0], "-") && !strings.HasSuffix(f[0], ":"):
+			b.WriteString("\n" + line)
+		case len(f) >= 2 && (f[0] == "Size:" || f[0] == "Rss:" || f[0] == "Locked:"):
+			b.WriteString(" | " + f[0] + " " + f[1])
+		}
+	}
+	t.Logf("wallet smaps:%s", b.String())
 	var ifaces []string
 	for _, line := range strings.Split(sudo(t, "cat", "/proc/"+mainPID(t, "mcpcardano-wallet")+"/net/dev"), "\n")[2:] {
 		if name, _, ok := strings.Cut(line, ":"); ok {
