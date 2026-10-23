@@ -3,7 +3,7 @@
 GO ?= go
 FUZZTIME ?= 10s
 
-.PHONY: check fmt vet test boundaries fuzz vuln live oracle corpus cli-vectors e8-agents e8-record
+.PHONY: check fmt vet test boundaries fuzz vuln live oracle corpus cli-vectors trezor-vectors e8-agents e8-record
 
 check: fmt vet test boundaries
 
@@ -53,6 +53,12 @@ oracle:
 CARDANO_CLI ?= cardano-cli
 cli-vectors:
 	$(GO) run test/cardano-cli/record.go -cli $(CARDANO_CLI)
+
+# Regenerates internal/hdkey/testdata/trezor.json from the Trezor emulator, the
+# hardware side of the cross vectors. It needs a checkout of trezor-firmware
+# with the emulator built, and cardano-hw-go built with -tags emulators.
+trezor-vectors:
+	$(GO) run test/trezor/record.go -firmware $(TREZOR_FIRMWARE) -hwgo $(CARDANO_HW_GO)
 
 # Refetches the real transactions of test/corpus/txs.txt from Koios, with what
 # Koios says they contain; the decoding tests compare against it.
