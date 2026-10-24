@@ -120,6 +120,8 @@ func TestWatcher(t *testing.T) {
 		{0, drafts.StateRolledBack, 0}, // a reorganization took it out
 		{2, drafts.StateSubmitted, 0},  // it entered again
 		{4, drafts.StateConfirmed, 4},
+		{stableDepth, drafts.StateConfirmed, stableDepth}, // as deep as k
+		{0, drafts.StateConfirmed, stableDepth},           // no longer asked about
 	}
 	for i, s := range steps {
 		src.set(d.Tx.ID, s.confs)

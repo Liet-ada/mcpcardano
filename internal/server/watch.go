@@ -6,6 +6,7 @@ package server
 import (
 	"context"
 	"log/slog"
+	"slices"
 	"time"
 
 	"github.com/Liet-ada/mcpcardano/internal/datasource"
@@ -23,10 +24,15 @@ const (
 	// ttlGrace is how long after the TTL the server waits before it calls a
 	// transaction expired: the data source may lag behind the chain.
 	ttlGrace = 2 * time.Minute
+	// stableDepth is the security parameter k of mainnet and preprod;
+	// preview's is smaller. A block that deep can no longer roll back, so a
+	// draft confirmed that deep is not asked about again.
+	stableDepth = 2160
 )
 
 // watcher follows the transactions the server sent until they are deep
-// enough, roll back or expire (section 3.4). Only the chain moves a draft
+// enough, roll back or expire (section 3.4), and a confirmed one until it is
+// stableDepth deep. Only the chain moves a draft
 // past submitted. It also follows what the wallet process holds: the
 // approvals the person gives, and the transactions it signed before the
 // server's last start (section 9.5).
@@ -58,10 +64,12 @@ func (w *watcher) run(ctx context.Context, every time.Duration) {
 	}
 }
 
-// once asks the chain about every watched draft in one request and applies
-// what changed.
+// once asks the chain about every watched draft in one call and applies what
+// changed.
 func (w *watcher) once(ctx context.Context) {
-	watched := w.store.Watched()
+	watched := slices.DeleteFunc(w.store.Watched(), func(d drafts.Draft) bool {
+		return d.State == drafts.StateConfirmed && d.Depth >= stableDepth
+	})
 	if len(watched) == 0 {
 		return
 	}
