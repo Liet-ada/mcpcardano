@@ -88,4 +88,15 @@ func TestLiveKoiosPreprod(t *testing.T) {
 		t.Fatalf("the CBOR is not the transaction: %v", err)
 	}
 	t.Logf("transaction %s in block %d", mintTx, tx.BlockHeight)
+
+	// More transactions than one request to the public endpoint can carry.
+	ids := [][32]byte{txID(t, mintTx)}
+	for i := 1; i < 120; i++ {
+		ids = append(ids, [32]byte{byte(i), 0xff})
+	}
+	confirmations, err := k.Confirmations(ctx, ids)
+	if err != nil || confirmations[ids[0]] == 0 || confirmations[ids[1]] != 0 {
+		t.Fatalf("confirmations: %v", err)
+	}
+	t.Logf("%d confirmations of %s among %d transactions", confirmations[ids[0]], mintTx, len(ids))
 }
