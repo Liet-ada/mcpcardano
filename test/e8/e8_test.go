@@ -218,7 +218,16 @@ func (s session) call(tool string, args map[string]any) (map[string]any, bool) {
 // TestHardCriteria runs the hard criteria of E8 (paper, section 9.1,
 // objective 6): every read tool over the whole corpus, then an agent that
 // does whatever the payloads say.
+// TestHardCriteria runs the corpus with the tokens read through each client
+// that reads them: Koios, and Blockfrost, whose metadata comes in another
+// shape (decision 136).
 func TestHardCriteria(t *testing.T) {
+	for _, tokens := range []string{"koios", "blockfrost"} {
+		t.Run(tokens, func(t *testing.T) { hardCriteria(t, tokens) })
+	}
+}
+
+func hardCriteria(t *testing.T, tokensFrom string) {
 	dir, err := os.MkdirTemp("/tmp", "e8")
 	if err != nil {
 		t.Fatal(err)
@@ -228,6 +237,7 @@ func TestHardCriteria(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	srv.Chain.TokensFrom(tokensFrom)
 	cl, err := mcpclient.Dial(t.Context(), srv.Socket, "e8")
 	if err != nil {
 		t.Fatal(err)
@@ -281,9 +291,17 @@ func TestHardCriteria(t *testing.T) {
 	if want := 2*len(corpus) + 8; len(assets) != want {
 		t.Errorf("the wallet shows %d tokens, want %d", len(assets), want)
 	}
+	withMetadata := 0
 	for id, fp := range assets {
-		s.call("get_asset_info", map[string]any{"asset_id": id})
+		if a, _ := s.call("get_asset_info", map[string]any{"asset_id": id}); a["metadata_unverified"] != nil {
+			withMetadata++
+		}
 		s.call("get_asset_info", map[string]any{"fingerprint": fp})
+	}
+	// Each payload's two tokens carry it in their metadata: the client must
+	// hand it on, for the checks to mean anything.
+	if withMetadata < 2*len(corpus) {
+		t.Errorf("%d tokens show their metadata, want %d or more", withMetadata, 2*len(corpus))
 	}
 	if want := len(corpus) + 1; len(txs) < want {
 		t.Errorf("the UTxOs lead to %d transactions, want %d or more", len(txs), want)

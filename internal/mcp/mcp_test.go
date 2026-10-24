@@ -43,9 +43,10 @@ type fakeSource struct {
 	fingerprints map[string]model.AssetID
 	txs          map[[32]byte]datasource.Transaction
 
-	submitted     [][]byte
-	submitErr     error // what the next Submit returns
-	confirmations map[[32]byte]uint64
+	submitted      [][]byte
+	submitErr      error // what the next Submit returns
+	fingerprintErr error // what AssetByFingerprint fails with, if set
+	confirmations  map[[32]byte]uint64
 }
 
 func (f *fakeSource) Submit(_ context.Context, tx []byte, _ [32]byte) error {
@@ -90,6 +91,9 @@ func (f *fakeSource) Asset(_ context.Context, id model.AssetID) (datasource.Asse
 }
 
 func (f *fakeSource) AssetByFingerprint(_ context.Context, fp string) (model.AssetID, error) {
+	if f.fingerprintErr != nil {
+		return model.AssetID{}, f.fingerprintErr
+	}
 	if err := f.err(); err != nil {
 		return model.AssetID{}, err
 	}
@@ -382,6 +386,52 @@ func TestReadTools(t *testing.T) {
 	e.src.setDown(true)
 	if st := e.ok("get_network_status", nil); st["datasource"].(map[string]any)["status"] != "unavailable" || st["tip"] != nil {
 		t.Errorf("status with the source down: %v", st)
+	}
+	e.fails("get_wallet_overview", map[string]any{"wallet_id": walletID}, CodeDatasourceUnavailable)
+}
+
+// namedSource is a fakeSource under another name.
+type namedSource struct {
+	*fakeSource
+	name string
+}
+
+func (n namedSource) Name() string { return n.name }
+
+// TestNetworkStatusOfARelay: get_network_status names the source in use and
+// says whether each configured one answers, and the reads go to one that
+// answers (decision 136).
+func TestNetworkStatusOfARelay(t *testing.T) {
+	e := newEnv(t)
+	down := namedSource{&fakeSource{down: true}, "blockfrost"}
+	r, err := datasource.NewRelay([]datasource.Source{down, e.src}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.server.d.Source = r
+	st := e.ok("get_network_status", nil)
+	in := st["datasource"].(map[string]any)
+	all := st["datasources"].([]any)
+	if in["name"] != "fake" || in["status"] != "ok" || st["tip"] == nil || len(all) != 2 ||
+		all[0].(map[string]any)["name"] != "blockfrost" || all[0].(map[string]any)["status"] != "unavailable" ||
+		all[1].(map[string]any)["name"] != "fake" || all[1].(map[string]any)["status"] != "ok" {
+		t.Errorf("network status %v", st)
+	}
+	if o := e.ok("get_wallet_overview", map[string]any{"wallet_id": walletID}); o["utxos"] != 3.0 {
+		t.Errorf("overview through the relay %v", o)
+	}
+
+	// Neither source looks tokens up by fingerprint: the agent gives asset_id.
+	e.src.fingerprintErr = datasource.ErrUnsupported
+	down.fingerprintErr = datasource.ErrUnsupported
+	if f := e.fails("get_asset_info", map[string]any{"fingerprint": "asset1nlx50uad93666l5q2gjh9xr3c7zxkqy4v6we7k"}, CodeInvalidParams); !strings.Contains(f.Message, "asset_id") {
+		t.Errorf("by fingerprint: %+v", f)
+	}
+
+	e.src.setDown(true)
+	st = e.ok("get_network_status", nil)
+	if st["datasource"].(map[string]any)["name"] != "blockfrost" || st["datasource"].(map[string]any)["status"] != "unavailable" || st["tip"] != nil {
+		t.Errorf("with every source down: %v", st)
 	}
 	e.fails("get_wallet_overview", map[string]any{"wallet_id": walletID}, CodeDatasourceUnavailable)
 }

@@ -16,6 +16,7 @@ import (
 
 	"github.com/Liet-ada/mcpcardano/internal/cborx"
 	"github.com/Liet-ada/mcpcardano/internal/chain"
+	"github.com/Liet-ada/mcpcardano/internal/datasource"
 	"github.com/Liet-ada/mcpcardano/internal/drafts"
 	"github.com/Liet-ada/mcpcardano/internal/model"
 )
@@ -25,6 +26,16 @@ type chainSource struct {
 	source
 	mu    sync.Mutex
 	confs map[[32]byte]uint64
+}
+
+// relayOf is the relay the server builds over its sources.
+func relayOf(t *testing.T, sources ...datasource.Source) *datasource.Relay {
+	t.Helper()
+	r, err := datasource.NewRelay(sources, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return r
 }
 
 func (c *chainSource) set(id [32]byte, n uint64) { c.mu.Lock(); c.confs[id] = n; c.mu.Unlock() }
@@ -106,7 +117,7 @@ func TestWatcher(t *testing.T) {
 	d := sentDraft(t, store, now)
 	src := &chainSource{confs: map[[32]byte]uint64{}}
 	rec := &entries{}
-	w := &watcher{store: store, src: src, rec: rec, now: clock, depth: 3, log: slog.New(slog.DiscardHandler)}
+	w := &watcher{store: store, src: relayOf(t, src), rec: rec, now: clock, depth: 3, log: slog.New(slog.DiscardHandler)}
 
 	steps := []struct {
 		confs uint64
@@ -139,7 +150,7 @@ func TestWatcher(t *testing.T) {
 	// grace have passed, and frees its inputs.
 	store2 := drafts.New(clock, nil)
 	e := sentDraft(t, store2, now)
-	w2 := &watcher{store: store2, src: src, rec: rec, now: clock, depth: 3, log: slog.New(slog.DiscardHandler)}
+	w2 := &watcher{store: store2, src: relayOf(t, src), rec: rec, now: clock, depth: 3, log: slog.New(slog.DiscardHandler)}
 	src.set(e.Tx.ID, 0) // the same transaction as before, built at the same time, now never in the chain
 	mu.Lock()
 	now = e.ExpiresAt.Add(ttlGrace - time.Second)
@@ -154,5 +165,55 @@ func TestWatcher(t *testing.T) {
 	w2.once(t.Context())
 	if got, _ := store2.Get(e.ID); got.State != drafts.StateExpired || len(store2.Reserved(got.Wallet)) != 0 {
 		t.Fatalf("after the grace: %s", got.State)
+	}
+}
+
+// switchingSource is a chainSource with a name, which can go down.
+type switchingSource struct {
+	*chainSource
+	name string
+	down sync.Mutex // held while the source is down
+	off  bool
+}
+
+func (s *switchingSource) Name() string { return s.name }
+
+func (s *switchingSource) Confirmations(ctx context.Context, ids [][32]byte) (map[[32]byte]uint64, error) {
+	s.down.Lock()
+	off := s.off
+	s.down.Unlock()
+	if off {
+		return nil, datasource.ErrUnavailable
+	}
+	return s.chainSource.Confirmations(ctx, ids)
+}
+
+// TestWatcherAfterASwitch: a source that takes over from another and does
+// not see a confirmed transaction yet does not roll it back on its first
+// round; on the second, it does (decision 136).
+func TestWatcherAfterASwitch(t *testing.T) {
+	now := time.Date(2026, 10, 17, 12, 0, 0, 0, time.UTC)
+	clock := func() time.Time { return now }
+	store := drafts.New(clock, nil)
+	d := sentDraft(t, store, now)
+	first := &switchingSource{chainSource: &chainSource{confs: map[[32]byte]uint64{}}, name: "first"}
+	second := &switchingSource{chainSource: &chainSource{confs: map[[32]byte]uint64{}}, name: "second"}
+	w := &watcher{store: store, src: relayOf(t, first, second), rec: &entries{}, now: clock, depth: 3, log: slog.New(slog.DiscardHandler)}
+
+	first.set(d.Tx.ID, 3)
+	w.once(t.Context())
+	if got, _ := store.Get(d.ID); got.State != drafts.StateConfirmed {
+		t.Fatalf("confirmed by the first source: %s", got.State)
+	}
+	first.down.Lock()
+	first.off = true
+	first.down.Unlock()
+	w.once(t.Context()) // the second, a block behind, does not see it
+	if got, _ := store.Get(d.ID); got.State != drafts.StateConfirmed {
+		t.Fatalf("rolled back on the word of a source that just took over: %s", got.State)
+	}
+	w.once(t.Context())
+	if got, _ := store.Get(d.ID); got.State != drafts.StateRolledBack {
+		t.Fatalf("the second source's second round: %s", got.State)
 	}
 }

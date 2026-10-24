@@ -48,6 +48,9 @@ const (
 	WalletData = "/var/lib/mcpcardano-wallet"
 	ServerData = "/var/lib/mcpcardano-server"
 	MasterKey  = WalletData + "/keystore/master.key"
+	// BlockfrostKey is Blockfrost's project id, which the server reads
+	// (decision 136).
+	BlockfrostKey = ServerData + "/secrets/blockfrost"
 
 	WalletRun     = "/run/mcpcardano-wallet"
 	ServerRun     = "/run/mcpcardano-server"

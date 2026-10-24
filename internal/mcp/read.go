@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/Liet-ada/mcpcardano/internal/chain"
+	"github.com/Liet-ada/mcpcardano/internal/datasource"
 	"github.com/Liet-ada/mcpcardano/internal/ipc"
 	"github.com/Liet-ada/mcpcardano/internal/model"
 	"github.com/Liet-ada/mcpcardano/internal/txdecode"
@@ -35,7 +36,7 @@ type walletArg struct {
 func (s *Server) registerRead() error {
 	for _, err := range []error{
 		addTool(s, tool{name: "get_network_status", readOnly: true, openWorld: true,
-			description: "Network, chain tip (slot, height, time), the data source and whether it answers, the server's own slot, and the protocol version."},
+			description: "Network, chain tip (slot, height, time), the data source in use and whether each configured source answers, the server's own slot, and the protocol version."},
 			s.networkStatus),
 		addTool(s, tool{name: "get_protocol_parameters", readOnly: true, openWorld: true,
 			description: "Protocol parameters of the current epoch: fee coefficients, sizes, cost per UTxO byte, deposits, execution prices and limits. Amounts are lovelace as decimal strings; prices are exact fractions."},
@@ -77,26 +78,41 @@ type sourceView struct {
 }
 
 type networkStatus struct {
-	Network         string     `json:"network"`
-	ServerSlot      string     `json:"server_slot"`
-	DataSource      sourceView `json:"datasource"`
-	Tip             *tipView   `json:"tip,omitempty"`
-	ProtocolVersion string     `json:"protocol_version,omitempty"`
+	Network    string `json:"network"`
+	ServerSlot string `json:"server_slot"`
+	// DataSource is the source in use: the first of the list that answers,
+	// or the first if none does.
+	DataSource sourceView `json:"datasource"`
+	// DataSources are the configured sources, in order of preference
+	// (decision 136).
+	DataSources     []sourceView `json:"datasources"`
+	Tip             *tipView     `json:"tip,omitempty"`
+	ProtocolVersion string       `json:"protocol_version,omitempty"`
 }
 
-// networkStatus reports the data source as unavailable instead of failing,
-// since that is part of the answer.
+// networkStatus asks every data source for its tip, and reports one that
+// does not answer as unavailable instead of failing, since that is part of
+// the answer.
 func (s *Server) networkStatus(ctx context.Context, _ noArgs) (networkStatus, error) {
 	out := networkStatus{
 		Network:    string(s.d.Network),
 		ServerSlot: model.FormatAmount(chain.Clock(s.d.Network).Slot(s.d.Now())),
-		DataSource: sourceView{Name: s.d.Source.Name(), Status: "unavailable"},
 	}
-	tip, err := s.d.Source.Tip(ctx)
-	if err != nil {
+	var tip *datasource.Tip
+	for _, p := range datasource.ProbeAll(ctx, s.d.Source) {
+		v := sourceView{Name: p.Name, Status: "unavailable"}
+		if p.Err == nil {
+			v.Status = "ok"
+		}
+		out.DataSources = append(out.DataSources, v)
+		if tip == nil && p.Err == nil {
+			out.DataSource, tip = v, &p.Tip
+		}
+	}
+	if tip == nil {
+		out.DataSource = out.DataSources[0]
 		return out, nil
 	}
-	out.DataSource.Status = "ok"
 	out.Tip = &tipView{
 		Slot: model.FormatAmount(tip.Slot), Height: model.FormatAmount(tip.Height), Epoch: model.FormatAmount(tip.Epoch),
 		Hash: hex.EncodeToString(tip.Hash[:]), Time: tip.Time.UTC().Format(time.RFC3339),

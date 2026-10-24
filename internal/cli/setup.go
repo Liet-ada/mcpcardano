@@ -12,6 +12,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/Liet-ada/mcpcardano/deploy"
@@ -38,12 +39,12 @@ func Install(ctx context.Context, args []string, in io.Reader, out, errOut io.Wr
 	o := install.Options{}
 	fs.StringVar(&o.Person, "user", os.Getenv("SUDO_USER"), "the person, who joins the group and whom the admin socket admits; whoever ran sudo by default")
 	network := fs.String("network", "", "the network of a first install: preprod, the default, or preview")
-	fs.StringVar(&o.DataSource, "datasource", "", "the data source of a first install: koios, the default")
-	fs.StringVar(&o.DataSourceURL, "datasource-url", "", "the data source's URL, if not its public one")
+	fs.StringVar(&o.DataSource, "datasource", "", "the data source of a first install: koios, the default, or blockfrost, or several in order of preference, as blockfrost,koios")
+	fs.StringVar(&o.DataSourceURL, "datasource-url", "", "the URL of a single data source, if not its public one")
 	fs.StringVar(&o.Unlock, "unlock", "", "how the wallet unlocks when it starts: "+install.UnlockPassword+", the default, or "+install.UnlockMachine+", with a TPM2")
 	fs.BoolVar(&o.FIDOOwner, "fido-owner", false, "give the security keys to the person alone, also over SSH")
 	if err := fs.Parse(args); err != nil || fs.NArg() > 0 {
-		fmt.Fprintln(errOut, "usage: sudo mcpcardano install [-network preprod] [-datasource-url url] [-unlock password|machine] [-fido-owner] [-user name]")
+		fmt.Fprintln(errOut, "usage: sudo mcpcardano install [-network preprod] [-datasource koios] [-datasource-url url] [-unlock password|machine] [-fido-owner] [-user name]")
 		return ExitUsage
 	}
 	o.Network = model.Network(*network)
@@ -67,6 +68,13 @@ func Install(ctx context.Context, args []string, in io.Reader, out, errOut io.Wr
 			return report(errOut, err)
 		}
 		defer clear(password)
+	}
+	if slices.Contains(o.Sources, "blockfrost") {
+		fmt.Fprintf(errOut, "Blockfrost needs the project id of a project for %s, from blockfrost.io. It is not shown, and only the server reads it.\n", o.Network)
+		if o.BlockfrostKey, err = readSecret(ctx, in, errOut, "Project id: "); err != nil {
+			return report(errOut, err)
+		}
+		defer clear(o.BlockfrostKey)
 	}
 	if err := m.Install(o, password); err != nil {
 		fmt.Fprintln(errOut, "mcpcardano:", err)

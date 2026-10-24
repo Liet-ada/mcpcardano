@@ -51,13 +51,34 @@ Before it changes anything, install checks that it runs as root under systemd, t
     "wallet_socket": "/run/mcpcardano-wallet/service.sock", "datasource": {"kind": "koios"}, "wallets": []}
    ```
 
-5. It creates the key store with your password, running `mcpcardano-wallet -config /etc/mcpcardano-wallet/config.json init` as the wallet's user, in `/var/lib/mcpcardano-wallet` (`0700`).
+5. It creates the key store with your password, running `mcpcardano-wallet -config /etc/mcpcardano-wallet/config.json init` as the wallet's user, in `/var/lib/mcpcardano-wallet` (`0700`). With Blockfrost among the data sources, it asks for its project id without echo and writes it to `/var/lib/mcpcardano-server/secrets/blockfrost`, the server's alone (below).
 6. With `-unlock machine`, it seals the key of the machine with the TPM2 (below).
 7. It enables and starts the wallet, and then the server.
 
 It never unlocks the wallet: the admin socket admits only you, and your session is not in the new group until you log in again. It ends by showing the limits of the template that the wallets the agent creates start with, and how to change them with `mcpcardano policy show -template` and `policy set -template`.
 
 `journalctl -u mcpcardano-wallet -u mcpcardano-server` shows what the services log. The wallet refuses to start if it can reach the network, which `PrivateNetwork=yes` prevents.
+
+### Data sources
+
+The server reads the chain from Koios or Blockfrost, or from a list of them in order of preference (decision 136). Each call goes to the first source that answers; one that is down, or answers something invalid, is set aside for a minute and the call goes on to the next. A signed transaction is sent through one source only, never two: if the answer is unclear, the agent's retry asks the chain first.
+
+`-datasource blockfrost,koios` makes Blockfrost the first and Koios its relay; `-datasource blockfrost` uses Blockfrost alone. Blockfrost needs the project id of a project for the same network, from blockfrost.io, which install asks for. In `config.json` the list reads:
+
+```json
+"datasource": [{"kind": "blockfrost"}, {"kind": "koios"}]
+```
+
+The key is never in `config.json`. The server reads it from a credential of systemd named after `secret` (`blockfrost` by default), if the unit has one, or else from `/var/lib/mcpcardano-server/secrets/<secret>`, which must be the server's with mode `0600`. To add Blockfrost to an installation, put the key there and edit the list:
+
+```sh
+sudo install -d -o mcpcardano-server -g mcpcardano -m 0700 /var/lib/mcpcardano-server/secrets
+read -rs key  # paste the key; it is not shown
+printf '%s\n' "$key" | sudo install -o mcpcardano-server -g mcpcardano -m 0600 /dev/stdin /var/lib/mcpcardano-server/secrets/blockfrost; unset key
+sudo systemctl restart mcpcardano-server
+```
+
+Blockfrost does not look tokens up by their fingerprint: with it alone, `get_asset_info` asks the agent for the `asset_id`.
 
 ### Installing again
 
@@ -96,7 +117,7 @@ It stops and removes the services, the binaries, the users, the group and the ke
 - that the wallet has no network, from `/proc/<pid>/net/dev` of its process, and that its `config.json` has no `development`;
 - that the clock is synchronized and agrees with the tip of the chain;
 - that the CLI, the wallet and the server are the same version;
-- that the server reaches its data source;
+- that the server reaches its data source, and warns about any other source of the list that does not answer;
 - the security keys registered, against the ones you can open;
 - the hash chains of the wallet's audit log and spending record.
 

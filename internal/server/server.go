@@ -73,13 +73,15 @@ func Run(ctx context.Context, s Settings, o Options) error {
 		rec.Append(ctx, "recovered", map[string]any{"discarded_bytes": recovery.Discarded})
 	}
 
-	src := o.Source
-	if src == nil {
-		k, err := datasource.NewKoios(datasource.KoiosConfig{Network: s.Network, BaseURL: s.KoiosURL})
-		if err != nil {
-			return fmt.Errorf("server: data source: %w", err)
+	sources := []datasource.Source{o.Source}
+	if o.Source == nil {
+		if sources, err = openSources(s); err != nil {
+			return err
 		}
-		src = k
+	}
+	src, err := datasource.NewRelay(sources, log)
+	if err != nil {
+		return fmt.Errorf("server: %w", err)
 	}
 	checkCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	err = src.CheckNetwork(checkCtx)
@@ -88,8 +90,9 @@ func Run(ctx context.Context, s Settings, o Options) error {
 	case errors.Is(err, datasource.ErrNetworkMismatch):
 		return fmt.Errorf("server: %w", err)
 	case err != nil:
-		// Not fatal: each call reports DATASOURCE_UNAVAILABLE until it answers.
-		log.Warn("the data source does not answer yet", "source", src.Name(), "err", err)
+		// Not fatal: a source that does not answer is set aside, and each
+		// call reports DATASOURCE_UNAVAILABLE until one answers.
+		log.Warn("a data source does not answer yet", "sources", src.Name(), "err", err)
 	}
 
 	var wallet *mcp.WalletConn
@@ -213,6 +216,32 @@ func listen(path string) (net.Listener, error) {
 		return nil, fmt.Errorf("server: %w", err)
 	}
 	return ln, nil
+}
+
+// openSources builds the clients of the configured data sources, in order
+// of preference, reading Blockfrost's key from its secret.
+func openSources(s Settings) ([]datasource.Source, error) {
+	var out []datasource.Source
+	for _, c := range s.Sources {
+		var src datasource.Source
+		var err error
+		switch c.Kind {
+		case "koios":
+			src, err = datasource.NewKoios(datasource.KoiosConfig{Network: s.Network, BaseURL: c.URL})
+		case "blockfrost":
+			var key string
+			if key, err = readSecret(s.DataDir, c.Secret); err == nil {
+				src, err = datasource.NewBlockfrost(datasource.BlockfrostConfig{Network: s.Network, ProjectID: key, BaseURL: c.URL})
+			}
+		default:
+			err = fmt.Errorf("unknown kind %q", c.Kind)
+		}
+		if err != nil {
+			return nil, fmt.Errorf("server: data source %s: %w", c.Kind, err)
+		}
+		out = append(out, src)
+	}
+	return out, nil
 }
 
 // privateDir creates the data directory, or checks that nobody else can

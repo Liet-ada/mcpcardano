@@ -2,8 +2,9 @@
 // Copyright 2026 Liet-ada
 
 // Package datasource is the common interface to the chain data the server
-// reads, and its clients: Koios now, then Blockfrost and the person's own
-// node (paper, section 6.5). The rest of the server does not know which one
+// reads, and its clients: Koios and Blockfrost now, the person's own node
+// later (paper, section 6.5). A Relay asks a list of them in order of
+// preference (decision 136). The rest of the server does not know which one
 // it talks to.
 //
 // Every source is only semi-trusted. Clients check the shape and range of
@@ -81,6 +82,9 @@ var (
 	// ErrTooManyUTxOs reports an address with more UTxOs than the server
 	// reads; the person should consolidate.
 	ErrTooManyUTxOs = errors.New("datasource: too many UTxOs at the address")
+	// ErrUnsupported reports a query the source cannot answer, such as
+	// Blockfrost asked for a token by its fingerprint.
+	ErrUnsupported = errors.New("datasource: the source does not answer this query")
 )
 
 // MaxUTxOs is the most UTxOs read for one address.

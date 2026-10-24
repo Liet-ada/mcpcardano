@@ -5,6 +5,7 @@ package datasource
 
 import (
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -90,11 +91,12 @@ func TestLookups(t *testing.T) {
 	}
 
 	x, err := k.Asset(ctx, asset(t, cip25Asset))
-	if err != nil || x.Supply != "1000" || x.CIP25 == nil || x.CIP68 != nil || !strings.Contains(string(x.CIP25), `"721"`) {
+	if md, _ := x.Metadata.(map[string]any); err != nil || x.Supply != "1000" || x.Standard != CIP25 || md["name"] != "Atlas Course Token" || md["ticker"] != "ATLAS" {
 		t.Errorf("CIP-25 asset %+v, %v", x, err)
 	}
 	y, err := k.Asset(ctx, asset(t, cip68Asset))
-	if err != nil || y.CIP68 == nil || y.CIP25 != nil {
+	if md, _ := y.Metadata.(map[string]any); err != nil || y.Standard != CIP68 || md["name"] != "cmon test" ||
+		md["ticker"] != "CMONT" || md["decimals"] != json.Number("6") || md["version"] != json.Number("1") {
 		t.Errorf("CIP-68 asset %+v, %v", y, err)
 	}
 	if _, err := k.Asset(ctx, asset(t, strings.Repeat("ab", 28)+".00")); !errors.Is(err, ErrNotFound) {

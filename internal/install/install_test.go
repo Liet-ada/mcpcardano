@@ -245,12 +245,19 @@ func TestFirstInstall(t *testing.T) {
 		t.Errorf("the wallet's config.json: %v", w)
 	}
 	var s serverConfig
+	var source dataSourceConfig
 	if err := json.Unmarshal(f.read(deploy.ServerConfig), &s); err != nil {
 		t.Fatal(err)
 	}
+	if err := json.Unmarshal(marshal(s.DataSource), &source); err != nil {
+		t.Fatal(err)
+	}
 	if s.Network != model.Preprod || s.Socket != deploy.MCPSocket || s.WalletSocket != deploy.ServiceSocket ||
-		s.DataSource != (dataSourceConfig{"koios", "http://127.0.0.1:18080"}) || s.Wallets == nil {
+		source != (dataSourceConfig{"koios", "http://127.0.0.1:18080"}) || s.Wallets == nil {
 		t.Errorf("the server's config.json: %+v", s)
+	}
+	if f.m.exists(deploy.BlockfrostKey) {
+		t.Error("a key for Blockfrost without Blockfrost")
 	}
 	if !bytes.Contains(f.read(deploy.ServerConfig), []byte(`"wallets": []`)) {
 		t.Errorf("the server's config.json has no list of wallets:\n%s", f.read(deploy.ServerConfig))
@@ -269,6 +276,49 @@ func TestFirstInstall(t *testing.T) {
 		if !strings.Contains(out, s) {
 			t.Errorf("the output does not say %q:\n%s", s, out)
 		}
+	}
+}
+
+// TestInstallBlockfrost: with Blockfrost in the list, its project id goes
+// to the server's secrets/, readable by the server alone (decision 136).
+func TestInstallBlockfrost(t *testing.T) {
+	f := newFake(t)
+	o := f.options()
+	o.DataSource = "blockfrost,koios"
+	o.BlockfrostKey = model.Secret("preprodAbc123")
+	f.mustInstall(o, "correct horse")
+	var s struct {
+		DataSource []dataSourceConfig `json:"datasource"`
+	}
+	if err := json.Unmarshal(f.read(deploy.ServerConfig), &s); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(s.DataSource, []dataSourceConfig{{Kind: "blockfrost"}, {Kind: "koios"}}) {
+		t.Errorf("sources %+v", s.DataSource)
+	}
+	server := account{992, group}
+	f.is(filepath.Dir(deploy.BlockfrostKey), 0o700, server)
+	f.is(deploy.BlockfrostKey, 0o600, server)
+	if got := string(f.read(deploy.BlockfrostKey)); got != "preprodAbc123\n" {
+		t.Errorf("the key file holds %q", got)
+	}
+	if strings.Contains(f.out.String(), "preprodAbc123") {
+		t.Error("install shows the key")
+	}
+
+	g := newFake(t)
+	o = g.options()
+	o.DataSource = "blockfrost"
+	o.BlockfrostKey = model.Secret("preprod key\n")
+	if err := g.install(o, "correct horse"); err == nil || strings.Contains(err.Error(), "preprod key") {
+		t.Errorf("a key with a space: %v", err)
+	}
+	if len(g.cmds) > 1 || g.m.exists(deploy.BlockfrostKey) {
+		t.Errorf("install went on with a bad key: %v", g.cmds)
+	}
+	o.BlockfrostKey = nil
+	if err := g.install(o, "correct horse"); err == nil || !strings.Contains(err.Error(), "project id") {
+		t.Errorf("no key: %v", err)
 	}
 }
 
@@ -487,7 +537,11 @@ func TestCheck(t *testing.T) {
 		{"unknown person", func(_ *fake, o *Options) { o.Person = "carla" }, "no user carla"},
 		{"mainnet", func(_ *fake, o *Options) { o.Network = model.Mainnet }, "mainnet"},
 		{"unknown network", func(_ *fake, o *Options) { o.Network = "testnet" }, "unknown network"},
-		{"data source", func(_ *fake, o *Options) { o.DataSource = "blockfrost" }, "only koios"},
+		{"data source", func(_ *fake, o *Options) { o.DataSource = "ogmios" }, "koios and blockfrost"},
+		{"a data source twice", func(_ *fake, o *Options) { o.DataSource = "koios,blockfrost,koios" }, "koios is twice"},
+		{"a URL for a list", func(_ *fake, o *Options) {
+			o.DataSource, o.DataSourceURL = "blockfrost,koios", "https://koios.example/api/v1"
+		}, "single data source"},
 		{"unlock", func(_ *fake, o *Options) { o.Unlock = "tpm" }, "-unlock"},
 		{"no TPM2", func(_ *fake, o *Options) { o.Unlock = UnlockMachine }, tpmDevice},
 		{"old systemd", func(f *fake, o *Options) {

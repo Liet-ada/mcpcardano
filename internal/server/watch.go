@@ -38,12 +38,14 @@ const (
 // server's last start (section 9.5).
 type watcher struct {
 	store *drafts.Store
-	src   datasource.Source
+	src   *datasource.Relay
 	rec   mcp.Recorder
 	now   func() time.Time
 	depth uint32
 	log   *slog.Logger
 	srv   *mcp.Server
+	// from is the source that answered the last round.
+	from string
 }
 
 func (w *watcher) run(ctx context.Context, every time.Duration) {
@@ -77,11 +79,16 @@ func (w *watcher) once(ctx context.Context) {
 	for i, d := range watched {
 		ids[i] = d.Tx.ID
 	}
-	confirmations, err := w.src.Confirmations(ctx, ids)
+	confirmations, from, err := w.src.ConfirmationsFrom(ctx, ids)
 	if err != nil {
 		w.log.Warn("watching the chain", "err", err)
 		return
 	}
+	// A source that has just taken over may be a block or two behind the
+	// last one: it does not get to roll back a transaction until the next
+	// round (decision 136).
+	switched := w.from != "" && from != w.from
+	w.from = from
 	for _, d := range watched {
 		n := confirmations[d.Tx.ID]
 		gone := w.now().After(d.ExpiresAt.Add(ttlGrace))
@@ -90,6 +97,8 @@ func (w *watcher) once(ctx context.Context) {
 		switch {
 		case d.State == drafts.StateSubmitted && n >= uint64(w.depth):
 			next, err = w.store.Confirmed(d.ID, uint32(n))
+		case d.State == drafts.StateConfirmed && n == 0 && switched:
+			continue
 		case d.State == drafts.StateConfirmed && n == 0:
 			next, err = w.store.RolledBack(d.ID)
 		case d.State == drafts.StateConfirmed && n != uint64(d.Depth):

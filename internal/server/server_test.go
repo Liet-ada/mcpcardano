@@ -5,12 +5,14 @@ package server
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"net"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -48,10 +50,19 @@ func TestResolveExample(t *testing.T) {
 
 func TestResolveRejects(t *testing.T) {
 	cases := map[string]func(*Config){
-		"mainnet":                func(c *Config) { c.Network = "mainnet" },
-		"unknown network":        func(c *Config) { c.Network = "testnet" },
-		"relative data dir":      func(c *Config) { c.DataDir = "data" },
-		"other source":           func(c *Config) { c.DataSource.Kind = "blockfrost" },
+		"mainnet":             func(c *Config) { c.Network = "mainnet" },
+		"unknown network":     func(c *Config) { c.Network = "testnet" },
+		"relative data dir":   func(c *Config) { c.DataDir = "data" },
+		"no source":           func(c *Config) { c.DataSource = nil },
+		"unknown source":      func(c *Config) { c.DataSource[0].Kind = "ogmios" },
+		"a source twice":      func(c *Config) { c.DataSource = append(c.DataSource, c.DataSource[0]) },
+		"koios with a secret": func(c *Config) { c.DataSource[0].Secret = "koios" },
+		"a secret that is a path": func(c *Config) {
+			c.DataSource = DataSources{{Kind: "blockfrost", Secret: "../blockfrost"}}
+		},
+		"too many sources": func(c *Config) {
+			c.DataSource = DataSources{{Kind: "koios"}, {Kind: "blockfrost"}, {Kind: "koios"}, {Kind: "blockfrost"}, {Kind: "koios"}}
+		},
 		"long socket":            func(c *Config) { c.Socket = "/" + strings.Repeat("s", maxSocketPath) },
 		"relative wallet socket": func(c *Config) { c.WalletSocket = "wallet.sock" },
 		"long wallet socket":     func(c *Config) { c.WalletSocket = "/" + strings.Repeat("s", maxSocketPath) },
@@ -101,6 +112,93 @@ func TestResolveWarnsAboutZeros(t *testing.T) {
 	}
 	if len(warnings) != 6 {
 		t.Errorf("%d warnings: %v", len(warnings), warnings)
+	}
+}
+
+// TestDataSources: the datasource field takes one source or a list of them
+// in order of preference (decision 136).
+func TestDataSources(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.json")
+	os.WriteFile(path, []byte(`{"network": "preprod", "data_dir": "/x", "wallets": [],
+		"datasource": [{"kind": "blockfrost"}, {"kind": "koios", "url": "https://koios.example/api/v1"}]}`), 0o600)
+	c, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, _, err := Resolve(c)
+	want := []DataSourceConfig{{Kind: "blockfrost", Secret: "blockfrost"}, {Kind: "koios", URL: "https://koios.example/api/v1"}}
+	if err != nil || !slices.Equal(s.Sources, want) {
+		t.Errorf("sources %+v, %v", s.Sources, err)
+	}
+	if s, _, err := Resolve(exampleConfig(t)); err != nil || len(s.Sources) != 1 || s.Sources[0].Kind != "koios" {
+		t.Errorf("one source as an object: %+v, %v", s.Sources, err)
+	}
+	for name, field := range map[string]string{
+		"an unknown field in the object": `{"kind": "koios", "token": "x"}`,
+		"an unknown field in the list":   `[{"kind": "koios"}, {"kind": "blockfrost", "key": "x"}]`,
+		"a string":                       `"koios"`,
+	} {
+		os.WriteFile(path, []byte(`{"network": "preprod", "data_dir": "/x", "wallets": [], "datasource": `+field+`}`), 0o600)
+		if _, err := Load(path); !errors.Is(err, ErrConfig) {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+}
+
+func TestOpenSources(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("CREDENTIALS_DIRECTORY", "")
+	s := Settings{Network: model.Preprod, DataDir: dir, Sources: []DataSourceConfig{{Kind: "blockfrost", Secret: "blockfrost"}, {Kind: "koios"}}}
+	if _, err := openSources(s); err == nil || !strings.Contains(err.Error(), "secret blockfrost") {
+		t.Errorf("no secret: %v", err)
+	}
+	os.Mkdir(filepath.Join(dir, "secrets"), 0o700)
+	os.WriteFile(filepath.Join(dir, "secrets", "blockfrost"), []byte("preprodAbc123\n"), 0o600)
+	got, err := openSources(s)
+	if err != nil || len(got) != 2 || got[0].Name() != "blockfrost" || got[1].Name() != "koios" {
+		t.Errorf("sources %v, %v", got, err)
+	}
+	s.Sources[0].URL = "http://blockfrost.example"
+	if _, err := openSources(s); err == nil {
+		t.Error("plain HTTP to another machine")
+	}
+}
+
+func TestReadSecret(t *testing.T) {
+	const key = "preprodSecretKey42"
+	dir := t.TempDir()
+	t.Setenv("CREDENTIALS_DIRECTORY", "")
+	secrets := filepath.Join(dir, "secrets")
+	os.Mkdir(secrets, 0o700)
+	path := filepath.Join(secrets, "bf")
+	os.WriteFile(path, []byte(key+"\n"), 0o600)
+	if got, err := readSecret(dir, "bf"); err != nil || got != key {
+		t.Errorf("got %q, %v", got, err)
+	}
+	os.Chmod(path, 0o640)
+	if _, err := readSecret(dir, "bf"); err == nil || strings.Contains(err.Error(), key) {
+		t.Errorf("readable by the group: %v", err)
+	}
+	os.Chmod(path, 0o600)
+	os.Symlink(path, filepath.Join(secrets, "link"))
+	if _, err := readSecret(dir, "link"); err == nil {
+		t.Error("a symbolic link")
+	}
+	os.WriteFile(filepath.Join(secrets, "big"), bytes.Repeat([]byte("a"), maxSecretBytes+1), 0o600)
+	if _, err := readSecret(dir, "big"); err == nil {
+		t.Error("a file too large for a key")
+	}
+
+	// systemd's credential comes first.
+	creds := t.TempDir()
+	os.WriteFile(filepath.Join(creds, "bf"), []byte("fromSystemd"), 0o400)
+	t.Setenv("CREDENTIALS_DIRECTORY", creds)
+	if got, err := readSecret(dir, "bf"); err != nil || got != "fromSystemd" {
+		t.Errorf("credential: %q, %v", got, err)
+	}
+	if got, err := readSecret(dir, "other"); err == nil || got != "" {
+		t.Errorf("in neither place: %q, %v", got, err)
 	}
 }
 
