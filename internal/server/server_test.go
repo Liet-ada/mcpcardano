@@ -9,6 +9,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io/fs"
+	"log/slog"
 	"net"
 	"os"
 	"path/filepath"
@@ -155,21 +157,64 @@ func TestDataSources(t *testing.T) {
 	}
 }
 
+// TestOpenSources: Blockfrost takes its key from the encrypted credential;
+// without a usable key it is a source that does not answer, and the server
+// starts with the others; a key in clear is for development, and warned
+// about (decision 138).
 func TestOpenSources(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("CREDENTIALS_DIRECTORY", "")
-	s := Settings{Network: model.Preprod, DataDir: dir, Sources: []DataSourceConfig{{Kind: "blockfrost", Secret: "blockfrost"}, {Kind: "koios"}}}
-	if _, err := openSources(s); err == nil || !strings.Contains(err.Error(), "secret blockfrost") {
-		t.Errorf("no secret: %v", err)
+	var logged bytes.Buffer
+	log := slog.New(slog.NewTextHandler(&logged, nil))
+	s := Settings{Network: model.Preprod, DataDir: dir, Sources: []DataSourceConfig{
+		{Kind: "blockfrost", Name: "blockfrost", Secret: "blockfrost"}, {Kind: "koios", Name: "koios"}}}
+
+	got, err := openSources(s, log)
+	if err != nil || len(got) != 2 || got[0].Name() != "blockfrost" || got[1].Name() != "koios" {
+		t.Fatalf("no key: %v, %v", got, err)
 	}
+	if _, err := got[0].Tip(t.Context()); !errors.Is(err, datasource.ErrUnavailable) || !strings.Contains(err.Error(), "sudo mcpcardano apikey set blockfrost") {
+		t.Errorf("Blockfrost without a key: %v", err)
+	}
+	if !strings.Contains(logged.String(), "cannot work") {
+		t.Errorf("no warning: %s", logged.String())
+	}
+
+	creds := t.TempDir()
+	os.WriteFile(filepath.Join(creds, "mcpcardano-server.blockfrost"), []byte("preprodFromSystemd\n"), 0o400)
+	t.Setenv("CREDENTIALS_DIRECTORY", creds)
+	logged.Reset()
+	got, err = openSources(s, log)
+	if _, ok := got[0].(*datasource.Blockfrost); err != nil || !ok || logged.Len() != 0 {
+		t.Errorf("from the credential: %T, %v; logged %s", got[0], err, logged.String())
+	}
+
+	t.Setenv("CREDENTIALS_DIRECTORY", "")
 	os.Mkdir(filepath.Join(dir, "secrets"), 0o700)
 	os.WriteFile(filepath.Join(dir, "secrets", "blockfrost"), []byte("preprodAbc123\n"), 0o600)
-	got, err := openSources(s)
-	if err != nil || len(got) != 2 || got[0].Name() != "blockfrost" || got[1].Name() != "koios" {
-		t.Errorf("sources %v, %v", got, err)
+	got, err = openSources(s, log)
+	if _, ok := got[0].(*datasource.Blockfrost); err != nil || !ok || !strings.Contains(logged.String(), "file in clear") {
+		t.Errorf("from a file in clear: %T, %v; logged %s", got[0], err, logged.String())
 	}
+	if strings.Contains(logged.String(), "preprodAbc123") {
+		t.Error("the log shows the key")
+	}
+
+	os.WriteFile(filepath.Join(dir, "secrets", "blockfrost"), []byte("not a key\n"), 0o600)
+	if got, err := openSources(s, log); err != nil || got[0].Name() != "blockfrost" {
+		t.Errorf("a malformed key: %v, %v", got, err)
+	} else if _, err := got[0].Tip(t.Context()); !errors.Is(err, datasource.ErrUnavailable) {
+		t.Errorf("a malformed key: %v", err)
+	}
+	// A key anyone can read stops the server.
+	os.Chmod(filepath.Join(dir, "secrets", "blockfrost"), 0o644)
+	if _, err := openSources(s, log); err == nil || !strings.Contains(err.Error(), "mode 0600") {
+		t.Errorf("a key others can read: %v", err)
+	}
+	os.Chmod(filepath.Join(dir, "secrets", "blockfrost"), 0o600)
+	os.WriteFile(filepath.Join(dir, "secrets", "blockfrost"), []byte("preprodAbc123\n"), 0o600)
 	s.Sources[0].URL = "http://blockfrost.example"
-	if _, err := openSources(s); err == nil {
+	if _, err := openSources(s, log); err == nil {
 		t.Error("plain HTTP to another machine")
 	}
 }
@@ -182,31 +227,32 @@ func TestReadSecret(t *testing.T) {
 	os.Mkdir(secrets, 0o700)
 	path := filepath.Join(secrets, "bf")
 	os.WriteFile(path, []byte(key+"\n"), 0o600)
-	if got, err := readSecret(dir, "bf"); err != nil || got != key {
-		t.Errorf("got %q, %v", got, err)
+	if got, plain, err := readSecret(dir, "bf"); err != nil || got != key || !plain {
+		t.Errorf("got %q, %v, %v", got, plain, err)
 	}
 	os.Chmod(path, 0o640)
-	if _, err := readSecret(dir, "bf"); err == nil || strings.Contains(err.Error(), key) {
+	if _, _, err := readSecret(dir, "bf"); err == nil || strings.Contains(err.Error(), key) {
 		t.Errorf("readable by the group: %v", err)
 	}
 	os.Chmod(path, 0o600)
 	os.Symlink(path, filepath.Join(secrets, "link"))
-	if _, err := readSecret(dir, "link"); err == nil {
+	if _, _, err := readSecret(dir, "link"); err == nil {
 		t.Error("a symbolic link")
 	}
 	os.WriteFile(filepath.Join(secrets, "big"), bytes.Repeat([]byte("a"), maxSecretBytes+1), 0o600)
-	if _, err := readSecret(dir, "big"); err == nil {
+	if _, _, err := readSecret(dir, "big"); err == nil {
 		t.Error("a file too large for a key")
 	}
 
-	// systemd's credential comes first.
+	// systemd's credential, under the server's prefix, comes first.
 	creds := t.TempDir()
-	os.WriteFile(filepath.Join(creds, "bf"), []byte("fromSystemd"), 0o400)
+	os.WriteFile(filepath.Join(creds, "mcpcardano-server.bf"), []byte("fromSystemd"), 0o400)
+	os.WriteFile(filepath.Join(creds, "other"), []byte("notOurs"), 0o400)
 	t.Setenv("CREDENTIALS_DIRECTORY", creds)
-	if got, err := readSecret(dir, "bf"); err != nil || got != "fromSystemd" {
-		t.Errorf("credential: %q, %v", got, err)
+	if got, plain, err := readSecret(dir, "bf"); err != nil || got != "fromSystemd" || plain {
+		t.Errorf("credential: %q, %v, %v", got, plain, err)
 	}
-	if got, err := readSecret(dir, "other"); err == nil || got != "" {
+	if got, _, err := readSecret(dir, "other"); !errors.Is(err, fs.ErrNotExist) || got != "" {
 		t.Errorf("in neither place: %q, %v", got, err)
 	}
 }

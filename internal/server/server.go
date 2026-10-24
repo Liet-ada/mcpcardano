@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"net"
 	"os"
@@ -75,7 +76,7 @@ func Run(ctx context.Context, s Settings, o Options) error {
 
 	sources := []datasource.Source{o.Source}
 	if o.Source == nil {
-		if sources, err = openSources(s); err != nil {
+		if sources, err = openSources(s, log); err != nil {
 			return err
 		}
 	}
@@ -219,8 +220,10 @@ func listen(path string) (net.Listener, error) {
 }
 
 // openSources builds the clients of the configured data sources, in order
-// of preference, reading Blockfrost's key from its secret.
-func openSources(s Settings) ([]datasource.Source, error) {
+// of preference, reading Blockfrost's key from its secret. A Blockfrost
+// without a usable key is a source that does not answer, and says why: the
+// server starts with the others (decision 138).
+func openSources(s Settings, log *slog.Logger) ([]datasource.Source, error) {
 	var out []datasource.Source
 	for _, c := range s.Sources {
 		var src datasource.Source
@@ -229,10 +232,7 @@ func openSources(s Settings) ([]datasource.Source, error) {
 		case "koios":
 			src, err = datasource.NewKoios(datasource.KoiosConfig{Network: s.Network, Name: c.Name, BaseURL: c.URL})
 		case "blockfrost":
-			var key string
-			if key, err = readSecret(s.DataDir, c.Secret); err == nil {
-				src, err = datasource.NewBlockfrost(datasource.BlockfrostConfig{Network: s.Network, Name: c.Name, ProjectID: key, BaseURL: c.URL})
-			}
+			src, err = openBlockfrost(s, c, log)
 		default:
 			err = fmt.Errorf("unknown kind %q", c.Kind)
 		}
@@ -242,6 +242,27 @@ func openSources(s Settings) ([]datasource.Source, error) {
 		out = append(out, src)
 	}
 	return out, nil
+}
+
+func openBlockfrost(s Settings, c DataSourceConfig, log *slog.Logger) (datasource.Source, error) {
+	key, plain, err := readSecret(s.DataDir, c.Secret)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		err = fmt.Errorf("%w: no project id: sudo mcpcardano apikey set %s", datasource.ErrUnavailable, c.Secret)
+		log.Warn("a data source cannot work", "source", c.Name, "err", err)
+		return datasource.NewUnavailable(c.Name, s.Network, err), nil
+	case err != nil:
+		return nil, err
+	case plain:
+		log.Warn("the project id comes from a file in clear, which only development should use: sudo mcpcardano apikey set encrypts it", "source", c.Name)
+	}
+	b, err := datasource.NewBlockfrost(datasource.BlockfrostConfig{Network: s.Network, Name: c.Name, ProjectID: key, BaseURL: c.URL})
+	if errors.Is(err, datasource.ErrProjectID) {
+		err = fmt.Errorf("%w: %v", datasource.ErrUnavailable, err)
+		log.Warn("a data source cannot work", "source", c.Name, "err", err)
+		return datasource.NewUnavailable(c.Name, s.Network, err), nil
+	}
+	return b, err
 }
 
 // privateDir creates the data directory, or checks that nobody else can

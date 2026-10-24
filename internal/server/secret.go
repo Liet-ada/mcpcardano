@@ -31,42 +31,49 @@ func plainName(s string) bool {
 	return true
 }
 
-// readSecret reads a provider's key (section 7.1): from the credentials
-// systemd hands the unit, if it has one with that name, or else from
-// secrets/ in the data directory, where the file must be the server's and
-// readable by nobody else. Errors never quote the file.
-func readSecret(dataDir, name string) (string, error) {
+// credentialPrefix starts the names of the server's credentials, which its
+// unit imports with ImportCredential=mcpcardano-server.* and install and
+// mcpcardano apikey write (decision 138).
+const credentialPrefix = "mcpcardano-server."
+
+// readSecret reads a provider's key (section 7.1; decision 138): from the
+// credential systemd decrypted for the unit, mcpcardano-server.<name>, or
+// else, in development, from secrets/<name> in the data directory, where the
+// file must be the server's and readable by nobody else. plain says the key
+// came from that file. A key in neither place is fs.ErrNotExist. Errors
+// never quote the key.
+func readSecret(dataDir, name string) (key string, plain bool, err error) {
 	if dir := os.Getenv("CREDENTIALS_DIRECTORY"); dir != "" {
-		b, err := readBounded(filepath.Join(dir, name))
+		b, err := readBounded(filepath.Join(dir, credentialPrefix+name))
 		if err == nil {
-			return strings.TrimSpace(string(b)), nil
+			return strings.TrimSpace(string(b)), false, nil
 		}
 		if !errors.Is(err, fs.ErrNotExist) {
-			return "", fmt.Errorf("server: credential %s: %w", name, err)
+			return "", false, fmt.Errorf("server: credential %s%s: %w", credentialPrefix, name, err)
 		}
 	}
 	path := filepath.Join(dataDir, "secrets", name)
 	f, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NOFOLLOW, 0)
 	if err != nil {
-		return "", fmt.Errorf("server: secret %s: %w", name, err)
+		return "", false, fmt.Errorf("server: secret %s: %w", name, err)
 	}
 	defer f.Close()
 	fi, err := f.Stat()
 	if err != nil {
-		return "", fmt.Errorf("server: secret %s: %w", name, err)
+		return "", false, fmt.Errorf("server: secret %s: %w", name, err)
 	}
 	st, _ := fi.Sys().(*syscall.Stat_t)
 	if !fi.Mode().IsRegular() || fi.Mode().Perm()&0o077 != 0 || st == nil || int(st.Uid) != os.Getuid() {
-		return "", fmt.Errorf("server: %s must be a file of the server's user with mode 0600, not %v", path, fi.Mode())
+		return "", false, fmt.Errorf("server: %s must be a file of the server's user with mode 0600, not %v", path, fi.Mode())
 	}
 	b, err := io.ReadAll(io.LimitReader(f, maxSecretBytes+1))
 	if err != nil {
-		return "", fmt.Errorf("server: secret %s: %w", name, err)
+		return "", false, fmt.Errorf("server: secret %s: %w", name, err)
 	}
 	if len(b) > maxSecretBytes {
-		return "", fmt.Errorf("server: %s is larger than %d bytes", path, maxSecretBytes)
+		return "", false, fmt.Errorf("server: %s is larger than %d bytes", path, maxSecretBytes)
 	}
-	return strings.TrimSpace(string(b)), nil
+	return strings.TrimSpace(string(b)), true, nil
 }
 
 func readBounded(path string) ([]byte, error) {

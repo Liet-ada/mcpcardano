@@ -51,7 +51,7 @@ Before it changes anything, install checks that it runs as root under systemd, t
     "wallet_socket": "/run/mcpcardano-wallet/service.sock", "datasource": {"kind": "koios"}, "wallets": []}
    ```
 
-5. It creates the key store with your password, running `mcpcardano-wallet -config /etc/mcpcardano-wallet/config.json init` as the wallet's user, in `/var/lib/mcpcardano-wallet` (`0700`). With Blockfrost among the data sources, it asks for its project id without echo and writes it to `/var/lib/mcpcardano-server/secrets/blockfrost`, the server's alone (below).
+5. It creates the key store with your password, running `mcpcardano-wallet -config /etc/mcpcardano-wallet/config.json init` as the wallet's user, in `/var/lib/mcpcardano-wallet` (`0700`). With Blockfrost among the data sources, it asks for its project id without echo and encrypts it for the server (below).
 6. With `-unlock machine`, it seals the key of the machine with the TPM2 (below).
 7. It enables and starts the wallet, and then the server.
 
@@ -69,14 +69,16 @@ The server reads the chain from Koios or Blockfrost, or from a list of them in o
 "datasource": [{"kind": "blockfrost"}, {"kind": "koios"}]
 ```
 
-The key is never in `config.json`. The server reads it from a credential of systemd named after `secret` (`blockfrost` by default), if the unit has one, or else from `/var/lib/mcpcardano-server/secrets/<secret>`, which must be the server's with mode `0600`. To add Blockfrost to an installation, put the key there and edit the list:
+The key is never in `config.json` (decision 138). `systemd-creds` keeps it encrypted in `/etc/credstore.encrypted/mcpcardano-server.<secret>` (`secret` is `blockfrost` by default): with the TPM2 and the host's key if there is a TPM2, with the host's key alone if not. The server's unit imports it with `ImportCredential=`, and systemd decrypts it for the server alone, in memory, when it starts. It needs systemd 254 or later. To add or change the key, or to remove it:
 
 ```sh
-sudo install -d -o mcpcardano-server -g mcpcardano -m 0700 /var/lib/mcpcardano-server/secrets
-read -rs key  # paste the key; it is not shown
-printf '%s\n' "$key" | sudo install -o mcpcardano-server -g mcpcardano -m 0600 /dev/stdin /var/lib/mcpcardano-server/secrets/blockfrost; unset key
-sudo systemctl restart mcpcardano-server
+sudo mcpcardano apikey set blockfrost     # asks for the key without echo, encrypts it and restarts the server
+sudo mcpcardano apikey remove blockfrost
 ```
+
+Then list Blockfrost in `datasource` and restart the server. Without its key, Blockfrost is a source that does not answer, and the server goes on with the others; doctor warns about it. This protects a copy of the disk or of a backup; it does not protect from root on the machine, which can decrypt the key as systemd does.
+
+In development, without systemd, the server reads the key from `secrets/<secret>` in its data directory, a file of its user with mode `0600`, and warns that it is in clear.
 
 Blockfrost does not look tokens up by their fingerprint: with it alone, `get_asset_info` asks the agent for the `asset_id`.
 

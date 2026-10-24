@@ -110,6 +110,40 @@ func newPassword(ctx context.Context, in io.Reader, errOut io.Writer) (model.Sec
 	return p, nil
 }
 
+// APIKey runs mcpcardano apikey set <name> and apikey remove <name>: the API
+// keys of the server's data sources, as Blockfrost's project id, which
+// systemd-creds keeps encrypted for the server alone (decision 138). set
+// asks for the key without echo, or reads a line from a script.
+func APIKey(ctx context.Context, args []string, in io.Reader, out, errOut io.Writer) int {
+	if len(args) != 2 || (args[0] != "set" && args[0] != "remove") {
+		fmt.Fprintln(errOut, "usage: sudo mcpcardano apikey set <name>\n       sudo mcpcardano apikey remove <name>")
+		return ExitUsage
+	}
+	name := args[1]
+	m := install.NewMachine(out)
+	if err := m.CheckAPIKey(name); err != nil {
+		fmt.Fprintln(errOut, "mcpcardano:", err)
+		return ExitError
+	}
+	var err error
+	if args[0] == "remove" {
+		err = m.RemoveAPIKey(name)
+	} else {
+		fmt.Fprintf(errOut, "The key %s is encrypted for the server alone. It is not shown.\n", name)
+		var key model.Secret
+		if key, err = readSecret(ctx, in, errOut, "Key: "); err != nil {
+			return report(errOut, err)
+		}
+		defer clear(key)
+		err = m.SetAPIKey(name, key)
+	}
+	if err != nil {
+		fmt.Fprintln(errOut, "mcpcardano:", err)
+		return ExitError
+	}
+	return ExitOK
+}
+
 // Uninstall runs mcpcardano uninstall. With -delete-data it asks the person
 // to type a phrase first.
 func Uninstall(ctx context.Context, args []string, in io.Reader, out, errOut io.Writer) int {

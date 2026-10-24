@@ -3,7 +3,10 @@
 # the network its data source needs. Its MCP socket lives in
 # /run/mcpcardano-server, 0750 with the group mcpcardano, where the person's
 # bridge reaches it (section 10.2). It talks to the wallet through the
-# wallet's service socket.
+# wallet's service socket. The API keys of its data sources stay encrypted
+# by systemd-creds in /etc/credstore.encrypted, as mcpcardano-server.<name>:
+# ImportCredential hands them to the server alone, in its credentials
+# directory, and skips them if there are none (decision 138).
 [Unit]
 Description=mcpcardano server
 After=mcpcardano-wallet.service network-online.target
@@ -20,6 +23,7 @@ StateDirectoryMode=0700
 RuntimeDirectory=mcpcardano-server
 RuntimeDirectoryMode=0750
 UMask=0077
+ImportCredential=mcpcardano-server.*
 
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 ProtectSystem=strict

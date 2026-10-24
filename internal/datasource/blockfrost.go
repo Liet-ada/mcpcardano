@@ -69,13 +69,16 @@ type Blockfrost struct {
 
 var _ Source = (*Blockfrost)(nil)
 
+// ErrProjectID reports a Blockfrost key of the wrong shape.
+var ErrProjectID = errors.New("datasource: the Blockfrost project id must be 1 to 128 letters and digits")
+
 // NewBlockfrost returns a Blockfrost client.
 func NewBlockfrost(cfg BlockfrostConfig) (*Blockfrost, error) {
 	if _, ok := networkMagic[cfg.Network]; !ok {
 		return nil, fmt.Errorf("datasource: unknown network %q", cfg.Network)
 	}
 	if !projectID(cfg.ProjectID) {
-		return nil, errors.New("datasource: the Blockfrost project id must be 1 to 128 letters and digits")
+		return nil, ErrProjectID
 	}
 	if cfg.BaseURL == "" {
 		cfg.BaseURL = DefaultBlockfrostURL(cfg.Network)

@@ -3,6 +3,10 @@
 
 // Command koios is the data source of the integration tests (section 11.1):
 // it answers the requests of the server's Koios client as preprod would.
+// Under /blockfrost it answers the latest block and the genesis of
+// Blockfrost to a client with the project id BlockfrostKey, and 403 to
+// any other, so that the tests can see the key reach the server (decision
+// 138).
 // Every address it is asked about holds ten UTxOs of 100 ADA; every
 // transaction it receives is taken, spends its inputs and gains one
 // confirmation a second.
@@ -18,6 +22,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -46,8 +51,31 @@ type chain struct {
 	submitted map[string]time.Time // tx id, and when it came
 }
 
+// BlockfrostKey is the only project id the fake's Blockfrost takes.
+const BlockfrostKey = "preprodIntegration2026"
+
 func (c *chain) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var out any
+	if path, ok := strings.CutPrefix(r.URL.Path, "/blockfrost"); ok {
+		if r.Header.Get("project_id") != BlockfrostKey {
+			http.Error(w, `{"status_code":403,"error":"Forbidden","message":"Invalid project token."}`, http.StatusForbidden)
+			return
+		}
+		now := time.Now()
+		switch path {
+		case "/genesis":
+			out = map[string]any{"network_magic": 1}
+		case "/blocks/latest":
+			out = map[string]any{"hash": hex.EncodeToString(make([]byte, 32)), "epoch": 319,
+				"slot": model.Preprod.Clock().Slot(now), "height": now.Unix(), "time": now.Unix()}
+		default:
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(out)
+		return
+	}
 	switch r.URL.Path {
 	case "/genesis":
 		out = []map[string]string{{"networkmagic": "1", "networkid": "Testnet"}}

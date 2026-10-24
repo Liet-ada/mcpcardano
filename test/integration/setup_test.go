@@ -6,6 +6,7 @@
 package integration
 
 import (
+	"encoding/json"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -40,6 +41,11 @@ func restartUnit(t *testing.T, unit, socket string) {
 	t.Helper()
 	sudo(t, "systemctl", "reset-failed", unit)
 	run(t, "", "sudo", "-n", "systemctl", "restart", unit)
+	waitSocket(socket)
+}
+
+// waitSocket waits up to ten seconds for a service's socket.
+func waitSocket(socket string) {
 	for range 50 {
 		if fi, err := os.Stat(socket); err == nil && fi.Mode().Type() == os.ModeSocket {
 			return
@@ -250,5 +256,90 @@ func TestUninstall(t *testing.T) {
 		if _, err := os.Stat(p); !os.IsNotExist(err) {
 			t.Errorf("%s is still there: %v", p, err)
 		}
+	}
+}
+
+// sources reads which data sources answer, from get_network_status.
+func sources(t *testing.T) map[string]string {
+	t.Helper()
+	var st struct {
+		DataSources []struct {
+			Name   string `json:"name"`
+			Status string `json:"status"`
+		} `json:"datasources"`
+	}
+	if err := call(t, agent(t), "get_network_status", nil, &st); err != nil {
+		t.Fatal(err)
+	}
+	out := map[string]string{}
+	for _, s := range st.DataSources {
+		out[s.Name] = s.Status
+	}
+	return out
+}
+
+// TestAPIKey: mcpcardano apikey encrypts Blockfrost's project id with
+// systemd-creds, systemd hands it to the server, and the server reaches the
+// fake's Blockfrost with it; without it, the server runs on with Koios
+// (decision 138).
+func TestAPIKey(t *testing.T) {
+	phase(t, "apikey")
+	const key = "preprodIntegration2026" // the fake's
+	credential := "/etc/credstore.encrypted/mcpcardano-server.blockfrost"
+	original := sudo(t, "cat", serverConfig)
+	t.Cleanup(func() {
+		run(t, "", "sudo", "-n", cli, "apikey", "remove", "blockfrost")
+		asRoot(t, serverConfig, original)
+		restartUnit(t, "mcpcardano-server", mcpSocket)
+	})
+	var c map[string]any
+	if err := json.Unmarshal([]byte(original), &c); err != nil {
+		t.Fatal(err)
+	}
+	c["datasource"] = []any{
+		map[string]any{"kind": "koios", "url": "http://127.0.0.1:18080"},
+		map[string]any{"kind": "blockfrost", "url": "http://127.0.0.1:18080/blockfrost"},
+	}
+	b, _ := json.MarshalIndent(c, "", "  ")
+	asRoot(t, serverConfig, string(b))
+	restartUnit(t, "mcpcardano-server", mcpSocket)
+
+	// Without its key, Blockfrost does not answer, and the server runs on.
+	if s := sources(t); s["koios"] != "ok" || s["blockfrost"] != "unavailable" {
+		t.Fatalf("without the key: %v", s)
+	}
+	if code, out := doctor(t); code != 0 || !strings.Contains(out, "the data source blockfrost does not answer") {
+		t.Errorf("doctor without the key: exit %d\n%s", code, out)
+	}
+
+	if code, out := run(t, key+"\n", "sudo", "-n", cli, "apikey", "set", "blockfrost"); code != 0 || strings.Contains(out, key) {
+		t.Fatalf("apikey set: exit %d\n%s", code, out)
+	}
+	waitSocket(mcpSocket) // apikey restarted the server
+	sudo(t, "test", "-f", credential)
+	if code, _ := run(t, "", "sudo", "-n", "grep", "-q", key, credential); code == 0 {
+		t.Error("the credential holds the key in clear")
+	}
+	if code, _ := run(t, "", "sudo", "-n", "test", "-e", serverData+"/secrets/blockfrost"); code == 0 {
+		t.Error("a copy of the key in clear")
+	}
+	// Only the server's user reads it, from its credentials.
+	if code, out := asServer(t, "cat", credential); code == 0 {
+		t.Errorf("the server's user reads the encrypted file: %s", out)
+	}
+	if s := sources(t); s["blockfrost"] != "ok" || s["koios"] != "ok" {
+		t.Fatalf("with the key: %v", s)
+	}
+	mustDoctor(t)
+
+	if code, out := run(t, "", "sudo", "-n", cli, "apikey", "remove", "blockfrost"); code != 0 {
+		t.Fatalf("apikey remove: exit %d\n%s", code, out)
+	}
+	waitSocket(mcpSocket)
+	if code, _ := run(t, "", "sudo", "-n", "test", "-e", credential); code == 0 {
+		t.Error("the credential is still there")
+	}
+	if s := sources(t); s["blockfrost"] != "unavailable" || s["koios"] != "ok" {
+		t.Errorf("after remove: %v", s)
 	}
 }

@@ -7,6 +7,7 @@
 //
 //	sudo mcpcardano install [-network preprod] [-unlock password|machine] ...
 //	sudo mcpcardano uninstall [-delete-data]
+//	sudo mcpcardano apikey set <name> | apikey remove <name>
 //	mcpcardano doctor
 //	mcpcardano mcp [-socket path]
 //	mcpcardano sign <draft_id>
@@ -38,7 +39,7 @@ import (
 func main() { os.Exit(run(os.Args[1:])) }
 
 func usage() int {
-	lines := append([]string{"install", "uninstall", "doctor", "mcp", "sign <draft_id>", "signer", "signer init"}, cli.AdminUsage()...)
+	lines := append([]string{"install", "uninstall", "apikey set <name> | apikey remove <name>", "doctor", "mcp", "sign <draft_id>", "signer", "signer init"}, cli.AdminUsage()...)
 	fmt.Fprintln(os.Stderr, "usage: mcpcardano "+strings.Join(lines, "\n       mcpcardano "))
 	return cli.ExitUsage
 }
@@ -68,6 +69,8 @@ func run(args []string) int {
 		return cli.Install(ctx, args[1:], os.Stdin, os.Stdout, os.Stderr)
 	case "uninstall":
 		return cli.Uninstall(ctx, args[1:], os.Stdin, os.Stdout, os.Stderr)
+	case "apikey":
+		return cli.APIKey(ctx, args[1:], os.Stdin, os.Stdout, os.Stderr)
 	case "doctor":
 		return cli.Doctor(ctx, args[1:], version, os.Stdout, os.Stderr)
 	case "sign":

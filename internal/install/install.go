@@ -365,6 +365,11 @@ func (m *Machine) Check(o *Options) error {
 		if len(o.Sources) > 1 && o.DataSourceURL != "" {
 			return errors.New("install: -datasource-url is for a single data source: for a list, write the URLs in " + deploy.ServerConfig + " after install")
 		}
+		if slices.Contains(o.Sources, "blockfrost") {
+			if err := m.checkCredentials("install", "keeping Blockfrost's project id encrypted"); err != nil {
+				return err
+			}
+		}
 		// The server's configuration may be left from an install that
 		// stopped half way; install keeps it, but not for another network.
 		if data, err := os.ReadFile(m.path(deploy.ServerConfig)); err == nil {
@@ -434,15 +439,24 @@ func (m *Machine) checkSystem(what string) error {
 // TPM2 and a systemd with ImportCredential= (decision 132). Whether the
 // TPM2 seals is known when it seals.
 func (m *Machine) checkMachineUnlock() error {
-	out, err := m.run(command{name: "systemctl", args: []string{"--version"}})
-	if err != nil {
-		return fmt.Errorf("install: systemctl --version: %v", err)
-	}
-	if v := systemdVersion(out); v < minSystemdForCredentials {
-		return fmt.Errorf("install: the unlock bound to the machine needs systemd %d or later, and this is %d", minSystemdForCredentials, v)
+	if err := m.checkCredentials("install", "the unlock bound to the machine"); err != nil {
+		return err
 	}
 	if !m.exists(tpmDevice) {
 		return fmt.Errorf("install: the unlock bound to the machine needs a TPM2, and there is no %s", tpmDevice)
+	}
+	return nil
+}
+
+// checkCredentials checks that systemd can hand a unit an encrypted
+// credential: ImportCredential= came with systemd 254.
+func (m *Machine) checkCredentials(cmd, what string) error {
+	out, err := m.run(command{name: "systemctl", args: []string{"--version"}})
+	if err != nil {
+		return fmt.Errorf("%s: systemctl --version: %v", cmd, err)
+	}
+	if v := systemdVersion(out); v < minSystemdForCredentials {
+		return fmt.Errorf("%s: %s needs systemd %d or later, and this is %d", cmd, what, minSystemdForCredentials, v)
 	}
 	return nil
 }
@@ -502,8 +516,10 @@ func (m *Machine) Install(o Options, password model.Secret) error {
 	if err := m.installData(ids, password); err != nil {
 		return err
 	}
-	if err := m.installBlockfrostKey(o.BlockfrostKey, ids); err != nil {
-		return err
+	if len(o.BlockfrostKey) > 0 {
+		if err := m.writeAPIKey("blockfrost", o.BlockfrostKey); err != nil {
+			return err
+		}
 	}
 	if err := m.installUnlock(o.Unlock); err != nil {
 		return err
@@ -764,36 +780,6 @@ func (m *Machine) installData(r ids, password model.Secret) error {
 	return nil
 }
 
-// installBlockfrostKey writes Blockfrost's project id where the server
-// reads it (section 7.1): secrets/blockfrost in its data directory, the
-// server's alone.
-func (m *Machine) installBlockfrostKey(key model.Secret, r ids) error {
-	if len(key) == 0 {
-		return nil
-	}
-	m.say("Writing Blockfrost's project id in %s.", deploy.BlockfrostKey)
-	if err := m.mkdir(filepath.Dir(deploy.BlockfrostKey), 0o700, r.server.uid, r.group); err != nil {
-		return err
-	}
-	data := append(append(make([]byte, 0, len(key)+1), key...), '\n')
-	defer clear(data)
-	return m.writeFile(deploy.BlockfrostKey, data, 0o600, r.server.uid, r.group)
-}
-
-// projectID checks the shape of a Blockfrost key as its client does, so
-// that a mistyped one is caught before the server starts.
-func projectID(key []byte) bool {
-	if len(key) == 0 || len(key) > 128 {
-		return false
-	}
-	for _, c := range key {
-		if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9') {
-			return false
-		}
-	}
-	return true
-}
-
 // installUnlock seals the key of the machine with the TPM2 (decision 132),
 // or removes it. The key goes to systemd-creds on its standard input and is
 // wiped.
@@ -915,7 +901,14 @@ func (m *Machine) Uninstall(deleteData bool) error {
 		gone = append(gone, filepath.Join(deploy.UnitDir, u))
 	}
 	gone = append(gone, deploy.SysUsersPath, deploy.Credential, deploy.FIDORule)
-	m.say("Removing the binaries, the units and the key of the machine.")
+	keys, err := filepath.Glob(filepath.Join(m.path(deploy.CredStore), deploy.ServerCredential+"*"))
+	if err != nil {
+		return fmt.Errorf("install: %w", err)
+	}
+	for _, k := range keys {
+		gone = append(gone, filepath.Join(deploy.CredStore, filepath.Base(k)))
+	}
+	m.say("Removing the binaries, the units, the key of the machine and the API keys.")
 	for _, p := range gone {
 		if err := os.Remove(m.path(p)); err != nil && !errors.Is(err, fs.ErrNotExist) {
 			return fmt.Errorf("install: %w", err)
