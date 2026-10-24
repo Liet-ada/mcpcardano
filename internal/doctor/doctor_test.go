@@ -80,6 +80,8 @@ func healthy() *machine {
 		m.show[u] = props
 	}
 	m.show[deploy.WalletService]["MainPID"] = fmt.Sprint(walletPID)
+	// systemctl show quotes a credential with a glob.
+	m.show[deploy.ServerService]["ImportCredential"] = `"mcpcardano-server.*"`
 	put(deploy.WalletConfigDir, fs.ModeDir|0o750, 0, groupID, "")
 	put(deploy.ServerConfigDir, fs.ModeDir|0o750, 0, groupID, "")
 	put(deploy.WalletConfig, 0o640, 0, groupID, `{"network": "preprod", "admin_uid": 1000, "service_uid": 992}`)

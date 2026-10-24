@@ -153,7 +153,7 @@ func (r *Relay) note(s Source, err error) {
 	switch {
 	case errors.Is(err, ErrUnavailable) || errors.Is(err, ErrInvalidResponse):
 		if _, already := r.aside[s.Name()]; !already {
-			r.log.Warn("data source set aside", "source", s.Name(), "for", asideFor, "err", err)
+			r.log.Warn("data source set aside", "source", s.Name(), "for", asideFor.String(), "err", err)
 		}
 		r.aside[s.Name()] = r.now().Add(asideFor)
 	case errors.Is(err, ErrUnsupported):

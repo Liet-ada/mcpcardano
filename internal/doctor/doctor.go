@@ -436,8 +436,14 @@ func argv(exec string) string {
 }
 
 // sameValue compares a property as systemctl show prints it with the unit's
-// setting; a list of address families may come in another order.
+// setting; a list of address families may come in another order, and a
+// credential with a glob comes quoted, as "mcpcardano-server.*".
 func sameValue(key, got, want string) bool {
+	if key == "ImportCredential" {
+		if s, err := strconv.Unquote(got); err == nil {
+			got = s
+		}
+	}
 	if key == "RestrictAddressFamilies" {
 		g, w := strings.Fields(got), strings.Fields(want)
 		slices.Sort(g)
