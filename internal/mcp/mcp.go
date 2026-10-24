@@ -74,12 +74,21 @@ type Server struct {
 	wallets map[model.WalletID]Wallet // of mode A
 	ws      walletState
 	sends   sendState
+	orders  orders // of data sources, by session
 }
 
 // New builds the server and registers its tools.
 func New(d Deps) (*Server, error) {
 	if d.Logger == nil {
 		d.Logger = slog.New(slog.DiscardHandler)
+	}
+	if _, ok := d.Source.(*datasource.Relay); !ok {
+		// One source is a relay of one, which a session cannot reorder.
+		r, err := datasource.NewRelay([]datasource.Source{d.Source}, d.Logger)
+		if err != nil {
+			return nil, fmt.Errorf("mcp: %w", err)
+		}
+		d.Source = r
 	}
 	s := &Server{
 		sdk:     sdk.NewServer(&sdk.Implementation{Name: "mcpcardano", Version: d.Version}, nil),
@@ -118,6 +127,7 @@ func (s *Server) Serve(ctx context.Context, conn io.ReadWriteCloser) error {
 	if err != nil {
 		return err
 	}
+	defer s.forget(session)
 	return session.Wait()
 }
 
@@ -166,7 +176,7 @@ func addTool[In, Out any](s *Server, t tool, h func(context.Context, In) (Out, e
 		Name: t.name, Description: description + dataNotInstructions,
 		InputSchema: in, OutputSchema: out, Annotations: ann,
 	}, func(ctx context.Context, req *sdk.CallToolRequest) (*sdk.CallToolResult, error) {
-		ctx, cancel := context.WithTimeout(ctx, callTimeout)
+		ctx, cancel := context.WithTimeout(context.WithValue(ctx, sessionKey{}, req.Session), callTimeout)
 		defer cancel()
 		var args In
 		answer, err := func() (Out, error) {

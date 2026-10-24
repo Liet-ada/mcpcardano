@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -29,11 +30,20 @@ const asideFor = time.Minute
 // fails too. Any other answer, such as ErrNotFound, is the answer.
 //
 // Submit is the exception: it goes to one source only (decision 78).
+//
+// Prefer gives a view of the relay with another order, such as the one an
+// agent chose for its session (decision 137). The views share which sources
+// are set aside: a source that is down is down for every session.
 type Relay struct {
-	sources []Source
+	sources []Source // in the order of this view
+	all     []Source // as configured
 	log     *slog.Logger
 	now     func() time.Time
+	*health
+}
 
+// health is which sources are set aside, shared by a relay and its views.
+type health struct {
 	mu    sync.Mutex
 	aside map[string]time.Time // until when each source is set aside
 }
@@ -59,17 +69,55 @@ func NewRelay(sources []Source, log *slog.Logger) (*Relay, error) {
 	if log == nil {
 		log = slog.New(slog.DiscardHandler)
 	}
-	return &Relay{sources: sources, log: log, now: time.Now, aside: map[string]time.Time{}}, nil
+	return &Relay{sources: sources, all: sources, log: log, now: time.Now, health: &health{aside: map[string]time.Time{}}}, nil
+}
+
+// Prefer returns a view of the relay that asks the named sources, in that
+// order: one or more of the configured ones, each once. No names gives the
+// configured order.
+func (r *Relay) Prefer(names []string) (*Relay, error) {
+	if len(names) == 0 {
+		names = r.Names()
+	}
+	byName := make(map[string]Source, len(r.all))
+	for _, s := range r.all {
+		byName[s.Name()] = s
+	}
+	view := *r
+	view.sources = make([]Source, 0, len(names))
+	for _, n := range names {
+		s, ok := byName[n]
+		if !ok {
+			return nil, fmt.Errorf("datasource: no source %q: there are %s", n, strings.Join(r.Names(), ", "))
+		}
+		if slices.Contains(view.sources, s) {
+			return nil, fmt.Errorf("datasource: %s twice", n)
+		}
+		view.sources = append(view.sources, s)
+	}
+	return &view, nil
+}
+
+// Names are the names of the configured sources, in the configured order.
+func (r *Relay) Names() []string {
+	out := make([]string, len(r.all))
+	for i, s := range r.all {
+		out[i] = s.Name()
+	}
+	return out
+}
+
+// Order are the names of the sources of this view, in its order.
+func (r *Relay) Order() []string {
+	out := make([]string, len(r.sources))
+	for i, s := range r.sources {
+		out[i] = s.Name()
+	}
+	return out
 }
 
 // Name implements Source: the names of the sources, in order of preference.
-func (r *Relay) Name() string {
-	names := make([]string, len(r.sources))
-	for i, s := range r.sources {
-		names[i] = s.Name()
-	}
-	return strings.Join(names, ",")
-}
+func (r *Relay) Name() string { return strings.Join(r.Order(), ",") }
 
 // Network implements Source.
 func (r *Relay) Network() model.Network { return r.sources[0].Network() }
@@ -247,18 +295,18 @@ type Probe struct {
 	Err  error
 }
 
-// ProbeAll asks every source behind src for its tip at once: the sources of
-// a Relay, in its order of preference, or src itself. A relay takes note of
-// how each one did.
+// ProbeAll asks every source behind src for its tip at once: every
+// configured source of a Relay, in the configured order, or src itself. A
+// relay takes note of how each one did.
 func ProbeAll(ctx context.Context, src Source) []Probe {
 	r, ok := src.(*Relay)
 	if !ok {
 		tip, err := src.Tip(ctx)
 		return []Probe{{Name: src.Name(), Tip: tip, Err: err}}
 	}
-	out := make([]Probe, len(r.sources))
+	out := make([]Probe, len(r.all))
 	var wg sync.WaitGroup
-	for i, s := range r.sources {
+	for i, s := range r.all {
 		wg.Go(func() {
 			tip, err := s.Tip(ctx)
 			if ctx.Err() == nil {

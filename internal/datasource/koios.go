@@ -46,6 +46,8 @@ var networkMagic = map[model.Network]string{
 // KoiosConfig configures a Koios client. Zero values take the defaults.
 type KoiosConfig struct {
 	Network model.Network
+	// Name tells this source from the others of a list; "koios" if empty.
+	Name string
 	// BaseURL defaults to the public endpoint of the network. It must be
 	// HTTPS, or plain HTTP to a loopback address for a self-hosted instance.
 	BaseURL          string
@@ -74,6 +76,9 @@ func NewKoios(cfg KoiosConfig) (*Koios, error) {
 	}
 	if cfg.BaseURL == "" {
 		cfg.BaseURL = DefaultKoiosURL(cfg.Network)
+	}
+	if cfg.Name == "" {
+		cfg.Name = "koios"
 	}
 	base, err := baseURL("Koios", cfg.BaseURL)
 	if err != nil {
@@ -144,7 +149,7 @@ func sleep(ctx context.Context, d time.Duration) error {
 }
 
 // Name implements Source.
-func (k *Koios) Name() string { return "koios" }
+func (k *Koios) Name() string { return k.cfg.Name }
 
 // Network implements Source.
 func (k *Koios) Network() model.Network { return k.cfg.Network }

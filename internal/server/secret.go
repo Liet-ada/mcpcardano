@@ -17,8 +17,9 @@ import (
 // maxSecretBytes bounds a secret file: a provider's key is short.
 const maxSecretBytes = 1 << 10
 
-// secretName checks the name of a secret, which becomes a file name.
-func secretName(s string) bool {
+// plainName checks the name of a source or of a secret, which becomes a
+// file name.
+func plainName(s string) bool {
 	if s == "" || len(s) > 64 {
 		return false
 	}

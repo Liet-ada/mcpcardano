@@ -36,6 +36,9 @@ func DefaultBlockfrostURL(n model.Network) string {
 // defaults.
 type BlockfrostConfig struct {
 	Network model.Network
+	// Name tells this source from the others of a list; "blockfrost" if
+	// empty.
+	Name string
 	// ProjectID is the key of a Blockfrost project for this network. It
 	// goes only in the project_id header of each request, never in an
 	// error, and the client does not keep it in a field that a %v could
@@ -76,6 +79,9 @@ func NewBlockfrost(cfg BlockfrostConfig) (*Blockfrost, error) {
 	}
 	if cfg.BaseURL == "" {
 		cfg.BaseURL = DefaultBlockfrostURL(cfg.Network)
+	}
+	if cfg.Name == "" {
+		cfg.Name = "blockfrost"
 	}
 	base, err := baseURL("Blockfrost", cfg.BaseURL)
 	if err != nil {
@@ -120,7 +126,7 @@ func projectID(s string) bool {
 }
 
 // Name implements Source.
-func (b *Blockfrost) Name() string { return "blockfrost" }
+func (b *Blockfrost) Name() string { return b.cfg.Name }
 
 // Network implements Source.
 func (b *Blockfrost) Network() model.Network { return b.cfg.Network }

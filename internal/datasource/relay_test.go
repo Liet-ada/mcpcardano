@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -285,5 +286,45 @@ func TestProbeAll(t *testing.T) {
 	}
 	if got := ProbeAll(ctx, b); len(got) != 1 || got[0].Name != "bb" || got[0].Err != nil {
 		t.Errorf("one source: %+v", got)
+	}
+}
+
+// TestRelayPrefer: a view asks the sources in its own order and shares with
+// the relay which ones are set aside (decision 137).
+func TestRelayPrefer(t *testing.T) {
+	a, b, c := newFake("a"), newFake("bb"), newFake("ccc")
+	r, _ := testRelay(t, a, b, c)
+	v, err := r.Prefer([]string{"ccc", "a"})
+	if err != nil || v.Name() != "ccc,a" || !slices.Equal(v.Names(), []string{"a", "bb", "ccc"}) {
+		t.Fatalf("view %v, %v", v, err)
+	}
+	if tip, _ := v.Tip(ctx); tip.Height != 3 {
+		t.Errorf("the view asks ccc first: %+v", tip)
+	}
+	// ccc goes down for the view, and so for the relay.
+	c.fail(ErrUnavailable)
+	if tip, _ := v.Tip(ctx); tip.Height != 1 {
+		t.Errorf("the view passes on to a: %+v", tip)
+	}
+	if got := ProbeAll(ctx, v); len(got) != 3 || got[0].Name != "a" || got[2].Name != "ccc" {
+		t.Errorf("a view probes every configured source: %+v", got)
+	}
+	// A view of one source does not pass on to the others.
+	only, _ := r.Prefer([]string{"ccc"})
+	if _, err := only.Tip(ctx); !errors.Is(err, ErrUnavailable) || b.calls.Load() != 1 {
+		t.Errorf("a view of ccc alone: %v, bb asked %d times", err, b.calls.Load())
+	}
+	if all, err := r.Prefer(nil); err != nil || all.Name() != "a,bb,ccc" {
+		t.Errorf("no names: %v, %v", all, err)
+	}
+	for _, names := range [][]string{{"d"}, {"a", "a"}} {
+		if _, err := r.Prefer(names); err == nil {
+			t.Errorf("%v accepted", names)
+		}
+	}
+	// The names a relay over named clients gives.
+	k, _ := NewKoios(KoiosConfig{Network: model.Preprod, Name: "my-koios", BaseURL: "http://127.0.0.1:1"})
+	if k.Name() != "my-koios" {
+		t.Errorf("name %q", k.Name())
 	}
 }

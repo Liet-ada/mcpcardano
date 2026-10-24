@@ -50,12 +50,16 @@ func TestResolveExample(t *testing.T) {
 
 func TestResolveRejects(t *testing.T) {
 	cases := map[string]func(*Config){
-		"mainnet":             func(c *Config) { c.Network = "mainnet" },
-		"unknown network":     func(c *Config) { c.Network = "testnet" },
-		"relative data dir":   func(c *Config) { c.DataDir = "data" },
-		"no source":           func(c *Config) { c.DataSource = nil },
-		"unknown source":      func(c *Config) { c.DataSource[0].Kind = "ogmios" },
-		"a source twice":      func(c *Config) { c.DataSource = append(c.DataSource, c.DataSource[0]) },
+		"mainnet":           func(c *Config) { c.Network = "mainnet" },
+		"unknown network":   func(c *Config) { c.Network = "testnet" },
+		"relative data dir": func(c *Config) { c.DataDir = "data" },
+		"no source":         func(c *Config) { c.DataSource = nil },
+		"unknown source":    func(c *Config) { c.DataSource[0].Kind = "ogmios" },
+		"a source twice":    func(c *Config) { c.DataSource = append(c.DataSource, c.DataSource[0]) },
+		"a name twice": func(c *Config) {
+			c.DataSource = DataSources{{Kind: "koios", Name: "x"}, {Kind: "blockfrost", Name: "x"}}
+		},
+		"a name with a slash": func(c *Config) { c.DataSource[0].Name = "a/b" },
 		"koios with a secret": func(c *Config) { c.DataSource[0].Secret = "koios" },
 		"a secret that is a path": func(c *Config) {
 			c.DataSource = DataSources{{Kind: "blockfrost", Secret: "../blockfrost"}}
@@ -127,12 +131,17 @@ func TestDataSources(t *testing.T) {
 		t.Fatal(err)
 	}
 	s, _, err := Resolve(c)
-	want := []DataSourceConfig{{Kind: "blockfrost", Secret: "blockfrost"}, {Kind: "koios", URL: "https://koios.example/api/v1"}}
+	want := []DataSourceConfig{{Kind: "blockfrost", Name: "blockfrost", Secret: "blockfrost"}, {Kind: "koios", Name: "koios", URL: "https://koios.example/api/v1"}}
 	if err != nil || !slices.Equal(s.Sources, want) {
 		t.Errorf("sources %+v, %v", s.Sources, err)
 	}
 	if s, _, err := Resolve(exampleConfig(t)); err != nil || len(s.Sources) != 1 || s.Sources[0].Kind != "koios" {
 		t.Errorf("one source as an object: %+v, %v", s.Sources, err)
+	}
+	// Two of one kind, with their own names.
+	c.DataSource = DataSources{{Kind: "koios"}, {Kind: "koios", Name: "my-koios", URL: "http://127.0.0.1:8053/api/v1"}}
+	if s, _, err := Resolve(c); err != nil || s.Sources[1].Name != "my-koios" {
+		t.Errorf("two Koios: %+v, %v", s.Sources, err)
 	}
 	for name, field := range map[string]string{
 		"an unknown field in the object": `{"kind": "koios", "token": "x"}`,

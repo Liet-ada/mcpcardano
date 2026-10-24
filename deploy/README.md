@@ -80,6 +80,8 @@ sudo systemctl restart mcpcardano-server
 
 Blockfrost does not look tokens up by their fingerprint: with it alone, `get_asset_info` asks the agent for the `asset_id`.
 
+Each source has a `name`, its kind unless you give another, as for two Koios: `{"kind": "koios", "name": "my-koios", "url": "http://127.0.0.1:8053/api/v1"}`. The agent sees the names in `get_network_status` and may choose, with `set_datasources`, which of your sources its session reads and in what order (decision 137). It cannot add a source or a URL, its choice ends with the session, and the server's own work, such as following sent transactions, keeps your order. To keep the agent away from a source, leave it out of the list.
+
 ### Installing again
 
 Run install again, from the directory of a new version or with the installed CLI, to update: it stops the server and then the wallet, replaces the three binaries and the units, and starts the wallet and then the server (section 10.6). It keeps both `config.json` and the key store, and never rewrites a `master.key`; to change the network or the data source, edit the `config.json`. The wallet starts again locked, unless it is bound to the machine.

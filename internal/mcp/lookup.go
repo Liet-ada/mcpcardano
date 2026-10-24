@@ -112,7 +112,7 @@ func (s *Server) addressInfo(ctx context.Context, a addressArg) (addressInfo, er
 		}
 		after = &id
 	}
-	utxos, err := s.d.Source.UTxOs(ctx, addr)
+	utxos, err := s.src(ctx).UTxOs(ctx, addr)
 	if err != nil {
 		return addressInfo{}, err
 	}
@@ -155,7 +155,7 @@ func (s *Server) addressInfo(ctx context.Context, a addressArg) (addressInfo, er
 		if out.StakeAddress, err = chain.StakeAddress(s.d.Network, *addr.Stake); err != nil {
 			return addressInfo{}, err
 		}
-		acc, err := s.d.Source.Account(ctx, out.StakeAddress)
+		acc, err := s.src(ctx).Account(ctx, out.StakeAddress)
 		switch {
 		case errors.Is(err, datasource.ErrNotFound):
 			out.Delegation = &delegationView{RewardsAvailable: "0"}
@@ -205,7 +205,7 @@ func (s *Server) assetInfo(ctx context.Context, a assetQuery) (assetInfo, error)
 			return assetInfo{}, invalid("asset_id %q is not <policy_hex>.<name_hex>", a.AssetID)
 		}
 	default:
-		id, err = s.d.Source.AssetByFingerprint(ctx, a.Fingerprint)
+		id, err = s.src(ctx).AssetByFingerprint(ctx, a.Fingerprint)
 		if errors.Is(err, datasource.ErrNotFound) {
 			return assetInfo{}, invalid("no token on %s has fingerprint %s", s.d.Network, a.Fingerprint)
 		}
@@ -216,7 +216,7 @@ func (s *Server) assetInfo(ctx context.Context, a assetQuery) (assetInfo, error)
 			return assetInfo{}, err
 		}
 	}
-	x, err := s.d.Source.Asset(ctx, id)
+	x, err := s.src(ctx).Asset(ctx, id)
 	if errors.Is(err, datasource.ErrNotFound) {
 		return assetInfo{}, invalid("no token %s on %s", id, s.d.Network)
 	}
@@ -272,7 +272,7 @@ func (s *Server) transaction(ctx context.Context, a txQuery) (transactionView, e
 		return transactionView{}, invalid("tx_id must be 64 lowercase hex characters")
 	}
 	out := transactionView{Network: string(s.d.Network), TxID: a.TxID, Status: "unknown"}
-	t, err := s.d.Source.Transaction(ctx, [32]byte(b))
+	t, err := s.src(ctx).Transaction(ctx, [32]byte(b))
 	if errors.Is(err, datasource.ErrNotFound) {
 		return out, nil
 	}
@@ -284,7 +284,7 @@ func (s *Server) transaction(ctx context.Context, a txQuery) (transactionView, e
 		// The source sent something that is not the transaction asked for.
 		return transactionView{}, datasource.ErrInvalidResponse
 	}
-	tip, err := s.d.Source.Tip(ctx)
+	tip, err := s.src(ctx).Tip(ctx)
 	if err != nil {
 		return transactionView{}, err
 	}

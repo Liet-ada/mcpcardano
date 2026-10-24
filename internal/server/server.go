@@ -227,17 +227,17 @@ func openSources(s Settings) ([]datasource.Source, error) {
 		var err error
 		switch c.Kind {
 		case "koios":
-			src, err = datasource.NewKoios(datasource.KoiosConfig{Network: s.Network, BaseURL: c.URL})
+			src, err = datasource.NewKoios(datasource.KoiosConfig{Network: s.Network, Name: c.Name, BaseURL: c.URL})
 		case "blockfrost":
 			var key string
 			if key, err = readSecret(s.DataDir, c.Secret); err == nil {
-				src, err = datasource.NewBlockfrost(datasource.BlockfrostConfig{Network: s.Network, ProjectID: key, BaseURL: c.URL})
+				src, err = datasource.NewBlockfrost(datasource.BlockfrostConfig{Network: s.Network, Name: c.Name, ProjectID: key, BaseURL: c.URL})
 			}
 		default:
 			err = fmt.Errorf("unknown kind %q", c.Kind)
 		}
 		if err != nil {
-			return nil, fmt.Errorf("server: data source %s: %w", c.Kind, err)
+			return nil, fmt.Errorf("server: data source %s: %w", c.Name, err)
 		}
 		out = append(out, src)
 	}

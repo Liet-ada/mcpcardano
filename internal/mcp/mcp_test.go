@@ -324,7 +324,7 @@ func TestTools(t *testing.T) {
 	want := []string{"authorize_draft", "build_consolidation", "build_payment", "cancel_draft", "create_wallet", "decode_transaction",
 		"get_address_info", "get_asset_info", "get_draft", "get_network_status", "get_policy_status",
 		"get_protocol_parameters", "get_transaction", "get_transaction_status", "get_wallet_overview", "list_drafts",
-		"list_utxos", "list_wallets", "submit_signed_transaction"}
+		"list_utxos", "list_wallets", "set_datasources", "submit_signed_transaction"}
 	got := slices.Sorted(func(yield func(string) bool) {
 		for n := range e.tools {
 			if !yield(n) {
@@ -434,6 +434,83 @@ func TestNetworkStatusOfARelay(t *testing.T) {
 		t.Errorf("with every source down: %v", st)
 	}
 	e.fails("get_wallet_overview", map[string]any{"wallet_id": walletID}, CodeDatasourceUnavailable)
+}
+
+// TestSetDataSources: the agent chooses which of the configured sources its
+// session reads, and in what order; other sessions keep the person's order
+// (decision 137).
+func TestSetDataSources(t *testing.T) {
+	e := newEnv(t)
+	bf := namedSource{&fakeSource{tip: datasource.Tip{Slot: 7}}, "blockfrost"}
+	r, err := datasource.NewRelay([]datasource.Source{e.src, bf}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.server.d.Source = r
+	overview := map[string]any{"wallet_id": walletID}
+
+	st := e.ok("set_datasources", map[string]any{"order": []string{"blockfrost", "fake"}})
+	if !slices.Equal(names(st["order"]), []string{"blockfrost", "fake"}) || st["datasource"].(map[string]any)["name"] != "blockfrost" {
+		t.Errorf("after choosing blockfrost first: %v", st)
+	}
+	// blockfrost has no UTxOs for the wallet: the session reads from it.
+	if o := e.ok("get_wallet_overview", overview); o["utxos"] != 0.0 {
+		t.Errorf("the session does not read from blockfrost: %v", o)
+	}
+	// Alone and down, blockfrost does not pass on to fake.
+	e.ok("set_datasources", map[string]any{"order": []string{"blockfrost"}})
+	bf.setDown(true)
+	e.fails("get_wallet_overview", overview, CodeDatasourceUnavailable)
+
+	// Another session keeps the person's order.
+	first := e.client
+	ct, st2 := sdk.NewInMemoryTransports()
+	if _, err := e.server.sdk.Connect(t.Context(), st2, nil); err != nil {
+		t.Fatal(err)
+	}
+	second, err := sdk.NewClient(&sdk.Implementation{Name: "second", Version: "0"}, nil).Connect(t.Context(), ct, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer second.Close()
+	e.client = second
+	if o := e.ok("get_wallet_overview", overview); o["utxos"] != 3.0 {
+		t.Errorf("another session: %v", o)
+	}
+	if st := e.ok("get_network_status", nil); !slices.Equal(names(st["order"]), []string{"fake", "blockfrost"}) {
+		t.Errorf("another session's order: %v", st["order"])
+	}
+	e.client = first
+
+	for _, order := range [][]string{{"koios"}, {"fake", "fake"}, {"https://evil.example/api"}} {
+		e.fails("set_datasources", map[string]any{"order": order}, CodeInvalidParams)
+	}
+	// Empty goes back to the person's order.
+	if st := e.ok("set_datasources", map[string]any{"order": []string{}}); !slices.Equal(names(st["order"]), []string{"fake", "blockfrost"}) {
+		t.Errorf("back to the person's order: %v", st["order"])
+	}
+	if o := e.ok("get_wallet_overview", overview); o["utxos"] != 3.0 {
+		t.Errorf("back to the person's order: %v", o)
+	}
+	var orders [][]string
+	for _, entry := range e.audit.entries {
+		if o, ok := entry["order"].([]string); ok {
+			orders = append(orders, o)
+		}
+	}
+	if len(orders) != 3 || !slices.Equal(orders[0], []string{"blockfrost", "fake"}) || !slices.Equal(orders[2], []string{"fake", "blockfrost"}) {
+		t.Errorf("the audit log has the orders %v", orders)
+	}
+}
+
+// names reads a list of strings from an answer.
+func names(v any) []string {
+	var out []string
+	for _, x := range v.([]any) {
+		s, _ := x.(string)
+		out = append(out, s)
+	}
+	return out
 }
 
 func TestListUTxOsPages(t *testing.T) {

@@ -41,6 +41,10 @@ type Config struct {
 // DataSourceConfig is one data source: Koios or Blockfrost (decision 136).
 type DataSourceConfig struct {
 	Kind string `json:"kind"`
+	// Name tells the source from the others, also to the agent, which may
+	// choose the order of the sources for its session (decision 137): its
+	// kind if empty.
+	Name string `json:"name,omitempty"`
 	// URL is empty for the source's public endpoint.
 	URL string `json:"url,omitempty"`
 	// Secret names the file with Blockfrost's project id, in secrets/ of
@@ -129,7 +133,7 @@ type Settings struct {
 	DataDir           string
 	Socket            string
 	WalletSocket      string
-	Sources           []DataSourceConfig // in order of preference, with each Blockfrost secret named
+	Sources           []DataSourceConfig // in order of preference, each named, and each Blockfrost secret too
 	ConfirmationDepth uint32
 	Wallets           []mcp.Wallet
 }
@@ -196,17 +200,20 @@ func Resolve(c Config) (Settings, []string, error) {
 	s := Settings{Network: n, DataDir: filepath.Clean(c.DataDir), Socket: c.Socket, WalletSocket: c.WalletSocket,
 		ConfirmationDepth: c.ConfirmationDepth}
 	for _, d := range c.DataSource {
+		d.Name = cmp.Or(d.Name, d.Kind)
 		switch {
 		case d.Kind != "koios" && d.Kind != "blockfrost":
 			return fail("datasource kind %q is not koios or blockfrost", d.Kind)
-		case slices.ContainsFunc(s.Sources, func(o DataSourceConfig) bool { return o.Kind == d.Kind }):
-			return fail("datasource lists %s twice", d.Kind)
+		case !plainName(d.Name):
+			return fail("datasource name %q must be 1 to 64 letters, digits, - and _", d.Name)
+		case slices.ContainsFunc(s.Sources, func(o DataSourceConfig) bool { return o.Name == d.Name }):
+			return fail("datasource lists %s twice: give each one its own name", d.Name)
 		case d.Kind == "koios" && d.Secret != "":
 			return fail("koios takes no secret")
 		}
 		if d.Kind == "blockfrost" {
 			d.Secret = cmp.Or(d.Secret, "blockfrost")
-			if !secretName(d.Secret) {
+			if !plainName(d.Secret) {
 				return fail("secret %q must be 1 to 64 letters, digits, - and _", d.Secret)
 			}
 		}

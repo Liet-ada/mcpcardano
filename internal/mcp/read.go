@@ -38,6 +38,9 @@ func (s *Server) registerRead() error {
 		addTool(s, tool{name: "get_network_status", readOnly: true, openWorld: true,
 			description: "Network, chain tip (slot, height, time), the data source in use and whether each configured source answers, the server's own slot, and the protocol version."},
 			s.networkStatus),
+		addTool(s, tool{name: "set_datasources", openWorld: true,
+			description: "Choose which of the data sources the person configured this session reads the chain from, and in what order: the first answers while it can, and the next take over when it does not. Only the person's sources, by the names get_network_status lists; the choice lasts for this session. Sending a signed transaction never passes from one source to another. Answers as get_network_status."},
+			s.setDataSources),
 		addTool(s, tool{name: "get_protocol_parameters", readOnly: true, openWorld: true,
 			description: "Protocol parameters of the current epoch: fee coefficients, sizes, cost per UTxO byte, deposits, execution prices and limits. Amounts are lovelace as decimal strings; prices are exact fractions."},
 			s.protocolParameters),
@@ -80,14 +83,17 @@ type sourceView struct {
 type networkStatus struct {
 	Network    string `json:"network"`
 	ServerSlot string `json:"server_slot"`
-	// DataSource is the source in use: the first of the list that answers,
-	// or the first if none does.
+	// DataSource is the source in use: the first of the session's order
+	// that answers, or the first if none does.
 	DataSource sourceView `json:"datasource"`
-	// DataSources are the configured sources, in order of preference
-	// (decision 136).
-	DataSources     []sourceView `json:"datasources"`
-	Tip             *tipView     `json:"tip,omitempty"`
-	ProtocolVersion string       `json:"protocol_version,omitempty"`
+	// DataSources are the sources the person configured, in the person's
+	// order (decision 136).
+	DataSources []sourceView `json:"datasources"`
+	// Order is the order of the session, which set_datasources chooses
+	// (decision 137).
+	Order           []string `json:"order"`
+	Tip             *tipView `json:"tip,omitempty"`
+	ProtocolVersion string   `json:"protocol_version,omitempty"`
 }
 
 // networkStatus asks every data source for its tip, and reports one that
@@ -98,26 +104,32 @@ func (s *Server) networkStatus(ctx context.Context, _ noArgs) (networkStatus, er
 		Network:    string(s.d.Network),
 		ServerSlot: model.FormatAmount(chain.Clock(s.d.Network).Slot(s.d.Now())),
 	}
-	var tip *datasource.Tip
+	out.Order = s.order(ctx)
+	probes := map[string]datasource.Probe{}
 	for _, p := range datasource.ProbeAll(ctx, s.d.Source) {
 		v := sourceView{Name: p.Name, Status: "unavailable"}
 		if p.Err == nil {
 			v.Status = "ok"
 		}
 		out.DataSources = append(out.DataSources, v)
-		if tip == nil && p.Err == nil {
-			out.DataSource, tip = v, &p.Tip
+		probes[p.Name] = p
+	}
+	var tip *datasource.Tip
+	out.DataSource = sourceView{Name: out.Order[0], Status: "unavailable"}
+	for _, name := range out.Order {
+		if p := probes[name]; p.Err == nil {
+			out.DataSource, tip = sourceView{Name: name, Status: "ok"}, &p.Tip
+			break
 		}
 	}
 	if tip == nil {
-		out.DataSource = out.DataSources[0]
 		return out, nil
 	}
 	out.Tip = &tipView{
 		Slot: model.FormatAmount(tip.Slot), Height: model.FormatAmount(tip.Height), Epoch: model.FormatAmount(tip.Epoch),
 		Hash: hex.EncodeToString(tip.Hash[:]), Time: tip.Time.UTC().Format(time.RFC3339),
 	}
-	if p, err := s.d.Source.ProtocolParameters(ctx); err == nil {
+	if p, err := s.src(ctx).ProtocolParameters(ctx); err == nil {
 		out.ProtocolVersion = version(p)
 	}
 	return out, nil
@@ -154,7 +166,7 @@ type parametersView struct {
 }
 
 func (s *Server) protocolParameters(ctx context.Context, _ noArgs) (parametersView, error) {
-	p, err := s.d.Source.ProtocolParameters(ctx)
+	p, err := s.src(ctx).ProtocolParameters(ctx)
 	if err != nil {
 		return parametersView{}, err
 	}
@@ -242,7 +254,7 @@ func (s *Server) walletOverview(ctx context.Context, a walletArg) (overview, err
 	if err != nil {
 		return overview{}, err
 	}
-	utxos, err := s.d.Source.UTxOs(ctx, w.Address)
+	utxos, err := s.src(ctx).UTxOs(ctx, w.Address)
 	if err != nil {
 		return overview{}, err
 	}
@@ -461,7 +473,7 @@ func (s *Server) listUTxOs(ctx context.Context, a utxosArg) (utxoPage, error) {
 		}
 		after = &in
 	}
-	utxos, err := s.d.Source.UTxOs(ctx, addr)
+	utxos, err := s.src(ctx).UTxOs(ctx, addr)
 	if err != nil {
 		return utxoPage{}, err
 	}
