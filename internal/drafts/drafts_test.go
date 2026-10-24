@@ -245,8 +245,14 @@ func TestModeAFlow(t *testing.T) {
 	if len(f.store.List(f.wallet.ID, "")) != 0 {
 		t.Error("a confirmed draft is listed as live")
 	}
-	f.clock.advance(Retention + time.Minute)
-	if _, err := f.store.Get(d.ID); !errors.Is(err, ErrNotFound) || f.reserved() != 0 {
+	// The watcher updates the depth of a confirmed draft with every block;
+	// that does not keep it, and its watching, past Retention.
+	for depth := uint32(4); depth < 4+24; depth++ {
+		f.clock.advance(Retention / 24)
+		f.store.Confirmed(d.ID, depth)
+	}
+	f.clock.advance(time.Minute)
+	if _, err := f.store.Get(d.ID); !errors.Is(err, ErrNotFound) || f.reserved() != 0 || len(f.store.Watched()) != 0 {
 		t.Errorf("an old confirmed draft is still kept: %v", err)
 	}
 }

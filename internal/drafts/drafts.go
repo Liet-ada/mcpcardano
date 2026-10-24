@@ -88,7 +88,7 @@ type Draft struct {
 	ApprovalID string    // the wallet's approval, in modes B and C
 
 	CreatedAt time.Time
-	UpdatedAt time.Time
+	UpdatedAt time.Time // when the state last changed
 
 	params chain.ProtocolParameters // to check the signature
 }
@@ -525,14 +525,17 @@ func (s *Store) apply(id model.DraftID, f func(*Draft) error) (Draft, error) {
 }
 
 // move applies an event and frees the inputs if the draft ends without
-// success.
+// success. Only a new state counts as an update: a confirmed draft that goes
+// deeper is still forgotten Retention after it was confirmed.
 func (s *Store) move(d *Draft, e Event) error {
 	to, ok := next(d.State, e)
 	if !ok {
 		return &StateError{State: d.State, Event: e}
 	}
+	if to != d.State {
+		d.UpdatedAt = s.now()
+	}
 	d.State = to
-	d.UpdatedAt = s.now()
 	if to.Final() {
 		s.release(d)
 	}
