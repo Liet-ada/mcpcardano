@@ -5,12 +5,16 @@ package server
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"io/fs"
+	"log/slog"
 	"net"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -48,10 +52,23 @@ func TestResolveExample(t *testing.T) {
 
 func TestResolveRejects(t *testing.T) {
 	cases := map[string]func(*Config){
-		"mainnet":                func(c *Config) { c.Network = "mainnet" },
-		"unknown network":        func(c *Config) { c.Network = "testnet" },
-		"relative data dir":      func(c *Config) { c.DataDir = "data" },
-		"other source":           func(c *Config) { c.DataSource.Kind = "blockfrost" },
+		"mainnet":           func(c *Config) { c.Network = "mainnet" },
+		"unknown network":   func(c *Config) { c.Network = "testnet" },
+		"relative data dir": func(c *Config) { c.DataDir = "data" },
+		"no source":         func(c *Config) { c.DataSource = nil },
+		"unknown source":    func(c *Config) { c.DataSource[0].Kind = "ogmios" },
+		"a source twice":    func(c *Config) { c.DataSource = append(c.DataSource, c.DataSource[0]) },
+		"a name twice": func(c *Config) {
+			c.DataSource = DataSources{{Kind: "koios", Name: "x"}, {Kind: "blockfrost", Name: "x"}}
+		},
+		"a name with a slash": func(c *Config) { c.DataSource[0].Name = "a/b" },
+		"koios with a secret": func(c *Config) { c.DataSource[0].Secret = "koios" },
+		"a secret that is a path": func(c *Config) {
+			c.DataSource = DataSources{{Kind: "blockfrost", Secret: "../blockfrost"}}
+		},
+		"too many sources": func(c *Config) {
+			c.DataSource = DataSources{{Kind: "koios"}, {Kind: "blockfrost"}, {Kind: "koios"}, {Kind: "blockfrost"}, {Kind: "koios"}}
+		},
 		"long socket":            func(c *Config) { c.Socket = "/" + strings.Repeat("s", maxSocketPath) },
 		"relative wallet socket": func(c *Config) { c.WalletSocket = "wallet.sock" },
 		"long wallet socket":     func(c *Config) { c.WalletSocket = "/" + strings.Repeat("s", maxSocketPath) },
@@ -101,6 +118,142 @@ func TestResolveWarnsAboutZeros(t *testing.T) {
 	}
 	if len(warnings) != 6 {
 		t.Errorf("%d warnings: %v", len(warnings), warnings)
+	}
+}
+
+// TestDataSources: the datasource field takes one source or a list of them
+// in order of preference (decision 136).
+func TestDataSources(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.json")
+	os.WriteFile(path, []byte(`{"network": "preprod", "data_dir": "/x", "wallets": [],
+		"datasource": [{"kind": "blockfrost"}, {"kind": "koios", "url": "https://koios.example/api/v1"}]}`), 0o600)
+	c, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, _, err := Resolve(c)
+	want := []DataSourceConfig{{Kind: "blockfrost", Name: "blockfrost", Secret: "blockfrost"}, {Kind: "koios", Name: "koios", URL: "https://koios.example/api/v1"}}
+	if err != nil || !slices.Equal(s.Sources, want) {
+		t.Errorf("sources %+v, %v", s.Sources, err)
+	}
+	if s, _, err := Resolve(exampleConfig(t)); err != nil || len(s.Sources) != 1 || s.Sources[0].Kind != "koios" {
+		t.Errorf("one source as an object: %+v, %v", s.Sources, err)
+	}
+	// Two of one kind, with their own names.
+	c.DataSource = DataSources{{Kind: "koios"}, {Kind: "koios", Name: "my-koios", URL: "http://127.0.0.1:8053/api/v1"}}
+	if s, _, err := Resolve(c); err != nil || s.Sources[1].Name != "my-koios" {
+		t.Errorf("two Koios: %+v, %v", s.Sources, err)
+	}
+	for name, field := range map[string]string{
+		"an unknown field in the object": `{"kind": "koios", "token": "x"}`,
+		"an unknown field in the list":   `[{"kind": "koios"}, {"kind": "blockfrost", "key": "x"}]`,
+		"a string":                       `"koios"`,
+	} {
+		os.WriteFile(path, []byte(`{"network": "preprod", "data_dir": "/x", "wallets": [], "datasource": `+field+`}`), 0o600)
+		if _, err := Load(path); !errors.Is(err, ErrConfig) {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+}
+
+// TestOpenSources: Blockfrost takes its key from the encrypted credential;
+// without a usable key it is a source that does not answer, and the server
+// starts with the others; a key in clear is for development, and warned
+// about (decision 138).
+func TestOpenSources(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("CREDENTIALS_DIRECTORY", "")
+	var logged bytes.Buffer
+	log := slog.New(slog.NewTextHandler(&logged, nil))
+	s := Settings{Network: model.Preprod, DataDir: dir, Sources: []DataSourceConfig{
+		{Kind: "blockfrost", Name: "blockfrost", Secret: "blockfrost"}, {Kind: "koios", Name: "koios"}}}
+
+	got, err := openSources(s, log)
+	if err != nil || len(got) != 2 || got[0].Name() != "blockfrost" || got[1].Name() != "koios" {
+		t.Fatalf("no key: %v, %v", got, err)
+	}
+	if _, err := got[0].Tip(t.Context()); !errors.Is(err, datasource.ErrUnavailable) || !strings.Contains(err.Error(), "sudo mcpcardano apikey set blockfrost") {
+		t.Errorf("Blockfrost without a key: %v", err)
+	}
+	if !strings.Contains(logged.String(), "cannot work") {
+		t.Errorf("no warning: %s", logged.String())
+	}
+
+	creds := t.TempDir()
+	os.WriteFile(filepath.Join(creds, "mcpcardano-server.blockfrost"), []byte("preprodFromSystemd\n"), 0o400)
+	t.Setenv("CREDENTIALS_DIRECTORY", creds)
+	logged.Reset()
+	got, err = openSources(s, log)
+	if _, ok := got[0].(*datasource.Blockfrost); err != nil || !ok || logged.Len() != 0 {
+		t.Errorf("from the credential: %T, %v; logged %s", got[0], err, logged.String())
+	}
+
+	t.Setenv("CREDENTIALS_DIRECTORY", "")
+	os.Mkdir(filepath.Join(dir, "secrets"), 0o700)
+	os.WriteFile(filepath.Join(dir, "secrets", "blockfrost"), []byte("preprodAbc123\n"), 0o600)
+	got, err = openSources(s, log)
+	if _, ok := got[0].(*datasource.Blockfrost); err != nil || !ok || !strings.Contains(logged.String(), "file in clear") {
+		t.Errorf("from a file in clear: %T, %v; logged %s", got[0], err, logged.String())
+	}
+	if strings.Contains(logged.String(), "preprodAbc123") {
+		t.Error("the log shows the key")
+	}
+
+	os.WriteFile(filepath.Join(dir, "secrets", "blockfrost"), []byte("not a key\n"), 0o600)
+	if got, err := openSources(s, log); err != nil || got[0].Name() != "blockfrost" {
+		t.Errorf("a malformed key: %v, %v", got, err)
+	} else if _, err := got[0].Tip(t.Context()); !errors.Is(err, datasource.ErrUnavailable) {
+		t.Errorf("a malformed key: %v", err)
+	}
+	// A key anyone can read stops the server.
+	os.Chmod(filepath.Join(dir, "secrets", "blockfrost"), 0o644)
+	if _, err := openSources(s, log); err == nil || !strings.Contains(err.Error(), "mode 0600") {
+		t.Errorf("a key others can read: %v", err)
+	}
+	os.Chmod(filepath.Join(dir, "secrets", "blockfrost"), 0o600)
+	os.WriteFile(filepath.Join(dir, "secrets", "blockfrost"), []byte("preprodAbc123\n"), 0o600)
+	s.Sources[0].URL = "http://blockfrost.example"
+	if _, err := openSources(s, log); err == nil {
+		t.Error("plain HTTP to another machine")
+	}
+}
+
+func TestReadSecret(t *testing.T) {
+	const key = "preprodSecretKey42"
+	dir := t.TempDir()
+	t.Setenv("CREDENTIALS_DIRECTORY", "")
+	secrets := filepath.Join(dir, "secrets")
+	os.Mkdir(secrets, 0o700)
+	path := filepath.Join(secrets, "bf")
+	os.WriteFile(path, []byte(key+"\n"), 0o600)
+	if got, plain, err := readSecret(dir, "bf"); err != nil || got != key || !plain {
+		t.Errorf("got %q, %v, %v", got, plain, err)
+	}
+	os.Chmod(path, 0o640)
+	if _, _, err := readSecret(dir, "bf"); err == nil || strings.Contains(err.Error(), key) {
+		t.Errorf("readable by the group: %v", err)
+	}
+	os.Chmod(path, 0o600)
+	os.Symlink(path, filepath.Join(secrets, "link"))
+	if _, _, err := readSecret(dir, "link"); err == nil {
+		t.Error("a symbolic link")
+	}
+	os.WriteFile(filepath.Join(secrets, "big"), bytes.Repeat([]byte("a"), maxSecretBytes+1), 0o600)
+	if _, _, err := readSecret(dir, "big"); err == nil {
+		t.Error("a file too large for a key")
+	}
+
+	// systemd's credential, under the server's prefix, comes first.
+	creds := t.TempDir()
+	os.WriteFile(filepath.Join(creds, "mcpcardano-server.bf"), []byte("fromSystemd"), 0o400)
+	os.WriteFile(filepath.Join(creds, "other"), []byte("notOurs"), 0o400)
+	t.Setenv("CREDENTIALS_DIRECTORY", creds)
+	if got, plain, err := readSecret(dir, "bf"); err != nil || got != "fromSystemd" || plain {
+		t.Errorf("credential: %q, %v, %v", got, plain, err)
+	}
+	if got, _, err := readSecret(dir, "other"); !errors.Is(err, fs.ErrNotExist) || got != "" {
+		t.Errorf("in neither place: %q, %v", got, err)
 	}
 }
 

@@ -5,11 +5,14 @@ package datasource
 
 import (
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 )
 
@@ -74,5 +77,62 @@ func TestConfirmations(t *testing.T) {
 	}
 	if _, err := k.Confirmations(ctx, [][32]byte{a}); !errors.Is(err, ErrInvalidResponse) {
 		t.Errorf("an answer about a transaction not asked: %v", err)
+	}
+}
+
+// TestConfirmationsInBatches asks about more transactions than one request
+// to the public endpoints can carry: they answer a body over 5 KiB with HTTP
+// 413, which stopped the server's watcher once it followed 77 transactions.
+func TestConfirmationsInBatches(t *testing.T) {
+	var requests atomic.Int32
+	var lie atomic.Bool
+	var first string
+	k := serve(t, func(w http.ResponseWriter, r *http.Request) bool {
+		if r.URL.Path != "/api/v1/tx_status" {
+			return false
+		}
+		requests.Add(1)
+		body, _ := io.ReadAll(r.Body)
+		if len(body) > 5<<10 {
+			http.Error(w, "payload too large", http.StatusRequestEntityTooLarge)
+			return true
+		}
+		var asked struct {
+			Hashes []string `json:"_tx_hashes"`
+		}
+		if err := json.Unmarshal(body, &asked); err != nil {
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return true
+		}
+		var rows []map[string]any
+		for _, h := range asked.Hashes {
+			n, _ := strconv.ParseUint(h[:2], 16, 8)
+			rows = append(rows, map[string]any{"tx_hash": h, "num_confirmations": n})
+		}
+		if first == "" {
+			first = asked.Hashes[0]
+		} else if lie.Load() {
+			// An answer about a transaction of another request.
+			rows = append(rows, map[string]any{"tx_hash": first, "num_confirmations": 0})
+		}
+		json.NewEncoder(w).Encode(rows)
+		return true
+	})
+	ids := make([][32]byte, 120)
+	for i := range ids {
+		ids[i] = [32]byte{byte(i), 1}
+	}
+	got, err := k.Confirmations(ctx, ids)
+	if err != nil || len(got) != len(ids) || requests.Load() != 3 {
+		t.Fatalf("%d answers in %d requests: %v", len(got), requests.Load(), err)
+	}
+	for i, id := range ids {
+		if got[id] != uint64(i) {
+			t.Fatalf("transaction %d has %d confirmations", i, got[id])
+		}
+	}
+	lie.Store(true)
+	if _, err := k.Confirmations(ctx, ids); !errors.Is(err, ErrInvalidResponse) {
+		t.Errorf("an answer about a transaction of another request: %v", err)
 	}
 }

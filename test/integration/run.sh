@@ -65,6 +65,9 @@ tests ""
 echo "== doctor finds what is broken"
 tests doctor TestDoctor
 
+echo "== an API key, encrypted for the server (decision 138)"
+tests apikey TestAPIKey
+
 echo "== the unlock bound to the machine, with a simulated TPM2 (decision 132)"
 # startTPM starts a TPM2 of its own, with a fresh state, as /dev/tpm0.
 startTPM() {

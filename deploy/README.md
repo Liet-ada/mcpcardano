@@ -51,13 +51,38 @@ Before it changes anything, install checks that it runs as root under systemd, t
     "wallet_socket": "/run/mcpcardano-wallet/service.sock", "datasource": {"kind": "koios"}, "wallets": []}
    ```
 
-5. It creates the key store with your password, running `mcpcardano-wallet -config /etc/mcpcardano-wallet/config.json init` as the wallet's user, in `/var/lib/mcpcardano-wallet` (`0700`).
+5. It creates the key store with your password, running `mcpcardano-wallet -config /etc/mcpcardano-wallet/config.json init` as the wallet's user, in `/var/lib/mcpcardano-wallet` (`0700`). With Blockfrost among the data sources, it asks for its project id without echo and encrypts it for the server (below).
 6. With `-unlock machine`, it seals the key of the machine with the TPM2 (below).
 7. It enables and starts the wallet, and then the server.
 
 It never unlocks the wallet: the admin socket admits only you, and your session is not in the new group until you log in again. It ends by showing the limits of the template that the wallets the agent creates start with, and how to change them with `mcpcardano policy show -template` and `policy set -template`.
 
 `journalctl -u mcpcardano-wallet -u mcpcardano-server` shows what the services log. The wallet refuses to start if it can reach the network, which `PrivateNetwork=yes` prevents.
+
+### Data sources
+
+The server reads the chain from Koios or Blockfrost, or from a list of them in order of preference (decision 136). Each call goes to the first source that answers; one that is down, or answers something invalid, is set aside for a minute and the call goes on to the next. A signed transaction is sent through one source only, never two: if the answer is unclear, the agent's retry asks the chain first.
+
+`-datasource blockfrost,koios` makes Blockfrost the first and Koios its relay; `-datasource blockfrost` uses Blockfrost alone. Blockfrost needs the project id of a project for the same network, from blockfrost.io, which install asks for. In `config.json` the list reads:
+
+```json
+"datasource": [{"kind": "blockfrost"}, {"kind": "koios"}]
+```
+
+The key is never in `config.json` (decision 138). `systemd-creds` keeps it encrypted in `/etc/credstore.encrypted/mcpcardano-server.<secret>` (`secret` is `blockfrost` by default): with the TPM2 and the host's key if there is a TPM2, with the host's key alone if not. The server's unit imports it with `ImportCredential=`, and systemd decrypts it for the server alone, in memory, when it starts. It needs systemd 254 or later. To add or change the key, or to remove it:
+
+```sh
+sudo mcpcardano apikey set blockfrost     # asks for the key without echo, encrypts it and restarts the server
+sudo mcpcardano apikey remove blockfrost
+```
+
+Then list Blockfrost in `datasource` and restart the server. Without its key, Blockfrost is a source that does not answer, and the server goes on with the others; doctor warns about it. This protects a copy of the disk or of a backup; it does not protect from root on the machine, which can decrypt the key as systemd does.
+
+In development, without systemd, the server reads the key from `secrets/<secret>` in its data directory, a file of its user with mode `0600`, and warns that it is in clear.
+
+Blockfrost does not look tokens up by their fingerprint: with it alone, `get_asset_info` asks the agent for the `asset_id`.
+
+Each source has a `name`, its kind unless you give another, as for two Koios: `{"kind": "koios", "name": "my-koios", "url": "http://127.0.0.1:8053/api/v1"}`. The agent sees the names in `get_network_status` and may choose, with `set_datasources`, which of your sources its session reads and in what order (decision 137). It cannot add a source or a URL, its choice ends with the session, and the server's own work, such as following sent transactions, keeps your order. To keep the agent away from a source, leave it out of the list.
 
 ### Installing again
 
@@ -96,7 +121,7 @@ It stops and removes the services, the binaries, the users, the group and the ke
 - that the wallet has no network, from `/proc/<pid>/net/dev` of its process, and that its `config.json` has no `development`;
 - that the clock is synchronized and agrees with the tip of the chain;
 - that the CLI, the wallet and the server are the same version;
-- that the server reaches its data source;
+- that the server reaches its data source, and warns about any other source of the list that does not answer;
 - the security keys registered, against the ones you can open;
 - the hash chains of the wallet's audit log and spending record.
 

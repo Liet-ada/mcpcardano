@@ -42,9 +42,16 @@ type Options struct {
 	// socket admits: whoever ran sudo.
 	Person string
 	// Network and DataSource are empty when not given: preprod and Koios.
+	// DataSource is a source or several, in order of preference and
+	// separated by commas, such as blockfrost,koios (decision 136); the URL
+	// is for a single source.
 	Network       model.Network
 	DataSource    string
 	DataSourceURL string
+	// Sources is DataSource as Check reads it, on a first install.
+	Sources []string
+	// BlockfrostKey is the project id of Blockfrost, when Sources has it.
+	BlockfrostKey model.Secret
 	// Unlock is UnlockPassword, UnlockMachine, or empty to keep what there
 	// is (the password, on a first install).
 	Unlock string
@@ -345,8 +352,23 @@ func (m *Machine) Check(o *Options) error {
 			return errors.New("install: mainnet stays disabled (paper, section 7.4)")
 		case !o.Network.Valid():
 			return fmt.Errorf("install: unknown network %q", o.Network)
-		case o.DataSource != "koios":
-			return fmt.Errorf("install: unknown data source %q: there is only koios", o.DataSource)
+		}
+		o.Sources = strings.Split(o.DataSource, ",")
+		for i, s := range o.Sources {
+			switch {
+			case s != "koios" && s != "blockfrost":
+				return fmt.Errorf("install: unknown data source %q: there are koios and blockfrost", s)
+			case slices.Contains(o.Sources[:i], s):
+				return fmt.Errorf("install: %s is twice in -datasource", s)
+			}
+		}
+		if len(o.Sources) > 1 && o.DataSourceURL != "" {
+			return errors.New("install: -datasource-url is for a single data source: for a list, write the URLs in " + deploy.ServerConfig + " after install")
+		}
+		if slices.Contains(o.Sources, "blockfrost") {
+			if err := m.checkCredentials("install", "keeping Blockfrost's project id encrypted"); err != nil {
+				return err
+			}
 		}
 		// The server's configuration may be left from an install that
 		// stopped half way; install keeps it, but not for another network.
@@ -417,15 +439,24 @@ func (m *Machine) checkSystem(what string) error {
 // TPM2 and a systemd with ImportCredential= (decision 132). Whether the
 // TPM2 seals is known when it seals.
 func (m *Machine) checkMachineUnlock() error {
-	out, err := m.run(command{name: "systemctl", args: []string{"--version"}})
-	if err != nil {
-		return fmt.Errorf("install: systemctl --version: %v", err)
-	}
-	if v := systemdVersion(out); v < minSystemdForCredentials {
-		return fmt.Errorf("install: the unlock bound to the machine needs systemd %d or later, and this is %d", minSystemdForCredentials, v)
+	if err := m.checkCredentials("install", "the unlock bound to the machine"); err != nil {
+		return err
 	}
 	if !m.exists(tpmDevice) {
 		return fmt.Errorf("install: the unlock bound to the machine needs a TPM2, and there is no %s", tpmDevice)
+	}
+	return nil
+}
+
+// checkCredentials checks that systemd can hand a unit an encrypted
+// credential: ImportCredential= came with systemd 254.
+func (m *Machine) checkCredentials(cmd, what string) error {
+	out, err := m.run(command{name: "systemctl", args: []string{"--version"}})
+	if err != nil {
+		return fmt.Errorf("%s: systemctl --version: %v", cmd, err)
+	}
+	if v := systemdVersion(out); v < minSystemdForCredentials {
+		return fmt.Errorf("%s: %s needs systemd %d or later, and this is %d", cmd, what, minSystemdForCredentials, v)
 	}
 	return nil
 }
@@ -446,6 +477,13 @@ func (m *Machine) fidoRule() bool { return slices.ContainsFunc(fidoRules, m.exis
 // Install installs mcpcardano, or updates it if it is there. password
 // creates the key store, if NeedsPassword; Check must have passed.
 func (m *Machine) Install(o Options, password model.Secret) error {
+	// A mistyped key stops install before it changes anything.
+	switch {
+	case slices.Contains(o.Sources, "blockfrost") && len(o.BlockfrostKey) == 0:
+		return errors.New("install: Blockfrost needs the project id of a project for " + string(o.Network))
+	case len(o.BlockfrostKey) > 0 && !projectID(o.BlockfrostKey):
+		return errors.New("install: Blockfrost's project id has 1 to 128 letters and digits")
+	}
 	upgrade := slices.ContainsFunc(deploy.Units, func(u string) bool { return m.exists(filepath.Join(deploy.UnitDir, u)) })
 	if upgrade {
 		// Section 10.6: the server stops first, and the wallet after it.
@@ -477,6 +515,11 @@ func (m *Machine) Install(o Options, password model.Secret) error {
 	}
 	if err := m.installData(ids, password); err != nil {
 		return err
+	}
+	if len(o.BlockfrostKey) > 0 {
+		if err := m.writeAPIKey("blockfrost", o.BlockfrostKey); err != nil {
+			return err
+		}
 	}
 	if err := m.installUnlock(o.Unlock); err != nil {
 		return err
@@ -583,12 +626,13 @@ type walletConfig struct {
 }
 
 type serverConfig struct {
-	Network      model.Network    `json:"network"`
-	DataDir      string           `json:"data_dir"`
-	Socket       string           `json:"socket"`
-	WalletSocket string           `json:"wallet_socket"`
-	DataSource   dataSourceConfig `json:"datasource"`
-	Wallets      []struct{}       `json:"wallets"`
+	Network      model.Network `json:"network"`
+	DataDir      string        `json:"data_dir"`
+	Socket       string        `json:"socket"`
+	WalletSocket string        `json:"wallet_socket"`
+	// DataSource is a dataSourceConfig, or a list of them.
+	DataSource any        `json:"datasource"`
+	Wallets    []struct{} `json:"wallets"`
 }
 
 type dataSourceConfig struct {
@@ -614,8 +658,15 @@ func (m *Machine) installConfig(o Options, r ids) error {
 		m.say("Writing %s and %s, on %s.", deploy.WalletConfig, deploy.ServerConfig, o.Network)
 		w := walletConfig{Network: o.Network, DataDir: deploy.WalletData, ServiceSocket: deploy.ServiceSocket,
 			AdminSocket: deploy.AdminSocket, ServiceUID: r.server.uid, AdminUID: r.person.uid}
+		var sources []dataSourceConfig
+		for _, kind := range o.Sources {
+			sources = append(sources, dataSourceConfig{Kind: kind, URL: o.DataSourceURL})
+		}
 		s := serverConfig{Network: o.Network, DataDir: deploy.ServerData, Socket: deploy.MCPSocket,
-			WalletSocket: deploy.ServiceSocket, DataSource: dataSourceConfig{Kind: o.DataSource, URL: o.DataSourceURL}, Wallets: []struct{}{}}
+			WalletSocket: deploy.ServiceSocket, DataSource: sources, Wallets: []struct{}{}}
+		if len(sources) == 1 {
+			s.DataSource = sources[0] // as before decision 136
+		}
 		if err := m.writeFile(deploy.WalletConfig, marshal(w), 0o640, 0, r.group); err != nil {
 			return err
 		}
@@ -850,7 +901,14 @@ func (m *Machine) Uninstall(deleteData bool) error {
 		gone = append(gone, filepath.Join(deploy.UnitDir, u))
 	}
 	gone = append(gone, deploy.SysUsersPath, deploy.Credential, deploy.FIDORule)
-	m.say("Removing the binaries, the units and the key of the machine.")
+	keys, err := filepath.Glob(filepath.Join(m.path(deploy.CredStore), deploy.ServerCredential+"*"))
+	if err != nil {
+		return fmt.Errorf("install: %w", err)
+	}
+	for _, k := range keys {
+		gone = append(gone, filepath.Join(deploy.CredStore, filepath.Base(k)))
+	}
+	m.say("Removing the binaries, the units, the key of the machine and the API keys.")
 	for _, p := range gone {
 		if err := os.Remove(m.path(p)); err != nil && !errors.Is(err, fs.ErrNotExist) {
 			return fmt.Errorf("install: %w", err)

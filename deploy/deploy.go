@@ -55,9 +55,15 @@ const (
 	AdminSocket   = WalletRun + "/admin.sock"
 	MCPSocket     = ServerRun + "/mcp.sock"
 
+	// CredStore holds the credentials, encrypted by systemd-creds, that the
+	// units import.
+	CredStore = "/etc/credstore.encrypted"
 	// Credential is the key of the machine, sealed with the TPM2, that the
 	// wallet's unit imports (decision 132).
-	Credential = "/etc/credstore.encrypted/mcpcardano-wallet.unlock"
+	Credential = CredStore + "/mcpcardano-wallet.unlock"
+	// ServerCredential starts the names of the server's credentials, the API
+	// keys of its data sources, which its unit imports (decision 138).
+	ServerCredential = "mcpcardano-server."
 	// FIDORule gives the person's security keys to the person alone, also
 	// over SSH, where the rule of systemd for a local session does not reach.
 	FIDORule = "/etc/udev/rules.d/70-mcpcardano-fido.rules"

@@ -99,14 +99,18 @@ type Server struct {
 	Status  networkStatus // get_network_status
 }
 
+// sourceStatus is a data source in get_network_status.
+type sourceStatus struct {
+	Name   string `json:"name"`
+	Status string `json:"status"`
+}
+
 // networkStatus is the part of get_network_status that doctor reads.
 type networkStatus struct {
-	ServerSlot string `json:"server_slot"`
-	DataSource struct {
-		Name   string `json:"name"`
-		Status string `json:"status"`
-	} `json:"datasource"`
-	Tip *struct {
+	ServerSlot  string         `json:"server_slot"`
+	DataSource  sourceStatus   `json:"datasource"`
+	DataSources []sourceStatus `json:"datasources"`
+	Tip         *struct {
 		Slot string `json:"slot"`
 	} `json:"tip"`
 }
@@ -522,6 +526,12 @@ func (d *doctor) server(s Server, err error) {
 		return
 	}
 	d.add(OK, "the server reaches its data source, %s", ds.Name)
+	// The others of the list are its relay (decision 136).
+	for _, o := range s.Status.DataSources {
+		if o.Status != "ok" {
+			d.add(Warn, "the data source %s does not answer: the server uses %s while it does not", o.Name, ds.Name)
+		}
+	}
 	now, err1 := strconv.ParseInt(s.Status.ServerSlot, 10, 64)
 	tip, err2 := strconv.ParseInt(s.Status.Tip.Slot, 10, 64)
 	if err1 != nil || err2 != nil {

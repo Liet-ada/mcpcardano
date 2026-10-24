@@ -104,7 +104,7 @@ func (f *fake) run(c command) (string, error) {
 	case slices.Contains(c.args, "init"):
 		f.touch(deploy.MasterKey)
 	case c.name == "systemd-creds":
-		f.touch(deploy.Credential)
+		f.touch(c.args[len(c.args)-1]) // the file it encrypts to
 	case rec == "systemctl start "+deploy.WalletService && f.silent != deploy.WalletService:
 		f.touch(deploy.AdminSocket)
 	case rec == "systemctl start "+deploy.ServerService && f.silent != deploy.ServerService:
@@ -245,12 +245,19 @@ func TestFirstInstall(t *testing.T) {
 		t.Errorf("the wallet's config.json: %v", w)
 	}
 	var s serverConfig
+	var source dataSourceConfig
 	if err := json.Unmarshal(f.read(deploy.ServerConfig), &s); err != nil {
 		t.Fatal(err)
 	}
+	if err := json.Unmarshal(marshal(s.DataSource), &source); err != nil {
+		t.Fatal(err)
+	}
 	if s.Network != model.Preprod || s.Socket != deploy.MCPSocket || s.WalletSocket != deploy.ServiceSocket ||
-		s.DataSource != (dataSourceConfig{"koios", "http://127.0.0.1:18080"}) || s.Wallets == nil {
+		source != (dataSourceConfig{"koios", "http://127.0.0.1:18080"}) || s.Wallets == nil {
 		t.Errorf("the server's config.json: %+v", s)
+	}
+	if f.m.exists(bfCredential) || slices.ContainsFunc(f.cmds, func(c string) bool { return strings.HasPrefix(c, "systemd-creds") }) {
+		t.Error("a key for Blockfrost without Blockfrost")
 	}
 	if !bytes.Contains(f.read(deploy.ServerConfig), []byte(`"wallets": []`)) {
 		t.Errorf("the server's config.json has no list of wallets:\n%s", f.read(deploy.ServerConfig))
@@ -268,6 +275,121 @@ func TestFirstInstall(t *testing.T) {
 	for _, s := range []string{"newgrp mcpcardano", "mcpcardano unlock", "mcpcardano doctor", "budget of 100 ADA", "20 ADA per transaction", "policy set -template"} {
 		if !strings.Contains(out, s) {
 			t.Errorf("the output does not say %q:\n%s", s, out)
+		}
+	}
+}
+
+// bfCredential is where Blockfrost's project id goes, encrypted.
+const bfCredential = deploy.CredStore + "/" + deploy.ServerCredential + "blockfrost"
+
+// encrypted is the command that encrypts an API key for the server.
+func encrypted(name string) string {
+	return "systemd-creds encrypt --with-key=auto --name=" + deploy.ServerCredential + name + " - " + deploy.CredStore + "/" + deploy.ServerCredential + name
+}
+
+// TestInstallBlockfrost: with Blockfrost in the list, install encrypts its
+// project id with systemd-creds, for the server alone (decisions 136 and
+// 138).
+func TestInstallBlockfrost(t *testing.T) {
+	f := newFake(t)
+	o := f.options()
+	o.DataSource = "blockfrost,koios"
+	o.BlockfrostKey = model.Secret("preprodAbc123")
+	f.touch(deploy.ServerData + "/secrets/blockfrost") // a copy in clear, from development
+	f.mustInstall(o, "correct horse")
+	var s struct {
+		DataSource []dataSourceConfig `json:"datasource"`
+	}
+	if err := json.Unmarshal(f.read(deploy.ServerConfig), &s); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(s.DataSource, []dataSourceConfig{{Kind: "blockfrost"}, {Kind: "koios"}}) {
+		t.Errorf("sources %+v", s.DataSource)
+	}
+	i := slices.Index(f.cmds, encrypted("blockfrost"))
+	if i < 0 || string(f.stdins[i]) != "preprodAbc123" {
+		t.Fatalf("the key was not encrypted: %v", f.cmds)
+	}
+	// The key is encrypted before the server starts, which imports it.
+	if i > slices.Index(f.cmds, "systemctl start "+deploy.ServerService) {
+		t.Errorf("the server starts before its key is there: %v", f.cmds)
+	}
+	f.is(deploy.CredStore, 0o700, root)
+	if !f.m.exists(bfCredential) || f.m.exists(deploy.ServerData+"/secrets/blockfrost") {
+		t.Error("the credential is missing, or the copy in clear is left")
+	}
+	if strings.Contains(f.out.String(), "preprodAbc123") {
+		t.Error("install shows the key")
+	}
+
+	g := newFake(t)
+	o = g.options()
+	o.DataSource = "blockfrost"
+	o.BlockfrostKey = model.Secret("preprod key\n")
+	if err := g.install(o, "correct horse"); err == nil || strings.Contains(err.Error(), "preprod key") {
+		t.Errorf("a key with a space: %v", err)
+	}
+	if len(g.cmds) > 1 || g.m.exists(bfCredential) {
+		t.Errorf("install went on with a bad key: %v", g.cmds)
+	}
+	o.BlockfrostKey = nil
+	if err := g.install(o, "correct horse"); err == nil || !strings.Contains(err.Error(), "project id") {
+		t.Errorf("no key: %v", err)
+	}
+	o.BlockfrostKey = model.Secret("preprodAbc123")
+	g.systemd = "systemd 252 (252.30-1~deb12u2)\n"
+	if err := g.install(o, "correct horse"); err == nil || !strings.Contains(err.Error(), "systemd 254") {
+		t.Errorf("an old systemd: %v", err)
+	}
+}
+
+// TestAPIKey: mcpcardano apikey sets and removes a key, and restarts the
+// server (decision 138).
+func TestAPIKey(t *testing.T) {
+	f := newFake(t)
+	f.mustInstall(f.options(), "correct horse")
+	f.cmds, f.stdins = nil, nil
+	if err := f.m.CheckAPIKey("blockfrost"); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.m.SetAPIKey("blockfrost", model.Secret("preprodNew42")); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"systemctl --version", encrypted("blockfrost"), "systemctl try-restart " + deploy.ServerService}
+	if !slices.Equal(f.cmds, want) || string(f.stdins[1]) != "preprodNew42" {
+		t.Errorf("commands:\n%s", strings.Join(f.cmds, "\n"))
+	}
+	if strings.Contains(f.out.String(), "preprodNew42") {
+		t.Error("apikey shows the key")
+	}
+	if err := f.m.SetAPIKey("blockfrost", model.Secret("not one")); err == nil || strings.Contains(err.Error(), "not one") {
+		t.Errorf("a malformed key: %v", err)
+	}
+
+	f.cmds = nil
+	if err := f.m.RemoveAPIKey("blockfrost"); err != nil || f.m.exists(bfCredential) {
+		t.Errorf("remove: %v", err)
+	}
+	if !slices.Equal(f.cmds, []string{"systemctl try-restart " + deploy.ServerService}) {
+		t.Errorf("commands: %v", f.cmds)
+	}
+	if err := f.m.RemoveAPIKey("blockfrost"); err != nil || !strings.Contains(f.out.String(), "There is no API key blockfrost") {
+		t.Errorf("remove again: %v", err)
+	}
+
+	for name, c := range map[string]struct {
+		setup func(*fake)
+		key   string
+		want  string
+	}{
+		"not root":      {func(f *fake) { f.m.euid = 1000 }, "blockfrost", "sudo mcpcardano apikey"},
+		"a path":        {func(*fake) {}, "../blockfrost", "not a name"},
+		"an old system": {func(f *fake) { f.systemd = "systemd 249 (249.11)\n" }, "blockfrost", "systemd 254"},
+	} {
+		g := newFake(t)
+		c.setup(g)
+		if err := g.m.CheckAPIKey(c.key); err == nil || !strings.Contains(err.Error(), c.want) {
+			t.Errorf("%s: %v", name, err)
 		}
 	}
 }
@@ -487,7 +609,11 @@ func TestCheck(t *testing.T) {
 		{"unknown person", func(_ *fake, o *Options) { o.Person = "carla" }, "no user carla"},
 		{"mainnet", func(_ *fake, o *Options) { o.Network = model.Mainnet }, "mainnet"},
 		{"unknown network", func(_ *fake, o *Options) { o.Network = "testnet" }, "unknown network"},
-		{"data source", func(_ *fake, o *Options) { o.DataSource = "blockfrost" }, "only koios"},
+		{"data source", func(_ *fake, o *Options) { o.DataSource = "ogmios" }, "koios and blockfrost"},
+		{"a data source twice", func(_ *fake, o *Options) { o.DataSource = "koios,blockfrost,koios" }, "koios is twice"},
+		{"a URL for a list", func(_ *fake, o *Options) {
+			o.DataSource, o.DataSourceURL = "blockfrost,koios", "https://koios.example/api/v1"
+		}, "single data source"},
 		{"unlock", func(_ *fake, o *Options) { o.Unlock = "tpm" }, "-unlock"},
 		{"no TPM2", func(_ *fake, o *Options) { o.Unlock = UnlockMachine }, tpmDevice},
 		{"old systemd", func(f *fake, o *Options) {
@@ -614,5 +740,24 @@ func TestUninstallDoesNotFollowALink(t *testing.T) {
 	}
 	if fi, _ := os.Stat(elsewhere); fi.Mode().Perm() != 0o755 {
 		t.Errorf("uninstall changed what the link points to: %v", fi.Mode())
+	}
+}
+
+// TestUninstallRemovesTheAPIKeys: the server's credentials go with it, as
+// the key of the machine does; a credential of another program stays.
+func TestUninstallRemovesTheAPIKeys(t *testing.T) {
+	f := newFake(t)
+	f.mustInstall(f.options(), "correct horse")
+	f.touch(bfCredential)
+	f.touch(deploy.CredStore + "/" + deploy.ServerCredential + "other")
+	f.touch(deploy.CredStore + "/someone-else.key")
+	if err := f.m.Uninstall(false); err != nil {
+		t.Fatal(err)
+	}
+	if f.m.exists(bfCredential) || f.m.exists(deploy.CredStore+"/"+deploy.ServerCredential+"other") {
+		t.Error("an API key is left")
+	}
+	if !f.m.exists(deploy.CredStore + "/someone-else.key") {
+		t.Error("uninstall removed a credential that is not the server's")
 	}
 }

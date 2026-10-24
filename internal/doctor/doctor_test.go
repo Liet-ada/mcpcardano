@@ -230,6 +230,9 @@ func TestBroken(t *testing.T) {
 		{"versions", func(m *machine) { m.server.Version = "v2" }, Fail, "this CLI is v1, the wallet v1 and the server v2"},
 		{"the wallet does not answer", func(m *machine) { m.walletE = errors.New("connection refused") }, Fail, "the wallet does not answer"},
 		{"no data source", func(m *machine) { m.server.Status.DataSource.Status, m.server.Status.Tip = "unavailable", nil }, Fail, "cannot reach its data source, koios"},
+		{"the second source down", func(m *machine) {
+			m.server.Status.DataSources = []sourceStatus{{"koios", "ok"}, {"blockfrost", "unavailable"}}
+		}, Warn, "the data source blockfrost does not answer: the server uses koios"},
 		{"the tip far", func(m *machine) { m.server.Status.Tip.Slot = "90000" }, Warn, "10000 seconds apart"},
 		{"locked", func(m *machine) { m.wallet.Status.Unlocked = false }, Warn, "mcpcardano unlock"},
 		{"a broken chain", func(m *machine) { m.wallet.AuditErr = errors.New("entry 7: hash") }, Fail, "broken: entry 7"},

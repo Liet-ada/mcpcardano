@@ -129,11 +129,11 @@ func witnessesOf(raw []byte, d drafts.Draft) ([]byte, error) {
 func (s *Server) send(ctx context.Context, d drafts.Draft) (draftView, error) {
 	retry := s.sends.wasUncertain(d.ID)
 	if retry {
-		if _, err := s.d.Source.Transaction(ctx, d.Tx.ID); err == nil {
+		if _, err := s.src(ctx).Transaction(ctx, d.Tx.ID); err == nil {
 			return s.sent(d)
 		}
 	}
-	err := s.d.Source.Submit(ctx, d.Signed, d.Tx.ID)
+	err := s.src(ctx).Submit(ctx, d.Signed, d.Tx.ID)
 	switch {
 	case err == nil:
 		return s.sent(d)
@@ -186,7 +186,7 @@ func (s *Server) transactionStatus(ctx context.Context, a statusArg) (statusView
 	}
 	id := [32]byte(b)
 	out := statusView{Network: string(s.d.Network), TxID: a.TxID, Status: "unknown"}
-	confirmations, err := s.d.Source.Confirmations(ctx, [][32]byte{id})
+	confirmations, err := s.src(ctx).Confirmations(ctx, [][32]byte{id})
 	if err != nil {
 		return statusView{}, err
 	}

@@ -46,6 +46,8 @@ var networkMagic = map[model.Network]string{
 // KoiosConfig configures a Koios client. Zero values take the defaults.
 type KoiosConfig struct {
 	Network model.Network
+	// Name tells this source from the others of a list; "koios" if empty.
+	Name string
 	// BaseURL defaults to the public endpoint of the network. It must be
 	// HTTPS, or plain HTTP to a loopback address for a self-hosted instance.
 	BaseURL          string
@@ -75,20 +77,15 @@ func NewKoios(cfg KoiosConfig) (*Koios, error) {
 	if cfg.BaseURL == "" {
 		cfg.BaseURL = DefaultKoiosURL(cfg.Network)
 	}
-	base, err := url.Parse(strings.TrimSuffix(cfg.BaseURL, "/"))
-	if err != nil || base.Host == "" || base.RawQuery != "" || base.User != nil {
-		return nil, fmt.Errorf("datasource: invalid Koios URL %q", cfg.BaseURL)
+	if cfg.Name == "" {
+		cfg.Name = "koios"
 	}
-	if base.Scheme != "https" && !(base.Scheme == "http" && isLoopback(base.Hostname())) {
-		return nil, fmt.Errorf("datasource: Koios URL must use HTTPS unless it is on this machine")
+	base, err := baseURL("Koios", cfg.BaseURL)
+	if err != nil {
+		return nil, err
 	}
 	if cfg.HTTPClient == nil {
-		cfg.HTTPClient = &http.Client{
-			Timeout: 15 * time.Second,
-			CheckRedirect: func(*http.Request, []*http.Request) error {
-				return http.ErrUseLastResponse
-			},
-		}
+		cfg.HTTPClient = newHTTPClient()
 	}
 	if cfg.Attempts <= 0 {
 		cfg.Attempts = 3
@@ -106,6 +103,30 @@ func NewKoios(cfg KoiosConfig) (*Koios, error) {
 		cfg.maxUTxOs = MaxUTxOs
 	}
 	return &Koios{cfg: cfg, base: base}, nil
+}
+
+// baseURL checks the address of an HTTP source: HTTPS, or plain HTTP to
+// this machine for a self-hosted instance (decision 44).
+func baseURL(source, raw string) (*url.URL, error) {
+	base, err := url.Parse(strings.TrimSuffix(raw, "/"))
+	if err != nil || base.Host == "" || base.RawQuery != "" || base.User != nil {
+		return nil, fmt.Errorf("datasource: invalid %s URL %q", source, raw)
+	}
+	if base.Scheme != "https" && !(base.Scheme == "http" && isLoopback(base.Hostname())) {
+		return nil, fmt.Errorf("datasource: %s URL must use HTTPS unless it is on this machine", source)
+	}
+	return base, nil
+}
+
+// newHTTPClient is the client of the HTTP sources: a 15 s time-out and no
+// redirects (decision 44).
+func newHTTPClient() *http.Client {
+	return &http.Client{
+		Timeout: 15 * time.Second,
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
 }
 
 func isLoopback(host string) bool {
@@ -128,7 +149,7 @@ func sleep(ctx context.Context, d time.Duration) error {
 }
 
 // Name implements Source.
-func (k *Koios) Name() string { return "koios" }
+func (k *Koios) Name() string { return k.cfg.Name }
 
 // Network implements Source.
 func (k *Koios) Network() model.Network { return k.cfg.Network }

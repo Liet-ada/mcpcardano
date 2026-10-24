@@ -5,12 +5,14 @@ package server
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"unicode/utf8"
 
 	"github.com/Liet-ada/mcpcardano/internal/chain"
@@ -28,18 +30,51 @@ type Config struct {
 	Socket  string `json:"socket,omitempty"`
 	// WalletSocket is the service socket of the wallet process, which keeps
 	// and signs for the wallets of modes B and C; empty if there is none.
-	WalletSocket string           `json:"wallet_socket,omitempty"`
-	DataSource   DataSourceConfig `json:"datasource"`
+	WalletSocket string      `json:"wallet_socket,omitempty"`
+	DataSource   DataSources `json:"datasource"`
 	// ConfirmationDepth is how many blocks make a transaction confirmed;
 	// zero means DefaultConfirmationDepth.
 	ConfirmationDepth uint32         `json:"confirmation_depth,omitempty"`
 	Wallets           []WalletConfig `json:"wallets"`
 }
 
-// DataSourceConfig picks the data source. Milestone H-1 has Koios only.
+// DataSourceConfig is one data source: Koios or Blockfrost (decision 136).
 type DataSourceConfig struct {
 	Kind string `json:"kind"`
-	URL  string `json:"url,omitempty"`
+	// Name tells the source from the others, also to the agent, which may
+	// choose the order of the sources for its session (decision 137): its
+	// kind if empty.
+	Name string `json:"name,omitempty"`
+	// URL is empty for the source's public endpoint.
+	URL string `json:"url,omitempty"`
+	// Secret names the file with Blockfrost's project id, in secrets/ of
+	// the data directory or among the unit's systemd credentials:
+	// "blockfrost" if empty. The key itself never goes in config.json.
+	Secret string `json:"secret,omitempty"`
+}
+
+// DataSources is the datasource field: one source, as an object, or
+// several in order of preference, as a list (decision 136).
+type DataSources []DataSourceConfig
+
+// UnmarshalJSON reads an object or a list, as strictly as Load.
+func (d *DataSources) UnmarshalJSON(b []byte) error {
+	dec := json.NewDecoder(bytes.NewReader(b))
+	dec.DisallowUnknownFields()
+	if t := bytes.TrimSpace(b); len(t) > 0 && t[0] == '{' {
+		var one DataSourceConfig
+		if err := dec.Decode(&one); err != nil {
+			return err
+		}
+		*d = DataSources{one}
+		return nil
+	}
+	var list []DataSourceConfig
+	if err := dec.Decode(&list); err != nil {
+		return err
+	}
+	*d = list
+	return nil
 }
 
 // WalletConfig is a mode A wallet: the person's hardware wallet, of which
@@ -98,10 +133,13 @@ type Settings struct {
 	DataDir           string
 	Socket            string
 	WalletSocket      string
-	KoiosURL          string
+	Sources           []DataSourceConfig // in order of preference, each named, and each Blockfrost secret too
 	ConfirmationDepth uint32
 	Wallets           []mcp.Wallet
 }
+
+// maxSources bounds the data sources of the list.
+const maxSources = 4
 
 // maxConfigBytes bounds config.json.
 const maxConfigBytes = 1 << 20
@@ -154,11 +192,33 @@ func Resolve(c Config) (Settings, []string, error) {
 		return fail("network %q is not preprod or preview", c.Network)
 	case !filepath.IsAbs(c.DataDir):
 		return fail("data_dir must be an absolute path")
-	case c.DataSource.Kind != "koios":
-		return fail("datasource.kind must be koios")
+	case len(c.DataSource) == 0:
+		return fail("datasource must name a data source")
+	case len(c.DataSource) > maxSources:
+		return fail("datasource lists more than %d data sources", maxSources)
 	}
 	s := Settings{Network: n, DataDir: filepath.Clean(c.DataDir), Socket: c.Socket, WalletSocket: c.WalletSocket,
-		KoiosURL: c.DataSource.URL, ConfirmationDepth: c.ConfirmationDepth}
+		ConfirmationDepth: c.ConfirmationDepth}
+	for _, d := range c.DataSource {
+		d.Name = cmp.Or(d.Name, d.Kind)
+		switch {
+		case d.Kind != "koios" && d.Kind != "blockfrost":
+			return fail("datasource kind %q is not koios or blockfrost", d.Kind)
+		case !plainName(d.Name):
+			return fail("datasource name %q must be 1 to 64 letters, digits, - and _", d.Name)
+		case slices.ContainsFunc(s.Sources, func(o DataSourceConfig) bool { return o.Name == d.Name }):
+			return fail("datasource lists %s twice: give each one its own name", d.Name)
+		case d.Kind == "koios" && d.Secret != "":
+			return fail("koios takes no secret")
+		}
+		if d.Kind == "blockfrost" {
+			d.Secret = cmp.Or(d.Secret, "blockfrost")
+			if !plainName(d.Secret) {
+				return fail("secret %q must be 1 to 64 letters, digits, - and _", d.Secret)
+			}
+		}
+		s.Sources = append(s.Sources, d)
+	}
 	if s.ConfirmationDepth == 0 {
 		s.ConfirmationDepth = DefaultConfirmationDepth
 	}

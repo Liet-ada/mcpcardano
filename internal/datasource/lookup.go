@@ -33,13 +33,21 @@ type Account struct {
 type Asset struct {
 	ID     model.AssetID
 	Supply string // decimal; a total supply may pass 64 bits
-	// CIP25 is the metadata under label 721 of the last mint, as the source
-	// renders it; nil if there is none. CIP68 is the reference datum of a
-	// CIP-68 token as detailed JSON; nil if there is none. Both are text from
-	// the chain: whoever shows them must neutralize them.
-	CIP25 json.RawMessage
-	CIP68 json.RawMessage
+	// Standard is CIP25 or CIP68 when the source has the token's metadata,
+	// and empty otherwise. Metadata is that metadata as plain JSON values,
+	// numbers as json.Number: for CIP-25, the token's entry under label 721
+	// of its last mint; for CIP-68, the fields of its reference datum and
+	// its version. Every source gives the same shape. It is text from the
+	// chain: whoever shows it must neutralize it.
+	Standard string
+	Metadata any
 }
+
+// The metadata standards of a token.
+const (
+	CIP25 = "cip25"
+	CIP68 = "cip68"
+)
 
 // Transaction is a transaction in the chain and the block that holds it.
 type Transaction struct {
@@ -143,18 +151,19 @@ func (k *Koios) Asset(ctx context.Context, id model.AssetID) (Asset, error) {
 	if !digits(*r.Supply) {
 		return Asset{}, fmt.Errorf("%w: supply %q", ErrInvalidResponse, *r.Supply)
 	}
-	a := Asset{ID: id, Supply: *r.Supply}
-	for _, m := range []struct {
-		raw json.RawMessage
-		to  *json.RawMessage
-	}{{r.CIP25, &a.CIP25}, {r.CIP68, &a.CIP68}} {
-		if !present(m.raw) {
-			continue
-		}
-		if len(m.raw) > maxMetadataBytes || m.raw[0] != '{' {
+	for _, raw := range []json.RawMessage{r.CIP25, r.CIP68} {
+		if present(raw) && (len(raw) > maxMetadataBytes || raw[0] != '{') {
 			return Asset{}, fmt.Errorf("%w: metadata of %s", ErrInvalidResponse, id)
 		}
-		*m.to = m.raw
+	}
+	a := Asset{ID: id, Supply: *r.Supply}
+	switch {
+	case present(r.CIP68):
+		a.Standard, a.Metadata = CIP68, cip68Fields(r.CIP68)
+	case present(r.CIP25):
+		if m := cip25Entry(r.CIP25, id); m != nil {
+			a.Standard, a.Metadata = CIP25, m
+		}
 	}
 	return a, nil
 }

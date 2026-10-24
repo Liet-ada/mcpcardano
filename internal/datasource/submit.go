@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"strings"
 )
 
@@ -89,37 +90,42 @@ func contains(list []string, s string) bool {
 	return false
 }
 
+// maxTxHashes is the most transactions one tx_status request asks about. The
+// public Koios endpoints refuse a body over 5 KiB with HTTP 413, and each hash
+// takes 67 bytes of it, so no more than 76 fit.
+const maxTxHashes = 50
+
 // Confirmations implements Source: for each transaction, how many blocks
-// contain or follow its block; zero if it is not in the chain.
+// contain or follow its block; zero if it is not in the chain. It asks about
+// maxTxHashes transactions per request.
 func (k *Koios) Confirmations(ctx context.Context, ids [][32]byte) (map[[32]byte]uint64, error) {
-	if len(ids) == 0 {
-		return map[[32]byte]uint64{}, nil
-	}
-	asked := make(map[string][32]byte, len(ids))
-	hashes := make([]string, 0, len(ids))
-	for _, id := range ids {
-		h := hex.EncodeToString(id[:])
-		asked[h] = id
-		hashes = append(hashes, h)
-	}
-	var rows []struct {
-		TxHash        *string `json:"tx_hash"`
-		Confirmations *uint64 `json:"num_confirmations"`
-	}
-	if err := k.call(ctx, "/tx_status", nil, map[string]any{"_tx_hashes": hashes}, &rows); err != nil {
-		return nil, err
-	}
 	out := make(map[[32]byte]uint64, len(ids))
-	for _, r := range rows {
-		if r.TxHash == nil {
-			return nil, fmt.Errorf("%w: tx_status is missing fields", ErrInvalidResponse)
+	for batch := range slices.Chunk(ids, maxTxHashes) {
+		asked := make(map[string][32]byte, len(batch))
+		hashes := make([]string, 0, len(batch))
+		for _, id := range batch {
+			h := hex.EncodeToString(id[:])
+			asked[h] = id
+			hashes = append(hashes, h)
 		}
-		id, ok := asked[*r.TxHash]
-		if !ok {
-			return nil, fmt.Errorf("%w: tx_status about %s, which was not asked", ErrInvalidResponse, *r.TxHash)
+		var rows []struct {
+			TxHash        *string `json:"tx_hash"`
+			Confirmations *uint64 `json:"num_confirmations"`
 		}
-		if r.Confirmations != nil {
-			out[id] = *r.Confirmations
+		if err := k.call(ctx, "/tx_status", nil, map[string]any{"_tx_hashes": hashes}, &rows); err != nil {
+			return nil, err
+		}
+		for _, r := range rows {
+			if r.TxHash == nil {
+				return nil, fmt.Errorf("%w: tx_status is missing fields", ErrInvalidResponse)
+			}
+			id, ok := asked[*r.TxHash]
+			if !ok {
+				return nil, fmt.Errorf("%w: tx_status about %s, which was not asked", ErrInvalidResponse, *r.TxHash)
+			}
+			if r.Confirmations != nil {
+				out[id] = *r.Confirmations
+			}
 		}
 	}
 	for _, id := range ids {

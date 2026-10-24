@@ -274,7 +274,7 @@ func (s *Server) FollowOrphans(ctx context.Context, depth uint32, grace time.Dur
 	if len(ids) == 0 {
 		return
 	}
-	confirmations, err := s.d.Source.Confirmations(ctx, ids)
+	confirmations, err := s.src(ctx).Confirmations(ctx, ids)
 	if err != nil {
 		return
 	}

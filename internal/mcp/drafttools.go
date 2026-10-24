@@ -194,15 +194,15 @@ func (s *Server) build(ctx context.Context, w Wallet, intent model.Intent, ttl u
 		}
 		w.Mode, w.Policy, u = model.Mode(ps.Mode), ps.Policy.Model(), usage(ps)
 	}
-	utxos, err := s.d.Source.UTxOs(ctx, w.Address)
+	utxos, err := s.src(ctx).UTxOs(ctx, w.Address)
 	if err != nil {
 		return draftView{}, err
 	}
-	params, err := s.d.Source.ProtocolParameters(ctx)
+	params, err := s.src(ctx).ProtocolParameters(ctx)
 	if err != nil {
 		return draftView{}, err
 	}
-	tip, err := s.d.Source.Tip(ctx)
+	tip, err := s.src(ctx).Tip(ctx)
 	if err != nil {
 		return draftView{}, err
 	}

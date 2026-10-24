@@ -62,9 +62,12 @@ type Chain struct {
 	utxos []chain.UTxO
 	txs   map[[32]byte][]byte
 	// Assets are the asset_info rows of every token, as Koios gives them.
-	assets map[model.AssetID]json.RawMessage
-	koios  *datasource.Koios
-	http   *httptest.Server
+	// The Blockfrost endpoint gives the same tokens in its own shape.
+	assets     map[model.AssetID]json.RawMessage
+	koios      *datasource.Koios
+	blockfrost *datasource.Blockfrost
+	tokensFrom string // the client the server reads tokens with: koios or blockfrost
+	http       *httptest.Server
 	// The policies of the synthetic tokens.
 	policy, policy68 [28]byte
 }
@@ -142,7 +145,31 @@ func NewChain(now time.Time, realistic bool) (*Chain, error) {
 		c.http.Close()
 		return nil, err
 	}
+	c.blockfrost, err = datasource.NewBlockfrost(datasource.BlockfrostConfig{Network: model.Preprod, ProjectID: "e8", BaseURL: c.http.URL + "/blockfrost"})
+	if err != nil {
+		c.http.Close()
+		return nil, err
+	}
+	c.tokensFrom = "koios"
 	return c, nil
+}
+
+// TokensFrom makes the server read the tokens through the client of koios,
+// the default, or blockfrost (decision 136).
+func (c *Chain) TokensFrom(source string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.tokensFrom = source
+}
+
+// tokens is the client the server reads tokens with.
+func (c *Chain) tokens() datasource.Source {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.tokensFrom == "blockfrost" {
+		return c.blockfrost
+	}
+	return c.koios
 }
 
 func (c *Chain) add(id [32]byte, tx []byte, wallet model.Address, tokens map[model.AssetID]uint64) {
@@ -186,9 +213,14 @@ func Wallets() ([]mcp.Wallet, error) {
 }
 
 // serveKoios answers the two endpoints the server's Koios client calls for
-// tokens: asset_info and the fingerprint lookup of asset_list.
+// tokens: asset_info and the fingerprint lookup of asset_list. Under
+// /blockfrost it answers Blockfrost's asset endpoint.
 func (c *Chain) serveKoios(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
+	if unit, ok := strings.CutPrefix(r.URL.Path, "/blockfrost/assets/"); ok {
+		c.serveBlockfrost(w, unit)
+		return
+	}
 	switch r.URL.Path {
 	case "/asset_info":
 		var body struct {
@@ -218,6 +250,90 @@ func (c *Chain) serveKoios(w http.ResponseWriter, r *http.Request) {
 	default:
 		http.NotFound(w, r)
 	}
+}
+
+// serveBlockfrost answers Blockfrost's /assets/{unit} with the token's
+// asset_info row, turned into Blockfrost's shape: the token's entry under
+// label 721, or the plain fields of its CIP-68 datum, and the standard.
+func (c *Chain) serveBlockfrost(w http.ResponseWriter, unit string) {
+	if len(unit) < 56 {
+		http.NotFound(w, nil)
+		return
+	}
+	a, err := model.ParseAssetID(unit[:56] + "." + unit[56:])
+	row, ok := c.assets[a]
+	if err != nil || !ok {
+		w.WriteHeader(http.StatusNotFound)
+		fmt.Fprint(w, `{"status_code":404,"error":"Not Found","message":"The requested component has not been found."}`)
+		return
+	}
+	var k struct {
+		Policy string         `json:"policy_id"`
+		Name   string         `json:"asset_name"`
+		Supply string         `json:"total_supply"`
+		CIP25  map[string]any `json:"minting_tx_metadata"`
+		CIP68  map[string]any `json:"cip68_metadata"`
+	}
+	if err := json.Unmarshal(row, &k); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	out := map[string]any{"asset": k.Policy + k.Name, "policy_id": k.Policy, "asset_name": k.Name,
+		"fingerprint": chain.Fingerprint(a), "quantity": k.Supply, "onchain_metadata": nil, "onchain_metadata_standard": nil}
+	switch {
+	case k.CIP68 != nil:
+		for _, datum := range k.CIP68 {
+			fields, _ := datum.(map[string]any)["fields"].([]any)
+			if len(fields) > 0 {
+				out["onchain_metadata"], out["onchain_metadata_standard"] = plain(fields[0]), "CIP68v1"
+			}
+		}
+	case k.CIP25 != nil:
+		byName, _ := k.CIP25["721"].(map[string]any)[k.Policy].(map[string]any)
+		for _, key := range []string{a.Name, k.Name} {
+			if e, ok := byName[key]; ok {
+				out["onchain_metadata"], out["onchain_metadata_standard"] = e, "CIP25v1"
+				break
+			}
+		}
+	}
+	json.NewEncoder(w).Encode(out)
+}
+
+// plain turns detailed Plutus JSON into plain values, as Blockfrost shows a
+// CIP-68 datum: byte strings as text, or hex if they are not UTF-8.
+func plain(v any) any {
+	m, _ := v.(map[string]any)
+	switch {
+	case m["bytes"] != nil:
+		s, _ := m["bytes"].(string)
+		if b, err := hex.DecodeString(s); err == nil && utf8.Valid(b) {
+			return string(b)
+		}
+		return s
+	case m["int"] != nil:
+		return m["int"]
+	case m["list"] != nil:
+		var out []any
+		for _, x := range m["list"].([]any) {
+			out = append(out, plain(x))
+		}
+		return out
+	case m["map"] != nil:
+		out := map[string]any{}
+		for _, e := range m["map"].([]any) {
+			kv, _ := e.(map[string]any)
+			out[fmt.Sprint(plain(kv["k"]))] = plain(kv["v"])
+		}
+		return out
+	case m["fields"] != nil:
+		var out []any
+		for _, x := range m["fields"].([]any) {
+			out = append(out, plain(x))
+		}
+		return map[string]any{"constructor": m["constructor"], "fields": out}
+	}
+	return nil
 }
 
 // Name implements datasource.Source.
@@ -265,14 +381,16 @@ func (c *Chain) Account(context.Context, string) (datasource.Account, error) {
 	return datasource.Account{}, datasource.ErrNotFound
 }
 
-// Asset implements datasource.Source, through the server's Koios client.
+// Asset implements datasource.Source, through the server's client of Koios
+// or of Blockfrost.
 func (c *Chain) Asset(ctx context.Context, id model.AssetID) (datasource.Asset, error) {
-	return c.koios.Asset(ctx, id)
+	return c.tokens().Asset(ctx, id)
 }
 
-// AssetByFingerprint implements datasource.Source, through Koios.
+// AssetByFingerprint implements datasource.Source, through the same client.
+// Blockfrost does not look tokens up by fingerprint.
 func (c *Chain) AssetByFingerprint(ctx context.Context, fp string) (model.AssetID, error) {
-	return c.koios.AssetByFingerprint(ctx, fp)
+	return c.tokens().AssetByFingerprint(ctx, fp)
 }
 
 // Transaction implements datasource.Source.
