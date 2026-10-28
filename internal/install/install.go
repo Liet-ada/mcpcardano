@@ -6,7 +6,9 @@
 // binaries, the users and the group, the units of systemd, the two
 // config.json, the key store and, if the person asks for it, the unlock bound
 // to the machine. It never unlocks the wallet, and never rewrites a
-// master.key. macOS arrives with step 7 of H-3.
+// master.key. On macOS it does the same with the daemons of launchd, the
+// wallet's Seatbelt profile and users made with dscl, and without the unlock
+// bound to the machine (decisions 139 and 140).
 package install
 
 import (
@@ -124,6 +126,8 @@ type account struct{ uid, gid uint32 }
 type Machine struct {
 	// root prefixes every path: "/" on the machine.
 	root string
+	// l is where things go on the machine's system.
+	l deploy.Layout
 	// run runs a command and returns what it wrote.
 	run func(command) (string, error)
 	// chown gives a file, which it does not follow if it is a link, to a
@@ -290,7 +294,7 @@ func (m *Machine) owner(p string) (account, error) {
 
 // NeedsPassword reports whether there is no key store yet, so that install
 // creates one and needs its password.
-func (m *Machine) NeedsPassword() bool { return !m.exists(deploy.MasterKey) }
+func (m *Machine) NeedsPassword() bool { return !m.exists(m.l.MasterKey) }
 
 // configured reports whether the wallet's configuration is there, from an
 // earlier install.
@@ -303,11 +307,14 @@ func (m *Machine) Check(o *Options) error {
 		return err
 	}
 	if ok, err := m.synced(); err != nil || !ok {
-		why := "the kernel says the clock is not synchronized"
-		if err != nil {
-			why = fmt.Sprintf("cannot ask the kernel whether the clock is synchronized: %v", err)
+		why, turnOn := "the kernel says the clock is not synchronized", "timedatectl set-ntp true"
+		if m.l.MacOS {
+			why, turnOn = "macOS does not set the clock from the network", "systemsetup -setusingnetworktime on"
 		}
-		return fmt.Errorf("install: %s. The wallet takes the time from it (section 9.3): turn on its synchronization, as with timedatectl set-ntp true, and run install again", why)
+		if err != nil {
+			why = fmt.Sprintf("cannot ask whether the clock is synchronized: %v", err)
+		}
+		return fmt.Errorf("install: %s. The wallet takes the time from it (section 9.3): turn on its synchronization, as with %s, and run install again", why, turnOn)
 	}
 	if err := m.checkHardlinks(); err != nil {
 		return err
@@ -365,7 +372,8 @@ func (m *Machine) Check(o *Options) error {
 		if len(o.Sources) > 1 && o.DataSourceURL != "" {
 			return errors.New("install: -datasource-url is for a single data source: for a list, write the URLs in " + deploy.ServerConfig + " after install")
 		}
-		if slices.Contains(o.Sources, "blockfrost") {
+		// On macOS the key goes in a file of the server's (decision 139).
+		if slices.Contains(o.Sources, "blockfrost") && !m.l.MacOS {
 			if err := m.checkCredentials("install", "keeping Blockfrost's project id encrypted"); err != nil {
 				return err
 			}
@@ -384,11 +392,17 @@ func (m *Machine) Check(o *Options) error {
 	switch o.Unlock {
 	case "", UnlockPassword:
 	case UnlockMachine:
+		if m.l.MacOS {
+			return errors.New("install: macOS has no unlock bound to the machine: the system keychain would let any user read the key (decision 139). The wallet unlocks with its password or a security key")
+		}
 		if err := m.checkMachineUnlock(); err != nil {
 			return err
 		}
 	default:
 		return fmt.Errorf("install: -unlock is %s or %s", UnlockPassword, UnlockMachine)
+	}
+	if o.FIDOOwner && m.l.MacOS {
+		return errors.New("install: -fido-owner is for Linux: on macOS your user reaches its security keys without a rule")
 	}
 	if o.FIDOOwner && !m.fidoRule() {
 		return errors.New("install: -fido-owner needs systemd's rule 60-fido-id.rules, which marks the security keys")
@@ -429,7 +443,7 @@ func (m *Machine) checkSystem(what string) error {
 		return fmt.Errorf("%s: %s", what, m.unsupported)
 	case m.euid != 0:
 		return fmt.Errorf("%s: run it as root: sudo mcpcardano %s", what, what)
-	case !m.exists("/run/systemd/system"):
+	case !m.l.MacOS && !m.exists("/run/systemd/system"):
 		return fmt.Errorf("%s: the services need systemd, which is not running", what)
 	}
 	return nil
@@ -484,14 +498,12 @@ func (m *Machine) Install(o Options, password model.Secret) error {
 	case len(o.BlockfrostKey) > 0 && !projectID(o.BlockfrostKey):
 		return errors.New("install: Blockfrost's project id has 1 to 128 letters and digits")
 	}
-	upgrade := slices.ContainsFunc(deploy.Units, func(u string) bool { return m.exists(filepath.Join(deploy.UnitDir, u)) })
+	upgrade := m.installed()
 	if upgrade {
 		// Section 10.6: the server stops first, and the wallet after it.
 		m.say("Stopping the services.")
-		for _, u := range []string{deploy.ServerService, deploy.WalletService} {
-			if err := m.cmd(nil, "systemctl", "stop", u); err != nil {
-				return err
-			}
+		if err := m.stopServices(); err != nil {
+			return err
 		}
 	}
 	if err := m.installBinaries(o.Source); err != nil {
@@ -501,13 +513,7 @@ func (m *Machine) Install(o Options, password model.Secret) error {
 	if err != nil {
 		return err
 	}
-	m.say("Installing the units.")
-	for _, u := range deploy.Units {
-		if err := m.writeFile(filepath.Join(deploy.UnitDir, u), []byte(deploy.Unit(u)), 0o644, 0, 0); err != nil {
-			return err
-		}
-	}
-	if err := m.cmd(nil, "systemctl", "daemon-reload"); err != nil {
+	if err := m.installServices(ids); err != nil {
 		return err
 	}
 	if err := m.installConfig(o, ids); err != nil {
@@ -528,22 +534,8 @@ func (m *Machine) Install(o Options, password model.Secret) error {
 		return err
 	}
 	m.say("Starting the wallet and then the server.")
-	if err := m.cmd(nil, "systemctl", "enable", deploy.WalletService, deploy.ServerService); err != nil {
+	if err := m.startServices(); err != nil {
 		return err
-	}
-	// systemd says a service started when it runs, not when it answers:
-	// the server starts once the wallet has its sockets, and install ends
-	// once the server has its own.
-	for _, s := range []struct{ unit, socket string }{
-		{deploy.WalletService, deploy.AdminSocket},
-		{deploy.ServerService, deploy.MCPSocket},
-	} {
-		if err := m.cmd(nil, "systemctl", "start", s.unit); err != nil {
-			return err
-		}
-		if err := m.waitFor(s.socket); err != nil {
-			return fmt.Errorf("install: %s did not open %s in %v: journalctl -u %s says why", s.unit, s.socket, m.startWait, s.unit)
-		}
 	}
 	m.next(upgrade, o.Network)
 	return nil
@@ -593,14 +585,20 @@ type ids struct {
 func (m *Machine) installUsers(person string) (ids, error) {
 	m.say("Creating the users %s and %s and the group %s, and adding %s to it.", deploy.WalletUser, deploy.ServerUser, deploy.Group, person)
 	var r ids
-	if err := m.writeFile(deploy.SysUsersPath, []byte(deploy.SysUsers), 0o644, 0, 0); err != nil {
-		return r, err
-	}
-	if err := m.cmd(nil, "systemd-sysusers", deploy.SysUsersPath); err != nil {
-		return r, err
-	}
-	if err := m.cmd(nil, "usermod", "-aG", deploy.Group, person); err != nil {
-		return r, err
+	if m.l.MacOS {
+		if err := m.macUsers(person); err != nil {
+			return r, err
+		}
+	} else {
+		if err := m.writeFile(deploy.SysUsersPath, []byte(deploy.SysUsers), 0o644, 0, 0); err != nil {
+			return r, err
+		}
+		if err := m.cmd(nil, "systemd-sysusers", deploy.SysUsersPath); err != nil {
+			return r, err
+		}
+		if err := m.cmd(nil, "usermod", "-aG", deploy.Group, person); err != nil {
+			return r, err
+		}
 	}
 	var err error
 	if r.group, err = m.lookupGroup(deploy.Group); err != nil {
@@ -656,14 +654,14 @@ func (m *Machine) installConfig(o Options, r ids) error {
 	}
 	if !m.configured() {
 		m.say("Writing %s and %s, on %s.", deploy.WalletConfig, deploy.ServerConfig, o.Network)
-		w := walletConfig{Network: o.Network, DataDir: deploy.WalletData, ServiceSocket: deploy.ServiceSocket,
-			AdminSocket: deploy.AdminSocket, ServiceUID: r.server.uid, AdminUID: r.person.uid}
+		w := walletConfig{Network: o.Network, DataDir: m.l.WalletData, ServiceSocket: m.l.ServiceSocket,
+			AdminSocket: m.l.AdminSocket, ServiceUID: r.server.uid, AdminUID: r.person.uid}
 		var sources []dataSourceConfig
 		for _, kind := range o.Sources {
 			sources = append(sources, dataSourceConfig{Kind: kind, URL: o.DataSourceURL})
 		}
-		s := serverConfig{Network: o.Network, DataDir: deploy.ServerData, Socket: deploy.MCPSocket,
-			WalletSocket: deploy.ServiceSocket, DataSource: sources, Wallets: []struct{}{}}
+		s := serverConfig{Network: o.Network, DataDir: m.l.ServerData, Socket: m.l.MCPSocket,
+			WalletSocket: m.l.ServiceSocket, DataSource: sources, Wallets: []struct{}{}}
 		if len(sources) == 1 {
 			s.DataSource = sources[0] // as before decision 136
 		}
@@ -752,7 +750,7 @@ func (m *Machine) installData(r ids, password model.Secret) error {
 	for _, d := range []struct {
 		dir  string
 		user account
-	}{{deploy.WalletData, r.wallet}, {deploy.ServerData, r.server}} {
+	}{{m.l.WalletData, r.wallet}, {m.l.ServerData, r.server}} {
 		if o, err := m.owner(d.dir); err == nil && o != (account{d.user.uid, r.group}) {
 			if err := m.chownTree(d.dir, d.user.uid, r.group); err != nil {
 				return err
@@ -763,13 +761,13 @@ func (m *Machine) installData(r ids, password model.Secret) error {
 		}
 	}
 	if !m.NeedsPassword() {
-		m.say("Keeping the key store in %s.", deploy.WalletData)
+		m.say("Keeping the key store in %s.", m.l.WalletData)
 		return nil
 	}
 	if len(password) == 0 {
 		return errors.New("install: the key store needs a password")
 	}
-	m.say("Creating the key store in %s.", deploy.WalletData)
+	m.say("Creating the key store in %s.", m.l.WalletData)
 	stdin := append(append(make([]byte, 0, len(password)+1), password...), '\n')
 	defer clear(stdin)
 	c := command{name: filepath.Join(deploy.BinDir, "mcpcardano-wallet"), args: []string{"-config", deploy.WalletConfig, "init"},
@@ -808,6 +806,9 @@ func (m *Machine) installUnlock(unlock string) error {
 }
 
 func (m *Machine) installFIDO(o Options) error {
+	if m.l.MacOS {
+		return nil // the person reaches the keys through IOKit, without rules
+	}
 	if !m.fidoRule() {
 		m.say("Warning: there is no rule 60-fido-id.rules of systemd, so your user may not reach a security key. mcpcardano doctor checks it.")
 	}
@@ -881,14 +882,20 @@ func (m *Machine) Uninstall(deleteData bool) error {
 		return err
 	}
 	var units []string
-	for _, u := range []string{deploy.ServerService, deploy.WalletService} {
-		if m.exists(filepath.Join(deploy.UnitDir, u)) {
+	for _, u := range []string{m.l.Services[1], m.l.Services[0]} {
+		if m.exists(filepath.Join(m.l.ServiceDir, u)) {
 			units = append(units, u)
 		}
 	}
 	if len(units) > 0 {
 		m.say("Stopping the services.")
-		if err := m.cmd(nil, "systemctl", append([]string{"disable", "--now"}, units...)...); err != nil {
+		if m.l.MacOS {
+			for _, u := range units {
+				if err := m.bootout(label(u)); err != nil {
+					return err
+				}
+			}
+		} else if err := m.cmd(nil, "systemctl", append([]string{"disable", "--now"}, units...)...); err != nil {
 			return err
 		}
 	}
@@ -897,10 +904,10 @@ func (m *Machine) Uninstall(deleteData bool) error {
 	for _, b := range deploy.Binaries {
 		gone = append(gone, filepath.Join(deploy.BinDir, b))
 	}
-	for _, u := range deploy.Units {
-		gone = append(gone, filepath.Join(deploy.UnitDir, u))
+	for _, u := range m.l.Services {
+		gone = append(gone, filepath.Join(m.l.ServiceDir, u))
 	}
-	gone = append(gone, deploy.SysUsersPath, deploy.Credential, deploy.FIDORule)
+	gone = append(gone, deploy.SysUsersPath, deploy.Credential, deploy.FIDORule, deploy.ProfilePath)
 	keys, err := filepath.Glob(filepath.Join(m.path(deploy.CredStore), deploy.ServerCredential+"*"))
 	if err != nil {
 		return fmt.Errorf("install: %w", err)
@@ -914,7 +921,15 @@ func (m *Machine) Uninstall(deleteData bool) error {
 			return fmt.Errorf("install: %w", err)
 		}
 	}
-	if err := m.cmd(nil, "systemctl", "daemon-reload"); err != nil {
+	if m.l.MacOS {
+		// The sockets' directories hold only sockets, which systemd would
+		// have removed with the services.
+		for _, d := range []string{m.l.WalletRun, m.l.ServerRun} {
+			if err := os.RemoveAll(m.path(d)); err != nil {
+				return fmt.Errorf("install: %w", err)
+			}
+		}
+	} else if err := m.cmd(nil, "systemctl", "daemon-reload"); err != nil {
 		return err
 	}
 	if rule {
@@ -922,7 +937,10 @@ func (m *Machine) Uninstall(deleteData bool) error {
 			return err
 		}
 	}
-	kept := []string{deploy.WalletConfigDir, deploy.ServerConfigDir, deploy.WalletData, deploy.ServerData}
+	kept := []string{deploy.WalletConfigDir, deploy.ServerConfigDir, m.l.WalletData, m.l.ServerData}
+	if m.l.MacOS {
+		kept = append(kept, deploy.LogDir) // journald keeps the logs on Linux
+	}
 	if deleteData {
 		m.say("Deleting the configuration, the key store and the records.")
 		for _, p := range kept {
@@ -936,7 +954,7 @@ func (m *Machine) Uninstall(deleteData bool) error {
 				return err
 			}
 		}
-		for _, p := range []string{deploy.WalletData, deploy.ServerData} {
+		for _, p := range []string{m.l.WalletData, m.l.ServerData} {
 			if !m.exists(p) {
 				continue
 			}
@@ -946,6 +964,12 @@ func (m *Machine) Uninstall(deleteData bool) error {
 		}
 	}
 	m.say("Removing the users and the group.")
+	if m.l.MacOS {
+		if err := m.removeMacUsers(); err != nil {
+			return err
+		}
+		return m.uninstalled(deleteData, kept)
+	}
 	for _, u := range []string{deploy.WalletUser, deploy.ServerUser} {
 		if _, err := m.lookupUser(u); err == nil {
 			if err := m.cmd(nil, "userdel", u); err != nil {
@@ -958,6 +982,11 @@ func (m *Machine) Uninstall(deleteData bool) error {
 			return err
 		}
 	}
+	return m.uninstalled(deleteData, kept)
+}
+
+// uninstalled says what uninstall left.
+func (m *Machine) uninstalled(deleteData bool, kept []string) error {
 	m.say("")
 	if deleteData {
 		m.say("mcpcardano is uninstalled, with its data.")

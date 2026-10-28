@@ -1,0 +1,15 @@
+; The wallet's Seatbelt profile on macOS (section 10.3; decisions 139 and
+; 140): no network but its own Unix sockets, and writes only in its data and
+; its sockets. mcpcardano install writes this file to
+; /etc/mcpcardano-wallet/wallet.sb, and mcpcardano doctor compares them.
+(version 1)
+(allow default)
+(deny network*)
+(allow network-bind     (local  unix-socket (subpath "/usr/local/var/run/mcpcardano-wallet")))
+(allow network-inbound  (local  unix-socket (subpath "/usr/local/var/run/mcpcardano-wallet")))
+(allow network-outbound (remote unix-socket (subpath "/usr/local/var/run/mcpcardano-wallet")))
+(deny file-write*)
+(allow file-write*
+  (subpath "/Library/Application Support/mcpcardano-wallet")
+  (subpath "/usr/local/var/run/mcpcardano-wallet")
+  (literal "/dev/null"))

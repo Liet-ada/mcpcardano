@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- The wallet on macOS (section 10.3; decision 140): its own user, without
+     network inside its Seatbelt profile. mcpcardano install writes this file
+     to /Library/LaunchDaemons, and mcpcardano doctor compares them. -->
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>mcpcardano-wallet</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/usr/bin/sandbox-exec</string>
+		<string>-f</string>
+		<string>/etc/mcpcardano-wallet/wallet.sb</string>
+		<string>/usr/local/bin/mcpcardano-wallet</string>
+		<string>-config</string>
+		<string>/etc/mcpcardano-wallet/config.json</string>
+	</array>
+	<key>UserName</key>
+	<string>mcpcardano-wallet</string>
+	<key>GroupName</key>
+	<string>mcpcardano</string>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>KeepAlive</key>
+	<dict>
+		<key>SuccessfulExit</key>
+		<false/>
+	</dict>
+	<key>Umask</key>
+	<integer>63</integer>
+	<key>SoftResourceLimits</key>
+	<dict>
+		<key>Core</key>
+		<integer>0</integer>
+	</dict>
+	<key>HardResourceLimits</key>
+	<dict>
+		<key>Core</key>
+		<integer>0</integer>
+	</dict>
+	<key>StandardOutPath</key>
+	<string>/Library/Logs/mcpcardano/wallet.log</string>
+	<key>StandardErrorPath</key>
+	<string>/Library/Logs/mcpcardano/wallet.log</string>
+</dict>
+</plist>

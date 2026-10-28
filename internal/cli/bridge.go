@@ -13,7 +13,8 @@ import (
 	"io"
 	"net"
 	"os"
-	"runtime"
+
+	"github.com/Liet-ada/mcpcardano/deploy"
 )
 
 // SocketEnv names the environment variable that overrides the socket path.
@@ -26,10 +27,7 @@ func DefaultSocket() string {
 	if s := os.Getenv(SocketEnv); s != "" {
 		return s
 	}
-	if runtime.GOOS == "darwin" {
-		return "/private/var/run/mcpcardano-server/mcp.sock"
-	}
-	return "/run/mcpcardano-server/mcp.sock"
+	return deploy.Current().MCPSocket
 }
 
 // Bridge joins an MCP client's standard input and output to the server's MCP

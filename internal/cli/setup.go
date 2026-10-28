@@ -41,8 +41,8 @@ func Install(ctx context.Context, args []string, in io.Reader, out, errOut io.Wr
 	network := fs.String("network", "", "the network of a first install: preprod, the default, or preview")
 	fs.StringVar(&o.DataSource, "datasource", "", "the data source of a first install: koios, the default, or blockfrost, or several in order of preference, as blockfrost,koios")
 	fs.StringVar(&o.DataSourceURL, "datasource-url", "", "the URL of a single data source, if not its public one")
-	fs.StringVar(&o.Unlock, "unlock", "", "how the wallet unlocks when it starts: "+install.UnlockPassword+", the default, or "+install.UnlockMachine+", with a TPM2")
-	fs.BoolVar(&o.FIDOOwner, "fido-owner", false, "give the security keys to the person alone, also over SSH")
+	fs.StringVar(&o.Unlock, "unlock", "", "how the wallet unlocks when it starts: "+install.UnlockPassword+", the default, or "+install.UnlockMachine+", with a TPM2 on Linux")
+	fs.BoolVar(&o.FIDOOwner, "fido-owner", false, "give the security keys to the person alone, also over SSH, on Linux")
 	if err := fs.Parse(args); err != nil || fs.NArg() > 0 {
 		fmt.Fprintln(errOut, "usage: sudo mcpcardano install [-network preprod] [-datasource koios] [-datasource-url url] [-unlock password|machine] [-fido-owner] [-user name]")
 		return ExitUsage
@@ -112,8 +112,9 @@ func newPassword(ctx context.Context, in io.Reader, errOut io.Writer) (model.Sec
 
 // APIKey runs mcpcardano apikey set <name> and apikey remove <name>: the API
 // keys of the server's data sources, as Blockfrost's project id, which
-// systemd-creds keeps encrypted for the server alone (decision 138). set
-// asks for the key without echo, or reads a line from a script.
+// systemd-creds keeps encrypted for the server alone (decision 138), or, on
+// macOS, a file of the server's user (decision 139). set asks for the key
+// without echo, or reads a line from a script.
 func APIKey(ctx context.Context, args []string, in io.Reader, out, errOut io.Writer) int {
 	if len(args) != 2 || (args[0] != "set" && args[0] != "remove") {
 		fmt.Fprintln(errOut, "usage: sudo mcpcardano apikey set <name>\n       sudo mcpcardano apikey remove <name>")

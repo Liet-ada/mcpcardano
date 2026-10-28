@@ -10,11 +10,11 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"runtime"
 	"slices"
 	"strings"
 	"time"
 
+	"github.com/Liet-ada/mcpcardano/deploy"
 	"github.com/Liet-ada/mcpcardano/internal/ipc"
 	"github.com/Liet-ada/mcpcardano/internal/model"
 )
@@ -27,15 +27,12 @@ const (
 )
 
 // DefaultAdminSocket is where the wallet's admin socket lives once installed:
-// in the wallet's own runtime directory (section 5.1).
+// in the wallet's own runtime directory (section 5.1; decision 140 on macOS).
 func DefaultAdminSocket() string {
 	if s := os.Getenv(AdminSocketEnv); s != "" {
 		return s
 	}
-	if runtime.GOOS == "darwin" {
-		return "/private/var/run/mcpcardano-wallet/admin.sock"
-	}
-	return "/run/mcpcardano-wallet/admin.sock"
+	return deploy.Current().AdminSocket
 }
 
 func defaultNetwork() string {

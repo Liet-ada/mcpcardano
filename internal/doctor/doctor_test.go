@@ -51,6 +51,8 @@ type machine struct {
 	member  bool     // the person is in the group, for the next session
 	noGroup bool
 	asked   int // how many times a socket was asked
+	layout  deploy.Layout
+	daemons map[string]Daemon // what launchctl print says, on macOS
 }
 
 const (
@@ -60,7 +62,7 @@ const (
 
 func healthy() *machine {
 	m := &machine{files: map[string]*file{}, show: map[string]map[string]string{}, synced: true,
-		groups: []uint32{me, groupID}, member: true}
+		groups: []uint32{me, groupID}, member: true, layout: deploy.Linux}
 	put := func(p string, mode fs.FileMode, uid, gid uint32, data string) {
 		m.files[p] = &file{mode, uid, gid, data}
 	}
@@ -110,6 +112,7 @@ func (m *machine) env() Env {
 	users := map[string]uint32{deploy.WalletUser: walletUID, deploy.ServerUser: serverUID}
 	names := map[uint32]string{0: "root", walletUID: deploy.WalletUser, serverUID: deploy.ServerUser, me: "ana"}
 	return Env{
+		L:       m.layout,
 		Version: "v1",
 		UID:     me,
 		Groups:  m.groups,
@@ -153,6 +156,12 @@ func (m *machine) env() Env {
 				}
 			}
 			return out, nil
+		},
+		Print: func(label string) (Daemon, error) {
+			if d, ok := m.daemons[label]; ok {
+				return d, nil
+			}
+			return Daemon{}, errors.New("exit status 113")
 		},
 		Synced: func() (bool, error) { return m.synced, nil },
 		Wallet: func(context.Context, string) (Wallet, error) { m.asked++; return m.wallet, m.walletE },

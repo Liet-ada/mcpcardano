@@ -36,9 +36,12 @@ type fake struct {
 	fail    map[string]string // a command, as recorded, and what it writes when it fails
 	// nextServer is the uid systemd-sysusers gives the server's user.
 	nextServer uint32
-	// silent names a unit that starts without opening its socket.
+	// silent names a unit, or a label of launchd, that starts without
+	// opening its socket.
 	silent string
 	source string
+	// loaded are the labels launchd runs.
+	loaded map[string]bool
 }
 
 const person = "ana"
@@ -47,8 +50,8 @@ func newFake(t *testing.T) *fake {
 	t.Helper()
 	f := &fake{t: t, owners: map[string]account{}, users: map[string]account{person: {1000, 1000}, "bea": {1001, 1001}},
 		groups: map[string]uint32{}, synced: true, systemd: "systemd 255 (255.4-1ubuntu8)\n+PAM +AUDIT\n", fail: map[string]string{},
-		nextServer: 992, source: t.TempDir()}
-	f.m = &Machine{root: t.TempDir(), run: f.run, chown: f.chown, lookupUser: f.lookupUser, lookupGroup: f.lookupGroup,
+		nextServer: 992, source: t.TempDir(), loaded: map[string]bool{}}
+	f.m = &Machine{root: t.TempDir(), l: deploy.Linux, run: f.run, chown: f.chown, lookupUser: f.lookupUser, lookupGroup: f.lookupGroup,
 		synced: func() (bool, error) { return f.synced, nil }, startWait: 300 * time.Millisecond, out: &f.out}
 	f.touch("/run/systemd/system/.keep")
 	for _, b := range deploy.Binaries {
@@ -102,7 +105,9 @@ func (f *fake) run(c command) (string, error) {
 	case c.name == "groupdel":
 		delete(f.groups, c.args[0])
 	case slices.Contains(c.args, "init"):
-		f.touch(deploy.MasterKey)
+		f.touch(f.m.l.MasterKey)
+	case c.name == "dscl" || c.name == "launchctl":
+		return f.macOS(c)
 	case c.name == "systemd-creds":
 		f.touch(c.args[len(c.args)-1]) // the file it encrypts to
 	case rec == "systemctl start "+deploy.WalletService && f.silent != deploy.WalletService:

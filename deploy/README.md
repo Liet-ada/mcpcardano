@@ -1,4 +1,4 @@
-# Installing on Linux
+# Installing on Linux and macOS
 
 `mcpcardano install` installs mcpcardano, and `mcpcardano doctor` checks it (decision 134). Run install with sudo from your own account, in the directory that holds the three binaries:
 
@@ -126,3 +126,18 @@ It stops and removes the services, the binaries, the users, the group and the ke
 - the hash chains of the wallet's audit log and spending record.
 
 The server checks its own chain when it starts, and does not start if it is broken. doctor exits with 0 if nothing failed, and with 1 otherwise.
+
+## On macOS
+
+`sudo ./mcpcardano install` does the same on macOS, with what macOS has (decisions 139 and 140):
+
+- **The services** are the daemons of launchd `mcpcardano-wallet` and `mcpcardano-server`, from `mcpcardano-wallet.plist` and `mcpcardano-server.plist` in `/Library/LaunchDaemons`. launchd has no `PrivateNetwork`: the wallet runs inside the Seatbelt profile `wallet.sb`, which install writes to `/etc/mcpcardano-wallet/wallet.sb`, root's. Inside it the wallet reaches no network, only its own Unix sockets, and writes only to its data and its sockets.
+- **The users and the group** have the names they have on Linux, made with `dscl`: hidden, with the first free ids from 400 to 499, no shell and no home. The group is the primary one of both users, and install adds you to it with `dseditgroup`.
+- **The files** have the shape of Linux. The configuration is in `/etc/mcpcardano-*`, the data in `/Library/Application Support/mcpcardano-*`, and the sockets in `/usr/local/var/run/mcpcardano-*`: macOS empties `/var/run` at every start, and launchd does not make directories. The logs go to `/Library/Logs/mcpcardano/wallet.log` and `server.log`, `0640` with the group.
+- **The clock:** install checks that macOS sets it from the network, with `systemsetup -getusingnetworktime`.
+- **An API key** goes in `secrets/<name>` of the server's data directory, a file of the server's user with mode `0600`: macOS has no `systemd-creds`.
+- **There is no unlock bound to the machine**, nor `-fido-owner`: the system keychain would let any user read the key, and your user reaches its security keys without a rule. The wallet unlocks with its password or a security key.
+
+`uninstall` stops the daemons with `launchctl bootout` and removes them, the profile, the binaries, the sockets' directories, the users and the group. It keeps the configuration, the data and the logs, given to root, unless `-delete-data`.
+
+`doctor` checks the same files, the profile and the plists against the ones in this directory, and asks `launchctl print` whether launchd runs each daemon from its plist, as its user and, for the wallet, inside `sandbox-exec`. That the wallet has no network it reads from the wallet's audit log, which says `isolation.ok` after a start that passed its isolation check. Without root it cannot ask whether macOS sets the clock from the network, and warns; the gap with the tip of the chain it checks all the same.
