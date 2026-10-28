@@ -82,3 +82,11 @@ func (c *Conn) Reject(ctx context.Context, id string) error {
 func (c *Conn) FreezeAll(ctx context.Context) error {
 	return c.call(ctx, ipc.MsgFreeze, &ipc.Freeze{}, &ipc.Empty{})
 }
+
+func (c *Conn) PolicyStatus(ctx context.Context, walletID string) (*ipc.PolicyStatus, error) {
+	var ps ipc.PolicyStatus
+	if err := c.call(ctx, ipc.MsgGetPolicyStatus, &ipc.GetPolicyStatus{WalletID: walletID}, &ps); err != nil {
+		return nil, err
+	}
+	return &ps, nil
+}

@@ -50,16 +50,21 @@ func TestViewApproves(t *testing.T) {
 	defer conn.Close()
 	m := New(ctx, conn, slot.Open, "preprod")
 	m = drive(t, m, m.Init()())
-	if !strings.Contains(m.content(), res.ApprovalID) {
-		t.Fatalf("the view:\n%s", m.content())
+	// The admin socket gives each wallet's policy with what it spent.
+	if s := plain(press(t, m, "2")); !strings.Contains(s, "APPROVE ABOVE") || !strings.Contains(s, "1.00") {
+		t.Fatalf("the wallet's limits:\n%s", s)
+	}
+	m = press(t, m, "3")
+	if !strings.Contains(plain(m), res.ApprovalID) {
+		t.Fatalf("the view:\n%s", plain(m))
 	}
 	m = press(t, m, "enter")
-	if s := m.content(); !strings.Contains(s, "5.170000 ADA") || !strings.Contains(s, "touch of a registered key") {
+	if s := plain(m); !strings.Contains(s, "5.170000 ADA") || !strings.Contains(s, "TOUCH OF A REGISTERED KEY") {
 		t.Fatalf("the summary:\n%s", s)
 	}
 	m = press(t, m, "a")
-	if !strings.Contains(m.content(), "Approved") {
-		t.Fatalf("after the touch:\n%s", m.content())
+	if !strings.Contains(plain(m), "Approved") {
+		t.Fatalf("after the touch:\n%s", plain(m))
 	}
 	var st ipc.ApprovalStatus
 	if err := service.Call(ctx, ipc.MsgGetApprovalStatus, &ipc.GetApprovalStatus{ApprovalID: res.ApprovalID}, &st); err != nil || st.Status != ipc.ApprovalApproved {
@@ -71,7 +76,7 @@ func TestViewApproves(t *testing.T) {
 		t.Fatal("the connection outlived the wallet")
 	}
 	m = drive(t, m, tea.Msg(tick{}))
-	if v := m.content(); !strings.Contains(v, "locked: unlock it with mcpcardano unlock") || strings.Contains(v, "! ") {
+	if v := plain(press(t, m, "esc")); !strings.Contains(v, "● LOCKED") || strings.Contains(v, "ERROR") {
 		t.Errorf("after the restart, the view did not connect again:\n%s", v)
 	}
 }
