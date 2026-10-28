@@ -284,3 +284,15 @@ func TestFreeID(t *testing.T) {
 		t.Errorf("freeID: %d, %v", id, err)
 	}
 }
+
+func TestNetworkTime(t *testing.T) {
+	for out, want := range map[string]bool{"Network Time: On\n": true, "Network Time: Off\n": false} {
+		if got, err := networkTime(out); err != nil || got != want {
+			t.Errorf("%q: %v, %v", out, got, err)
+		}
+	}
+	// Without root, systemsetup says so and exits with 0.
+	if _, err := networkTime("You need administrator access to run this tool... exiting!\n"); err == nil {
+		t.Error("an answer without root counts as one")
+	}
+}

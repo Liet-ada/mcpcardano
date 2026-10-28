@@ -174,3 +174,11 @@ func TestScanIsolation(t *testing.T) {
 		}
 	}
 }
+
+func TestMacClockOff(t *testing.T) {
+	m := macHealthy()
+	m.synced = false
+	if r := m.run(); !strings.Contains(text(r), "sudo systemsetup -setusingnetworktime on") {
+		t.Errorf("the clock off on macOS:\n%s", text(r))
+	}
+}

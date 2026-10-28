@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/Liet-ada/mcpcardano/deploy"
@@ -28,11 +27,5 @@ func ClockSynced() (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("systemsetup -getusingnetworktime: %v%s", err, indent(out))
 	}
-	return networkTimeOn(out), nil
-}
-
-// networkTimeOn reads what systemsetup -getusingnetworktime prints, as
-// "Network Time: On".
-func networkTimeOn(out string) bool {
-	return strings.TrimSpace(out) == "Network Time: On"
+	return networkTime(out)
 }

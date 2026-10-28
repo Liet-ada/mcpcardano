@@ -288,6 +288,10 @@ func (d *doctor) files() {
 			expect{path: deploy.LogDir + "/server.log", uid: d.ids.server, gid: &group, mode: 0o640, group: true},
 		)
 	}
+	what := "unit"
+	if l.MacOS {
+		what = "plist"
+	}
 	bad := 0
 	for _, e := range want {
 		if e.group && !d.inGroup {
@@ -299,11 +303,7 @@ func (d *doctor) files() {
 		}
 	}
 	if bad == 0 {
-		d.add(OK, "the owners and modes of the binaries, the units, the configuration, the data and the sockets")
-	}
-	what := "unit"
-	if l.MacOS {
-		what = "plist"
+		d.add(OK, "the owners and modes of the binaries, the %ss, the configuration, the data and the sockets", what)
 	}
 	for _, u := range l.Services {
 		p := filepath.Join(l.ServiceDir, u)
@@ -600,6 +600,8 @@ func (d *doctor) clock() {
 		d.add(Warn, "doctor cannot ask macOS whether it sets the clock from the network without root: sudo systemsetup -getusingnetworktime says so")
 	case err != nil:
 		d.add(Fail, "cannot ask the kernel whether the clock is synchronized: %v", err)
+	case !ok && d.env.L.MacOS:
+		d.add(Fail, "macOS does not set the clock from the network, and the wallet takes the time from it (section 9.3): turn it on, as with sudo systemsetup -setusingnetworktime on")
 	case !ok:
 		d.add(Fail, "the kernel says the clock is not synchronized, and the wallet takes the time from it (section 9.3): turn on its synchronization, as with timedatectl set-ntp true")
 	default:

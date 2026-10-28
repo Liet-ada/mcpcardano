@@ -106,3 +106,16 @@ func (m *Machine) removeMacUsers() error {
 }
 
 func itoa(id uint32) string { return strconv.FormatUint(uint64(id), 10) }
+
+// networkTime reads what systemsetup -getusingnetworktime prints: "Network
+// Time: On" or "Off". Without root it prints that it needs administrator
+// access and exits with 0, which is neither.
+func networkTime(out string) (bool, error) {
+	switch strings.TrimSpace(out) {
+	case "Network Time: On":
+		return true, nil
+	case "Network Time: Off":
+		return false, nil
+	}
+	return false, fmt.Errorf("systemsetup -getusingnetworktime:%s", indent(out))
+}
