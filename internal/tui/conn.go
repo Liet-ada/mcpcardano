@@ -79,8 +79,8 @@ func (c *Conn) Reject(ctx context.Context, id string) error {
 	return c.call(ctx, ipc.MsgReject, &ipc.ApprovalRef{ApprovalID: id}, &ipc.Empty{})
 }
 
-func (c *Conn) FreezeAll(ctx context.Context) error {
-	return c.call(ctx, ipc.MsgFreeze, &ipc.Freeze{}, &ipc.Empty{})
+func (c *Conn) Freeze(ctx context.Context, walletID string) error {
+	return c.call(ctx, ipc.MsgFreeze, &ipc.Freeze{WalletID: walletID}, &ipc.Empty{})
 }
 
 func (c *Conn) PolicyStatus(ctx context.Context, walletID string) (*ipc.PolicyStatus, error) {

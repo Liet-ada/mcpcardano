@@ -25,14 +25,26 @@ func goTo(t tab) func(Model) (Model, tea.Cmd) {
 	return func(m Model) (Model, tea.Cmd) { m.tab = t; return m, nil }
 }
 
+// onWallet runs a key of the wallets' tab on the chosen wallet.
+func onWallet(key string) func(Model) (Model, tea.Cmd) {
+	return func(m Model) (Model, tea.Cmd) {
+		m.tab = tabWallets
+		next, cmd := m.tabKey(key)
+		return next.(Model), cmd
+	}
+}
+
 // commands are grouped and coloured by purpose: cyan to look, pink for
-// what reduces risk, dim for the view itself.
+// what reduces risk, orange for what raises it and takes an authorization,
+// dim for the view itself.
 var commands = []command{
 	{"LOOK", "Overview", "mcpcardano status", sCyan, goTo(tabOverview)},
 	{"LOOK", "Wallets, their limits and what they spent", "mcpcardano policy show -wallet <id>", sCyan, goTo(tabWallets)},
 	{"LOOK", "Approvals waiting", "mcpcardano status", sCyan, goTo(tabApprovals)},
 	{"LOOK", "Security keys", "mcpcardano key list", sCyan, goTo(tabKeys)},
-	{"REDUCE RISK", "Freeze every wallet", "mcpcardano freeze", sRed, func(m Model) (Model, tea.Cmd) { return m, m.freezeAll() }},
+	{"REDUCE RISK", "Freeze every wallet", "mcpcardano freeze", sRed, func(m Model) (Model, tea.Cmd) { return m, m.freeze("") }},
+	{"REDUCE RISK", "Freeze the chosen wallet", "mcpcardano freeze -wallet <id>", sRed, onWallet("F")},
+	{"AUTHORIZE", "Unfreeze the chosen wallet", "mcpcardano unfreeze -wallet <id>", sOrange, onWallet("u")},
 	{"VIEW", "Help", "", sDim, func(m Model) (Model, tea.Cmd) { m.overlay = helpOverlay; return m, nil }},
 	{"VIEW", "Quit", "", sDim, func(m Model) (Model, tea.Cmd) { m.forget(); return m, tea.Quit }},
 }

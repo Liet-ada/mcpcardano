@@ -71,6 +71,17 @@ func TestViewApproves(t *testing.T) {
 		t.Errorf("the approval: %+v, %v", st, err)
 	}
 
+	// Every wallet frozen with f, and the agent's unfrozen again from its
+	// tab with a touch.
+	m = press(t, m, "f")
+	if st, _ := conn.Status(ctx); !st.Wallets[0].Wallet.Frozen {
+		t.Fatal("f did not freeze the wallet")
+	}
+	m = press(t, m, "2", "u", "a")
+	if st, _ := conn.Status(ctx); st.Wallets[0].Wallet.Frozen || !strings.Contains(plain(m), "is unfrozen") {
+		t.Fatalf("u did not unfreeze the wallet:\n%s", plain(m))
+	}
+
 	w.Restart(t)
 	if _, err := conn.Status(ctx); err == nil {
 		t.Fatal("the connection outlived the wallet")

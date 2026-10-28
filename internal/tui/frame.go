@@ -130,7 +130,16 @@ func (m Model) footer(w int) string {
 	default:
 		hints = []string{keyHint("1-4", "tabs")}
 		switch m.tab {
-		case tabWallets, tabKeys:
+		case tabWallets:
+			hints = append(hints, keyHint("↑↓", "choose"))
+			if st := m.status; st != nil && len(st.Wallets) > 0 {
+				if st.Wallets[m.wallets.at].Wallet.Frozen {
+					hints = append(hints, keyHint("u", "unfreeze"))
+				} else {
+					hints = append(hints, keyHint("F", "freeze this"))
+				}
+			}
+		case tabKeys:
 			hints = append(hints, keyHint("↑↓", "choose"))
 		case tabApprovals:
 			hints = append(hints, keyHint("↑↓", "choose"), keyHint("enter", "read"), keyHint("r", "reject"))
@@ -170,8 +179,8 @@ func (m Model) authView(w int) []string {
 	dw := min(w-6, 96)
 	left := max(time.Unix(a.ch.ExpiresAt, 0).Sub(m.now()), 0).Round(time.Second)
 	title := m.frame().Render("┏━ ") + badge("AUTHORIZE", cHUD) + sp(1)
-	if a.approval != "" {
-		title += paint(sDim, a.approval+" ")
+	if a.title != "" {
+		title += paint(sDim, a.title+" ")
 	}
 	timer := paint(sOrange, fmt.Sprintf(" %d:%02d ", int(left.Minutes()), int(left.Seconds())%60)) + m.frame().Render("━┓")
 	top := title + m.frame().Render(strings.Repeat("━", max(dw+3-lipgloss.Width(title)-lipgloss.Width(timer), 0))) + timer
@@ -220,7 +229,8 @@ func (m Model) helpView() []string {
 		{"?", "this help"},
 		{"q, ctrl+c", "quit"},
 		{"", ""},
-		{"a / r", "in an approval: authorize / reject"},
+		{"u / F", "in a wallet: unfreeze it / freeze it"},
+		{"a / r", "in an authorization: authorize / reject an approval"},
 	}
 	out := []string{"", sp(2) + section("HELP"), ""}
 	for _, r := range rows {

@@ -11,12 +11,12 @@
     ◆ Security keys                                mcpcardano key list                                        
     REDUCE RISK                                                                                               
     ◆ Freeze every wallet                          mcpcardano freeze                                          
+    ◆ Freeze the chosen wallet                     mcpcardano freeze -wallet <id>                             
+    AUTHORIZE                                                                                                 
+    ◆ Unfreeze the chosen wallet                   mcpcardano unfreeze -wallet <id>                           
     VIEW                                                                                                      
     ◆ Help                                                                                                    
     ◆ Quit                                                                                                    
-                                                                                                              
-                                                                                                              
-                                                                                                              
                                                                                                               
                                                                                                               
                                                                                                               

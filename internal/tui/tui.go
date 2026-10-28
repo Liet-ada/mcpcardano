@@ -33,7 +33,8 @@ type Wallet interface {
 	Begin(ctx context.Context, action string, params ipc.Body) (*ipc.Challenge, error)
 	Complete(ctx context.Context, c *ipc.CompleteAuthorization) error
 	Reject(ctx context.Context, approvalID string) error
-	FreezeAll(ctx context.Context) error
+	// Freeze freezes a wallet, or every wallet if walletID is empty.
+	Freeze(ctx context.Context, walletID string) error
 }
 
 // refresh is how often the view asks for the status.
@@ -86,6 +87,7 @@ const (
 // about it and how far it got.
 type authorization struct {
 	ch       *ipc.Challenge
+	title    string // what it is about, for the dialog
 	approval string // the approval it decides, which r rejects
 	success  string // what to say once it is done
 	stage    stage
@@ -237,6 +239,11 @@ func (m Model) key(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.forget()
 		return m, tea.Quit
 	}
+	// What went well was read once a key is pressed; an error stays until
+	// esc.
+	if !m.failed {
+		m.note = ""
+	}
 	if m.auth != nil {
 		switch m.auth.stage {
 		case typing:
@@ -258,7 +265,7 @@ func (m Model) key(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 	case "f":
 		m.auth = nil
-		return m, m.freezeAll()
+		return m, m.freeze("")
 	}
 	if m.auth != nil {
 		switch s {
@@ -307,6 +314,21 @@ func (m Model) tabKey(s string) (tea.Model, tea.Cmd) {
 	switch m.tab {
 	case tabWallets:
 		m.wallets.move(delta, len(st.Wallets))
+		if len(st.Wallets) == 0 {
+			return m, nil
+		}
+		w := st.Wallets[m.wallets.at].Wallet
+		switch s {
+		case "u":
+			if !w.Frozen {
+				m.note, m.failed = "Wallet "+w.Label+" is not frozen.", false
+				return m, nil
+			}
+			return m, m.begin(ipc.ActUnfreeze, &ipc.WalletRef{WalletID: w.ID},
+				&authorization{title: "UNFREEZE " + label(w), success: "Wallet " + w.Label + " is unfrozen."})
+		case "F":
+			return m, m.freeze(w.ID)
+		}
 	case tabKeys:
 		m.keyList.move(delta, len(st.Keys))
 	case tabApprovals:
@@ -318,7 +340,7 @@ func (m Model) tabKey(s string) (tea.Model, tea.Cmd) {
 		switch s {
 		case "enter":
 			return m, m.begin(ipc.ActApproveDraft, &ipc.ApproveDraft{ApprovalID: ap.ID},
-				&authorization{approval: ap.ID, success: "Approved: the server sends the transaction."})
+				&authorization{title: ap.ID, approval: ap.ID, success: "Approved: the server sends the transaction."})
 		case "r":
 			return m, m.reject(ap.ID)
 		}
@@ -348,12 +370,18 @@ func (m Model) reject(id string) tea.Cmd {
 	}
 }
 
-func (m Model) freezeAll() tea.Cmd {
+// freeze freezes a wallet, or every wallet if walletID is empty: it
+// reduces the risk, so it takes no authorization.
+func (m Model) freeze(walletID string) tea.Cmd {
+	note := "Every wallet is frozen."
+	if walletID != "" {
+		note = "Wallet " + m.walletName(walletID) + " is frozen."
+	}
 	return func() tea.Msg {
-		if err := m.w.FreezeAll(m.ctx); err != nil {
+		if err := m.w.Freeze(m.ctx, walletID); err != nil {
 			return done{err: err}
 		}
-		return done{note: "Every wallet is frozen."}
+		return done{note: note}
 	}
 }
 

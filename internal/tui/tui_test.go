@@ -37,9 +37,10 @@ type fakeWallet struct {
 	policies  map[string]*ipc.PolicyStatus
 	ch        *ipc.Challenge
 	completed []*ipc.CompleteAuthorization
+	begun     []string // the actions of BeginAuthorization, with the wallet if any
 	rejected  []string
-	frozen    int
-	refuse    error // what Complete answers
+	frozen    []string // the wallets frozen, "" for every one
+	refuse    error    // what Complete answers
 }
 
 func (f *fakeWallet) Status(context.Context) (*ipc.StatusReport, error) { return f.st, nil }
@@ -49,7 +50,11 @@ func (f *fakeWallet) PolicyStatus(_ context.Context, id string) (*ipc.PolicyStat
 	}
 	return nil, &ipc.Error{Code: ipc.NotFound}
 }
-func (f *fakeWallet) Begin(context.Context, string, ipc.Body) (*ipc.Challenge, error) {
+func (f *fakeWallet) Begin(_ context.Context, action string, params ipc.Body) (*ipc.Challenge, error) {
+	if ref, ok := params.(*ipc.WalletRef); ok {
+		action += " " + ref.WalletID
+	}
+	f.begun = append(f.begun, action)
 	return f.ch, nil
 }
 func (f *fakeWallet) Complete(_ context.Context, c *ipc.CompleteAuthorization) error {
@@ -64,7 +69,7 @@ func (f *fakeWallet) Reject(_ context.Context, id string) error {
 	f.rejected = append(f.rejected, id)
 	return nil
 }
-func (f *fakeWallet) FreezeAll(context.Context) error { f.frozen++; return nil }
+func (f *fakeWallet) Freeze(_ context.Context, id string) error { f.frozen = append(f.frozen, id); return nil }
 
 const (
 	approvalID = "ap_aaaaaaaaaaaaaaaaaaaaaaaaaa"
@@ -271,11 +276,46 @@ func TestNoKey(t *testing.T) {
 func TestRejectAndFreeze(t *testing.T) {
 	f := newFake(ipc.MethodPassword)
 	m := press(t, start(t, f, &softkey.Slot{}), "3", "r", "f")
-	if len(f.rejected) != 1 || f.rejected[0] != approvalID || f.frozen != 1 || !strings.Contains(plain(m), "Every wallet is frozen") {
-		t.Errorf("rejected %v, frozen %d\n%s", f.rejected, f.frozen, plain(m))
+	if len(f.rejected) != 1 || f.rejected[0] != approvalID || len(f.frozen) != 1 || f.frozen[0] != "" || !strings.Contains(plain(m), "Every wallet is frozen") {
+		t.Errorf("rejected %v, frozen %v\n%s", f.rejected, f.frozen, plain(m))
 	}
 	if _, cmd := m.Update(tea.KeyPressMsg{Code: 'q', Text: "q"}); cmd == nil || cmd() != tea.Quit() {
 		t.Error("q does not quit")
+	}
+}
+
+// TestUnfreeze: u on a frozen wallet opens the authorization of unfreeze
+// for it, with the wallet's summary, and on a wallet that is not frozen
+// asks the wallet nothing. F freezes the chosen wallet alone.
+func TestUnfreeze(t *testing.T) {
+	f := newFake(ipc.MethodPassword)
+	f.ch.Summary = []string{"Unfreeze wallet nueva2 (w_bbbb…)"}
+	m := press(t, start(t, f, &softkey.Slot{}), "2", "u")
+	if len(f.begun) != 0 || !strings.Contains(plain(m), "Wallet agente is not frozen.") {
+		t.Fatalf("u on a wallet that is not frozen: began %v\n%s", f.begun, plain(m))
+	}
+	m = press(t, m, "F")
+	if len(f.frozen) != 1 || f.frozen[0] != walletA || !strings.Contains(plain(m), "Wallet AGENTE is frozen.") {
+		t.Fatalf("F froze %v\n%s", f.frozen, plain(m))
+	}
+	m = press(t, m, "down")
+	if !strings.Contains(plain(m), "u unfreeze") {
+		t.Errorf("the footer of a frozen wallet:\n%s", plain(m))
+	}
+	m = press(t, m, "u")
+	if len(f.begun) != 1 || f.begun[0] != ipc.ActUnfreeze+" "+walletB {
+		t.Fatalf("began %v", f.begun)
+	}
+	if v := plain(m); !strings.Contains(v, "UNFREEZE NUEVA2") || !strings.Contains(v, "Unfreeze wallet nueva2") {
+		t.Fatalf("the dialog:\n%s", v)
+	}
+	m = press(t, m, "r") // r rejects approvals only
+	if len(f.rejected) != 0 || m.auth == nil {
+		t.Fatalf("r in an unfreeze: rejected %v", f.rejected)
+	}
+	m = press(t, m, "a", "p", "w", "enter")
+	if len(f.completed) != 1 || string(f.completed[0].Password) != "pw" || !strings.Contains(plain(m), "Wallet nueva2 is unfrozen.") {
+		t.Errorf("completed %d\n%s", len(f.completed), plain(m))
 	}
 }
 
@@ -303,8 +343,8 @@ func TestPalette(t *testing.T) {
 		t.Fatalf("filtered by \"qu\":\n%s", v)
 	}
 	m = press(t, m, "backspace", "backspace", "f", "r", "e", "e", "z", "e", "enter")
-	if f.frozen != 1 || m.overlay != noOverlay {
-		t.Errorf("frozen %d, overlay %d", f.frozen, m.overlay)
+	if len(f.frozen) != 1 || m.overlay != noOverlay {
+		t.Errorf("frozen %v, overlay %d", f.frozen, m.overlay)
 	}
 	m = press(t, m, ":", "k", "e", "y", "enter")
 	if m.tab != tabKeys {
