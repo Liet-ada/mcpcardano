@@ -131,6 +131,7 @@ type (
 	tick      struct{}
 	spinTick  struct{}
 	statusMsg struct {
+		poll     bool // from the refresh, which then waits for the next
 		st       *ipc.StatusReport
 		policies map[string]*ipc.PolicyStatus
 		err      error
@@ -145,7 +146,15 @@ type (
 	}
 )
 
-func (m Model) Init() tea.Cmd { return m.fetch }
+func (m Model) Init() tea.Cmd { return m.poll }
+
+// poll is the refresh: one chain of it runs, every refresh, for as long as
+// the view does. An action asks for the status with fetch, out of the chain.
+func (m Model) poll() tea.Msg {
+	msg := m.fetch().(statusMsg)
+	msg.poll = true
+	return msg
+}
 
 // fetch asks for the status and, for each wallet, its policy with what it
 // spent. A wallet that does not answer for its policy is drawn without it.
@@ -169,7 +178,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width, m.height = msg.Width, msg.Height
 		return m, nil
 	case tick:
-		return m, m.fetch
+		return m, m.poll
 	case spinTick:
 		if m.auth == nil || m.auth.stage != touching {
 			return m, nil
@@ -184,6 +193,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.wallets.clamp(len(m.status.Wallets))
 			m.approvals.clamp(len(m.status.Approvals))
 			m.keyList.clamp(len(m.status.Keys))
+		}
+		if !msg.poll {
+			return m, nil
 		}
 		return m, tea.Tick(refresh, func(time.Time) tea.Msg { return tick{} })
 	case challenged:

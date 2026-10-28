@@ -279,6 +279,21 @@ func TestRejectAndFreeze(t *testing.T) {
 	}
 }
 
+// TestOneRefresh: the status after an action asks for no refresh of its
+// own; only the refresh does, so one chain of it runs however many actions
+// the person takes.
+func TestOneRefresh(t *testing.T) {
+	m := start(t, newFake(ipc.MethodPassword), &softkey.Slot{})
+	next, cmd := m.Update(tea.KeyPressMsg{Code: 'f', Text: "f"})
+	next, cmd = next.Update(cmd()) // done, which asks for the status
+	if _, cmd = next.Update(cmd()); cmd != nil {
+		t.Error("the status after an action asked for another refresh")
+	}
+	if _, cmd = next.Update(m.poll()); cmd == nil {
+		t.Error("the refresh did not ask for the next one")
+	}
+}
+
 // TestPalette: the palette filters as the person types, and runs what is
 // chosen; q there is text, not quitting.
 func TestPalette(t *testing.T) {
