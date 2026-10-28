@@ -69,7 +69,10 @@ func (f *fakeWallet) Reject(_ context.Context, id string) error {
 	f.rejected = append(f.rejected, id)
 	return nil
 }
-func (f *fakeWallet) Freeze(_ context.Context, id string) error { f.frozen = append(f.frozen, id); return nil }
+func (f *fakeWallet) Freeze(_ context.Context, id string) error {
+	f.frozen = append(f.frozen, id)
+	return nil
+}
 
 const (
 	approvalID = "ap_aaaaaaaaaaaaaaaaaaaaaaaaaa"
