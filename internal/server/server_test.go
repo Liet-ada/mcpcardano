@@ -14,6 +14,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -193,7 +194,10 @@ func TestOpenSources(t *testing.T) {
 	os.Mkdir(filepath.Join(dir, "secrets"), 0o700)
 	os.WriteFile(filepath.Join(dir, "secrets", "blockfrost"), []byte("preprodAbc123\n"), 0o600)
 	got, err = openSources(s, log)
-	if _, ok := got[0].(*datasource.Blockfrost); err != nil || !ok || !strings.Contains(logged.String(), "file in clear") {
+	// Only Linux warns: on macOS the file is where the key goes (decision
+	// 139).
+	warned := strings.Contains(logged.String(), "file in clear")
+	if _, ok := got[0].(*datasource.Blockfrost); err != nil || !ok || warned != (runtime.GOOS == "linux") {
 		t.Errorf("from a file in clear: %T, %v; logged %s", got[0], err, logged.String())
 	}
 	if strings.Contains(logged.String(), "preprodAbc123") {

@@ -213,8 +213,13 @@ func TestIsolation(t *testing.T) {
 	if code, out := asServer(t, cli, "status", "-admin", admin); code != 4 {
 		t.Errorf("the server's user on the admin socket: exit %d\n%s", code, out)
 	}
-	if out := mustPerson(t, "", "audit", "show", "-limit", "100"); strings.Count(out, "peer.refused") < 2 {
+	out := mustPerson(t, "", "audit", "show", "-limit", "100")
+	if strings.Count(out, "peer.refused") < 2 {
 		t.Errorf("the wallet did not record the refused peers:\n%s", out)
+	}
+	// It records the isolation check that passed, too (decision 139).
+	if !strings.Contains(out, "isolation.ok") {
+		t.Errorf("the wallet did not record its isolation:\n%s", out)
 	}
 }
 

@@ -10,6 +10,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 
 	"github.com/Liet-ada/mcpcardano/internal/ipc"
@@ -22,14 +23,16 @@ const maxAdminConns = 4
 
 // Serve checks the isolation of section 10.3, unlocks with the key of the
 // machine if there is one (decision 132), creates the two sockets and serves
-// them until ctx ends. In development mode the isolation check is skipped,
-// and the audit log records it.
+// them until ctx ends. The audit log records how the isolation check went,
+// also when it passes (decision 139); in development mode it is skipped.
 func (d *Daemon) Serve(ctx context.Context) error {
 	if d.cfg.Development {
 		d.record("isolation.skipped", map[string]any{"reason": "development mode"})
 	} else if err := checkIsolation(); err != nil {
 		d.record("isolation.failed", map[string]any{"error": err.Error()})
 		return err
+	} else {
+		d.record("isolation.ok", map[string]any{"os": runtime.GOOS})
 	}
 	d.unlockByMachine()
 	service, err := listen(d.cfg.ServiceSocket)
