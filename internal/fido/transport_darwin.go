@@ -22,8 +22,16 @@ func transport() (authn.Transport, error) {
 	return t, err
 }
 
-// Attached lists the security keys attached, which only Linux can do for
-// now.
+// Attached lists the security key attached: go-macos/fido opens the first
+// one, which is the one the CLI uses, and the key does not notice.
 func Attached() ([]Device, error) {
-	return nil, errors.New("fido: listing the security keys is supported on Linux only")
+	t, err := macfido.Transport()
+	switch {
+	case errors.Is(err, macfido.ErrNoKey):
+		return nil, nil
+	case err != nil:
+		return []Device{{Name: "a security key", Path: "IOKit", Err: err}}, nil
+	}
+	defer t.Close()
+	return []Device{{Name: t.Name(), Path: "IOKit"}}, nil
 }

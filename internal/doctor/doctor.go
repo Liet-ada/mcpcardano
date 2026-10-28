@@ -91,6 +91,16 @@ type Wallet struct {
 	Status   ipc.StatusReport
 	Audit    ipc.AuditCheck
 	AuditErr error // VerifyAudit's error, if the chains are broken
+	// Isolation is the audit entry after the wallet's last start, as
+	// isolation.ok, or "" if doctor did not find that start.
+	Isolation string
+}
+
+// Daemon is what launchctl print says of a daemon of launchd.
+type Daemon struct {
+	Path, State, Username string
+	PID                   int
+	Arguments             []string
 }
 
 // Server is what the server says on its MCP socket.
@@ -117,6 +127,8 @@ type networkStatus struct {
 
 // Env is what doctor reads: the machine, or fakes in the tests.
 type Env struct {
+	// L is where mcpcardano lives on this system.
+	L deploy.Layout
 	// Version is the CLI's.
 	Version string
 	// UID and Groups are the person's session.
@@ -135,8 +147,10 @@ type Env struct {
 	UserGroups  func(uid uint32) ([]uint32, error)
 	// UserName returns the name of a uid.
 	UserName func(uid uint32) string
-	// Show returns properties of a unit, as systemctl show does.
+	// Show returns properties of a unit, as systemctl show does, on Linux.
 	Show func(unit string, props []string) (map[string]string, error)
+	// Print says what launchd runs under a label, on macOS.
+	Print func(label string) (Daemon, error)
 	// Synced reports whether the kernel says the clock is synchronized.
 	Synced func() (bool, error)
 	// Wallet and Server ask them over their sockets.
@@ -178,7 +192,11 @@ func Run(ctx context.Context, env Env) Report {
 	if d.inGroup {
 		cfg = d.walletConfig()
 	}
-	d.isolation(d.units())
+	if env.L.MacOS {
+		d.daemons()
+	} else {
+		d.isolation(d.units())
+	}
 	d.clock()
 	if !d.inGroup {
 		return d.r
@@ -188,6 +206,9 @@ func Run(ctx context.Context, env Env) Report {
 	d.versions(w, werr, s, serr)
 	d.server(s, serr)
 	if werr == nil {
+		if env.L.MacOS {
+			d.auditedIsolation(w)
+		}
 		d.wallet(w)
 	}
 	return d.r
@@ -237,28 +258,40 @@ type expect struct {
 }
 
 func (d *doctor) files() {
-	root, group := uint32(0), d.ids.group
+	root, group, l := uint32(0), d.ids.group, d.env.L
 	var want []expect
 	want = append(want, expect{path: deploy.BinDir, kind: fs.ModeDir, mode: 0o755, atMost: true})
 	for _, b := range deploy.Binaries {
 		want = append(want, expect{path: filepath.Join(deploy.BinDir, b), mode: 0o755, atMost: true})
 	}
-	for _, u := range deploy.Units {
-		want = append(want, expect{path: filepath.Join(deploy.UnitDir, u), mode: 0o644, atMost: true})
+	for _, u := range l.Services {
+		want = append(want, expect{path: filepath.Join(l.ServiceDir, u), mode: 0o644, atMost: true})
 	}
 	want = append(want,
 		expect{path: deploy.WalletConfigDir, kind: fs.ModeDir, uid: root, gid: &group, mode: 0o750},
 		expect{path: deploy.WalletConfig, uid: root, gid: &group, mode: 0o640, group: true},
 		expect{path: deploy.ServerConfigDir, kind: fs.ModeDir, uid: root, gid: &group, mode: 0o750},
 		expect{path: deploy.ServerConfig, uid: root, gid: &group, mode: 0o640, group: true},
-		expect{path: deploy.WalletData, kind: fs.ModeDir, uid: d.ids.wallet, mode: 0o700},
-		expect{path: deploy.ServerData, kind: fs.ModeDir, uid: d.ids.server, mode: 0o700},
-		expect{path: deploy.WalletRun, kind: fs.ModeDir, uid: d.ids.wallet, gid: &group, mode: 0o750},
-		expect{path: deploy.ServiceSocket, kind: fs.ModeSocket, uid: d.ids.wallet, mode: 0o660, group: true},
-		expect{path: deploy.AdminSocket, kind: fs.ModeSocket, uid: d.ids.wallet, mode: 0o660, group: true},
-		expect{path: deploy.ServerRun, kind: fs.ModeDir, uid: d.ids.server, gid: &group, mode: 0o750},
-		expect{path: deploy.MCPSocket, kind: fs.ModeSocket, uid: d.ids.server, mode: 0o660, group: true},
+		expect{path: l.WalletData, kind: fs.ModeDir, uid: d.ids.wallet, mode: 0o700},
+		expect{path: l.ServerData, kind: fs.ModeDir, uid: d.ids.server, mode: 0o700},
+		expect{path: l.WalletRun, kind: fs.ModeDir, uid: d.ids.wallet, gid: &group, mode: 0o750},
+		expect{path: l.ServiceSocket, kind: fs.ModeSocket, uid: d.ids.wallet, mode: 0o660, group: true},
+		expect{path: l.AdminSocket, kind: fs.ModeSocket, uid: d.ids.wallet, mode: 0o660, group: true},
+		expect{path: l.ServerRun, kind: fs.ModeDir, uid: d.ids.server, gid: &group, mode: 0o750},
+		expect{path: l.MCPSocket, kind: fs.ModeSocket, uid: d.ids.server, mode: 0o660, group: true},
 	)
+	if l.MacOS {
+		want = append(want,
+			expect{path: deploy.ProfilePath, uid: root, mode: 0o644, atMost: true, group: true},
+			expect{path: deploy.LogDir, kind: fs.ModeDir, uid: root, gid: &group, mode: 0o750},
+			expect{path: deploy.LogDir + "/wallet.log", uid: d.ids.wallet, gid: &group, mode: 0o640, group: true},
+			expect{path: deploy.LogDir + "/server.log", uid: d.ids.server, gid: &group, mode: 0o640, group: true},
+		)
+	}
+	what := "unit"
+	if l.MacOS {
+		what = "plist"
+	}
 	bad := 0
 	for _, e := range want {
 		if e.group && !d.inGroup {
@@ -270,21 +303,27 @@ func (d *doctor) files() {
 		}
 	}
 	if bad == 0 {
-		d.add(OK, "the owners and modes of the binaries, the units, the configuration, the data and the sockets")
+		d.add(OK, "the owners and modes of the binaries, the %ss, the configuration, the data and the sockets", what)
 	}
-	for _, u := range deploy.Units {
-		p := filepath.Join(deploy.UnitDir, u)
-		if b, err := d.env.ReadFile(p); err == nil && string(b) != deploy.Unit(u) {
-			d.add(changed(u), "%s is not the unit of this version of mcpcardano: sudo mcpcardano install puts it back", p)
+	for _, u := range l.Services {
+		p := filepath.Join(l.ServiceDir, u)
+		if b, err := d.env.ReadFile(p); err == nil && string(b) != l.Service(u) {
+			d.add(changed(u), "%s is not the %s of this version of mcpcardano: sudo mcpcardano install puts it back", p, what)
 		}
+	}
+	if !l.MacOS || !d.inGroup {
+		return
+	}
+	if b, err := d.env.ReadFile(deploy.ProfilePath); err == nil && string(b) != deploy.WalletProfile {
+		d.add(Fail, "%s is not the wallet's Seatbelt profile of this version of mcpcardano: sudo mcpcardano install puts it back", deploy.ProfilePath)
 	}
 }
 
-// changed is how a change to a unit comes out: nothing may change the
+// changed is how a change to a service comes out: nothing may change the
 // wallet's, the frontier of the keys; the server's may get, say, a
 // credential of its provider.
-func changed(unit string) Level {
-	if unit == deploy.WalletService {
+func changed(service string) Level {
+	if service == deploy.WalletService || service == deploy.WalletLabel+".plist" {
 		return Fail
 	}
 	return Warn
@@ -490,11 +529,79 @@ func interfaces(dev []byte) []string {
 	return out
 }
 
+// daemons checks, on macOS, that launchd runs the two daemons from the plists
+// install wrote, with their users and their command lines: the wallet's
+// inside its Seatbelt profile (decision 140). The plists themselves are
+// compared with deploy/ in files.
+func (d *doctor) daemons() {
+	l := d.env.L
+	for i, p := range l.Services {
+		label := strings.TrimSuffix(p, ".plist")
+		got, err := d.env.Print(label)
+		if err != nil {
+			d.add(Fail, "launchd does not run %s: %v; sudo mcpcardano install loads it", label, err)
+			continue
+		}
+		var weak []string
+		if want := filepath.Join(l.ServiceDir, p); got.Path != want {
+			weak = append(weak, fmt.Sprintf("it comes from %q, not from %s", got.Path, want))
+		}
+		if want := programArguments(l.Service(p)); !slices.Equal(got.Arguments, want) {
+			weak = append(weak, fmt.Sprintf("it runs %q, not %q", strings.Join(got.Arguments, " "), strings.Join(want, " ")))
+		}
+		if want := []string{deploy.WalletUser, deploy.ServerUser}[i]; got.Username != want {
+			weak = append(weak, fmt.Sprintf("it runs as %q, not as %s", got.Username, want))
+		}
+		switch {
+		case len(weak) > 0:
+			d.add(Fail, "%s is not the daemon install wrote: %s", label, strings.Join(weak, "; "))
+		case got.State != "running":
+			d.add(Fail, "%s is %s: /Library/Logs/mcpcardano/%s.log says why", label, got.State, strings.TrimPrefix(label, "mcpcardano-"))
+		case i == 0:
+			d.add(OK, "%s is running as %s, inside its Seatbelt profile", label, got.Username)
+		default:
+			d.add(OK, "%s is running as %s", label, got.Username)
+		}
+	}
+}
+
+// programArguments reads the strings of a plist's ProgramArguments.
+func programArguments(plist string) []string {
+	_, rest, _ := strings.Cut(plist, "<key>ProgramArguments</key>")
+	array, _, _ := strings.Cut(rest, "</array>")
+	var out []string
+	for _, part := range strings.Split(array, "<string>")[1:] {
+		s, _, _ := strings.Cut(part, "</string>")
+		out = append(out, s)
+	}
+	return out
+}
+
+// auditedIsolation checks, on macOS, how the wallet's isolation check went at
+// its last start, as its audit log says (decision 139): from outside its
+// Seatbelt profile nothing else tells.
+func (d *doctor) auditedIsolation(w Wallet) {
+	switch w.Isolation {
+	case "isolation.ok":
+		d.add(OK, "the wallet has no network: it says so in its audit log since its last start")
+	case "":
+		d.add(Warn, "the wallet's last start is too far back in its audit log to tell how its isolation check went")
+	default:
+		d.add(Fail, "after its last start the wallet's audit log says %s, not isolation.ok (section 10.3)", w.Isolation)
+	}
+}
+
 func (d *doctor) clock() {
 	ok, err := d.env.Synced()
 	switch {
+	case err != nil && d.env.L.MacOS:
+		// systemsetup answers root alone; install asked it, and the server's
+		// clock is compared with the tip of the chain below.
+		d.add(Warn, "doctor cannot ask macOS whether it sets the clock from the network without root: sudo systemsetup -getusingnetworktime says so")
 	case err != nil:
 		d.add(Fail, "cannot ask the kernel whether the clock is synchronized: %v", err)
+	case !ok && d.env.L.MacOS:
+		d.add(Fail, "macOS does not set the clock from the network, and the wallet takes the time from it (section 9.3): turn it on, as with sudo systemsetup -setusingnetworktime on")
 	case !ok:
 		d.add(Fail, "the kernel says the clock is not synchronized, and the wallet takes the time from it (section 9.3): turn on its synchronization, as with timedatectl set-ntp true")
 	default:
@@ -506,10 +613,10 @@ func (d *doctor) clock() {
 // version, as section 10.6 installs them.
 func (d *doctor) versions(w Wallet, werr error, s Server, serr error) {
 	if werr != nil {
-		d.add(Fail, "the wallet does not answer on %s: %v", deploy.AdminSocket, werr)
+		d.add(Fail, "the wallet does not answer on %s: %v", d.env.L.AdminSocket, werr)
 	}
 	if serr != nil {
-		d.add(Fail, "the server does not answer on %s: %v", deploy.MCPSocket, serr)
+		d.add(Fail, "the server does not answer on %s: %v", d.env.L.MCPSocket, serr)
 	}
 	if werr != nil || serr != nil {
 		return

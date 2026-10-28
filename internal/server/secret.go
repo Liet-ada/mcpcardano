@@ -38,8 +38,9 @@ const credentialPrefix = "mcpcardano-server."
 
 // readSecret reads a provider's key (section 7.1; decision 138): from the
 // credential systemd decrypted for the unit, mcpcardano-server.<name>, or
-// else, in development, from secrets/<name> in the data directory, where the
-// file must be the server's and readable by nobody else. plain says the key
+// else from secrets/<name> in the data directory, where the file must be the
+// server's and readable by nobody else: in development on Linux, and always
+// on macOS, which has no systemd-creds (decision 139). plain says the key
 // came from that file. A key in neither place is fs.ErrNotExist. Errors
 // never quote the key.
 func readSecret(dataDir, name string) (key string, plain bool, err error) {

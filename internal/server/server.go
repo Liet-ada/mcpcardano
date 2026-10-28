@@ -16,6 +16,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"syscall"
 	"time"
@@ -253,7 +254,8 @@ func openBlockfrost(s Settings, c DataSourceConfig, log *slog.Logger) (datasourc
 		return datasource.NewUnavailable(c.Name, s.Network, err), nil
 	case err != nil:
 		return nil, err
-	case plain:
+	case plain && runtime.GOOS == "linux":
+		// On macOS the file is where the key goes (decision 139).
 		log.Warn("the project id comes from a file in clear, which only development should use: sudo mcpcardano apikey set encrypts it", "source", c.Name)
 	}
 	b, err := datasource.NewBlockfrost(datasource.BlockfrostConfig{Network: s.Network, Name: c.Name, ProjectID: key, BaseURL: c.URL})

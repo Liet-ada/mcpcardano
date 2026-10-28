@@ -19,7 +19,9 @@ import (
 // (decision 138): encrypted with systemd-creds in the credential store, with
 // the TPM2 and the host's key if there is a TPM2 and the host's key alone if
 // not. The server's unit imports them; systemd decrypts them for the server
-// alone, in memory. mcpcardano apikey sets and removes them.
+// alone, in memory. macOS has no systemd-creds: there a key is a file of the
+// server's user with mode 0600 in its secrets/, which the separate user keeps
+// from the agent (decision 139). mcpcardano apikey sets and removes them.
 
 // keyName is the name of an API key, as the server's config.json names it
 // in a source's secret.
@@ -49,6 +51,9 @@ func (m *Machine) writeAPIKey(name string, key model.Secret) error {
 	if !projectID(key) {
 		return fmt.Errorf("install: %w", errProjectID)
 	}
+	if m.l.MacOS {
+		return m.writePlainKey(name, key)
+	}
 	cred := deploy.ServerCredential + name
 	m.say("Encrypting the API key %s for the server, in %s.", name, deploy.CredStore)
 	if err := m.mkdir(deploy.CredStore, 0o700, 0, 0); err != nil {
@@ -60,8 +65,30 @@ func (m *Machine) writeAPIKey(name string, key model.Secret) error {
 	return m.removePlainKey(name)
 }
 
+// plainKey is where the server reads a key in clear.
+func (m *Machine) plainKey(name string) string { return filepath.Join(m.l.ServerData, "secrets", name) }
+
+// writePlainKey writes a key where the server reads it on macOS, for its
+// user alone.
+func (m *Machine) writePlainKey(name string, key model.Secret) error {
+	server, err := m.lookupUser(deploy.ServerUser)
+	if err != nil {
+		return fmt.Errorf("install: no user %s: %v", deploy.ServerUser, err)
+	}
+	group, err := m.lookupGroup(deploy.Group)
+	if err != nil {
+		return fmt.Errorf("install: no group %s: %v", deploy.Group, err)
+	}
+	dir := filepath.Dir(m.plainKey(name))
+	m.say("Writing the API key %s for the server, in %s, which its user alone reads.", name, dir)
+	if err := m.mkdir(dir, 0o700, server.uid, group); err != nil {
+		return err
+	}
+	return m.writeFile(m.plainKey(name), key, 0o600, server.uid, group)
+}
+
 func (m *Machine) removePlainKey(name string) error {
-	p := filepath.Join(deploy.ServerData, "secrets", name)
+	p := m.plainKey(name)
 	err := os.Remove(m.path(p))
 	switch {
 	case err == nil:
@@ -73,14 +100,17 @@ func (m *Machine) removePlainKey(name string) error {
 }
 
 // CheckAPIKey checks, before a key is asked, that mcpcardano apikey can
-// run: as root, with systemd 254 or later, for a name a configuration can
-// give.
+// run: as root, with systemd 254 or later on Linux, for a name a
+// configuration can give.
 func (m *Machine) CheckAPIKey(name string) error {
 	if err := m.checkSystem("apikey"); err != nil {
 		return err
 	}
 	if !keyName.MatchString(name) {
 		return fmt.Errorf("apikey: %q is not a name of a key: 1 to 64 letters, digits, - and _", name)
+	}
+	if m.l.MacOS {
+		return nil
 	}
 	return m.checkCredentials("apikey", "keeping an API key encrypted")
 }
@@ -101,6 +131,9 @@ func (m *Machine) SetAPIKey(name string, key model.Secret) error {
 // that needed it no longer answers, and the server goes on with the others.
 func (m *Machine) RemoveAPIKey(name string) error {
 	p := filepath.Join(deploy.CredStore, deploy.ServerCredential+name)
+	if m.l.MacOS {
+		p = m.plainKey(name)
+	}
 	err := os.Remove(m.path(p))
 	switch {
 	case err == nil:
@@ -118,5 +151,11 @@ func (m *Machine) RemoveAPIKey(name string) error {
 
 func (m *Machine) restartServer() error {
 	m.say("Restarting the server, if it runs.")
+	if m.l.MacOS {
+		if _, err := m.run(command{name: "launchctl", args: []string{"print", "system/" + deploy.ServerLabel}}); err != nil {
+			return nil // not loaded
+		}
+		return m.cmd(nil, "launchctl", "kickstart", "-k", "system/"+deploy.ServerLabel)
+	}
 	return m.cmd(nil, "systemctl", "try-restart", deploy.ServerService)
 }

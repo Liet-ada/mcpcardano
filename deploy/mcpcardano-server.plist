@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- The server on macOS (section 10.3; decision 140): its own user, with the
+     network its data sources need. mcpcardano install writes this file to
+     /Library/LaunchDaemons, and mcpcardano doctor compares them. -->
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>mcpcardano-server</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/usr/local/bin/mcpcardano-server</string>
+		<string>-config</string>
+		<string>/etc/mcpcardano-server/config.json</string>
+	</array>
+	<key>UserName</key>
+	<string>mcpcardano-server</string>
+	<key>GroupName</key>
+	<string>mcpcardano</string>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>KeepAlive</key>
+	<dict>
+		<key>SuccessfulExit</key>
+		<false/>
+	</dict>
+	<key>Umask</key>
+	<integer>63</integer>
+	<key>SoftResourceLimits</key>
+	<dict>
+		<key>Core</key>
+		<integer>0</integer>
+	</dict>
+	<key>HardResourceLimits</key>
+	<dict>
+		<key>Core</key>
+		<integer>0</integer>
+	</dict>
+	<key>StandardOutPath</key>
+	<string>/Library/Logs/mcpcardano/server.log</string>
+	<key>StandardErrorPath</key>
+	<string>/Library/Logs/mcpcardano/server.log</string>
+</dict>
+</plist>

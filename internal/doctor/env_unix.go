@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Liet-ada
 
-//go:build linux
+//go:build linux || darwin
 
 package doctor
 
@@ -33,6 +33,7 @@ func NewEnv(version string) (Env, error) {
 		groups = append(groups, uint32(g))
 	}
 	return Env{
+		L:           deploy.Current(),
 		Version:     version,
 		UID:         uint32(os.Getuid()),
 		Groups:      groups,
@@ -44,11 +45,12 @@ func NewEnv(version string) (Env, error) {
 		UserGroups:  userGroups,
 		UserName:    userName,
 		Show:        show,
+		Print:       printDaemon,
 		Synced:      install.ClockSynced,
 		Wallet: func(ctx context.Context, network string) (Wallet, error) {
-			return AskWallet(ctx, deploy.AdminSocket, version, network)
+			return AskWallet(ctx, deploy.Current().AdminSocket, version, network)
 		},
-		Server: func(ctx context.Context) (Server, error) { return AskServer(ctx, deploy.MCPSocket, version) },
+		Server: func(ctx context.Context) (Server, error) { return AskServer(ctx, deploy.Current().MCPSocket, version) },
 		Keys:   fido.Attached,
 	}, nil
 }
@@ -126,4 +128,56 @@ func show(unit string, props []string) (map[string]string, error) {
 		}
 	}
 	return m, nil
+}
+
+// printDaemon runs launchctl print, which needs no privilege for a daemon of the
+// system, and reads the lines of its first level and its arguments.
+// launchctl comes from the system's directories, not from the person's
+// PATH.
+func printDaemon(label string) (Daemon, error) {
+	launchctl, err := install.SystemCommand("launchctl")
+	if err != nil {
+		return Daemon{}, err
+	}
+	cmd := exec.Command(launchctl, "print", "system/"+label)
+	cmd.Env = install.SafeEnv()
+	out, err := cmd.Output()
+	if err != nil {
+		return Daemon{}, fmt.Errorf("launchctl print system/%s: %w", label, err)
+	}
+	return parsePrint(string(out)), nil
+}
+
+// parsePrint reads what launchctl print says: "\tkey = value" at the first
+// level, and the arguments one per line between "\targuments = {" and "\t}".
+func parsePrint(out string) Daemon {
+	var d Daemon
+	inArgs := false
+	for line := range strings.Lines(out) {
+		line = strings.TrimSuffix(line, "\n")
+		switch {
+		case inArgs && line == "\t}":
+			inArgs = false
+		case inArgs:
+			d.Arguments = append(d.Arguments, strings.TrimSpace(line))
+		case line == "\targuments = {":
+			inArgs = true
+		case strings.HasPrefix(line, "\t") && !strings.HasPrefix(line, "\t\t"):
+			k, v, ok := strings.Cut(strings.TrimPrefix(line, "\t"), " = ")
+			if !ok {
+				continue
+			}
+			switch k {
+			case "path":
+				d.Path = v
+			case "state":
+				d.State = v
+			case "username":
+				d.Username = v
+			case "pid":
+				d.PID, _ = strconv.Atoi(v)
+			}
+		}
+	}
+	return d
 }
