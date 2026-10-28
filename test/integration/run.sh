@@ -20,9 +20,18 @@ finish() {
 	if [ "$status" -ne 0 ]; then
 		sudo journalctl -u mcpcardano-wallet -u mcpcardano-server --no-pager -o short-precise | tail -n 200 || true
 	fi
-	if [ -n "$koios" ]; then kill "$koios" || true; fi
+	if [ -n "$koios" ]; then
+		kill "$koios" || true
+		wait "$koios" || true
+	fi
 	if [ -n "$tpm" ]; then sudo pkill -f "swtpm chardev" || true; sudo rm -rf "$tpm"; fi
-	rm -rf "$work"
+	# Cleaning up is not what the job checks: under set -e a failed rm would
+	# turn a green run red. It once found the directory not empty; what is
+	# left it lists instead.
+	if ! rm -rf "$work"; then
+		echo "::warning::$work is not removed" >&2
+		ls -laR "$work" >&2 || true
+	fi
 	exit "$status"
 }
 trap finish EXIT
