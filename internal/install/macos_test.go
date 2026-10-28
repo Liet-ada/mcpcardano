@@ -233,6 +233,11 @@ func TestMacBlockfrost(t *testing.T) {
 }
 
 func TestMacUninstall(t *testing.T) {
+	// What -delete-data warns about is what it deletes.
+	want := []string{deploy.WalletConfigDir, deploy.ServerConfigDir, deploy.MacWalletData, deploy.MacServerData, deploy.LogDir}
+	if got := newMacFake(t).m.Data(); !slices.Equal(got, want) {
+		t.Errorf("Data: %v", got)
+	}
 	for _, deleteData := range []bool{false, true} {
 		f := newMacFake(t)
 		f.mustInstall(f.options(), "correct horse")

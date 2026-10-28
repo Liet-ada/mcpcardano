@@ -15,7 +15,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/Liet-ada/mcpcardano/deploy"
 	"github.com/Liet-ada/mcpcardano/internal/doctor"
 	"github.com/Liet-ada/mcpcardano/internal/install"
 	"github.com/Liet-ada/mcpcardano/internal/model"
@@ -161,8 +160,8 @@ func Uninstall(ctx context.Context, args []string, in io.Reader, out, errOut io.
 		return ExitError
 	}
 	if *deleteData {
-		fmt.Fprintf(errOut, "This deletes %s and %s, with the key store of every wallet, their policies and the records, and %s and %s.\n",
-			deploy.WalletData, deploy.ServerData, deploy.WalletConfigDir, deploy.ServerConfigDir)
+		fmt.Fprintf(errOut, "This deletes %s, with the configuration, the key store of every wallet, their policies and the records.\n",
+			strings.Join(m.Data(), ", "))
 		fmt.Fprintln(errOut, "The funds of a wallet whose recovery phrase is not written down are lost.")
 		fmt.Fprintf(errOut, "Type %q to go on: ", deletePhrase)
 		line, err := readLine(in)

@@ -937,10 +937,7 @@ func (m *Machine) Uninstall(deleteData bool) error {
 			return err
 		}
 	}
-	kept := []string{deploy.WalletConfigDir, deploy.ServerConfigDir, m.l.WalletData, m.l.ServerData}
-	if m.l.MacOS {
-		kept = append(kept, deploy.LogDir) // journald keeps the logs on Linux
-	}
+	kept := m.Data()
 	if deleteData {
 		m.say("Deleting the configuration, the key store and the records.")
 		for _, p := range kept {
@@ -983,6 +980,16 @@ func (m *Machine) Uninstall(deleteData bool) error {
 		}
 	}
 	return m.uninstalled(deleteData, kept)
+}
+
+// Data returns what uninstall keeps, and deletes with -delete-data: the
+// configuration, the data and, on macOS, the logs.
+func (m *Machine) Data() []string {
+	data := []string{deploy.WalletConfigDir, deploy.ServerConfigDir, m.l.WalletData, m.l.ServerData}
+	if m.l.MacOS {
+		data = append(data, deploy.LogDir) // journald keeps the logs on Linux
+	}
+	return data
 }
 
 // uninstalled says what uninstall left.
