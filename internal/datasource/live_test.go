@@ -104,11 +104,11 @@ func TestLiveKoiosPreprod(t *testing.T) {
 	t.Logf("%d confirmations of %s among %d transactions", confirmations[ids[0]], mintTx, len(ids))
 }
 
-// TestLiveBlockfrostPreprod reads preprod through Blockfrost and through
-// Koios at once, and checks that both clients read the same chain (decision
-// 136). It needs the project id of a Blockfrost project for preprod, in the
-// file MCPCARDANO_BLOCKFROST_KEY_FILE; without it, it is skipped. Run it
-// with `make live`.
+// TestLiveBlockfrostPreprod reads preprod through Blockfrost and, if Koios
+// answers, checks that both clients read the same chain (decision 136). It
+// needs the project id of a Blockfrost project for preprod, in the file
+// MCPCARDANO_BLOCKFROST_KEY_FILE; without it, it is skipped. Run it with
+// `make live`.
 func TestLiveBlockfrostPreprod(t *testing.T) {
 	keyFile := os.Getenv("MCPCARDANO_BLOCKFROST_KEY_FILE")
 	if keyFile == "" {
@@ -125,34 +125,23 @@ func TestLiveBlockfrostPreprod(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	k, err := NewKoios(KoiosConfig{Network: model.Preprod})
-	if err != nil {
-		t.Fatal(err)
-	}
 	if err := b.CheckNetwork(ctx); err != nil {
 		t.Fatal(err)
 	}
 
-	bt, err := b.Tip(ctx)
+	tip, err := b.Tip(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	kt, err := k.Tip(ctx)
+	if age := time.Since(tip.Time); age > 10*time.Minute {
+		t.Errorf("tip is %s old", age)
+	}
+	t.Logf("tip: slot %d, height %d, epoch %d, %s", tip.Slot, tip.Height, tip.Epoch, tip.Time)
+	p, err := b.ProtocolParameters(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if gap := int64(bt.Height) - int64(kt.Height); gap > 3 || gap < -3 {
-		t.Errorf("Blockfrost's tip is at %d and Koios's at %d", bt.Height, kt.Height)
-	}
-	t.Logf("tip: Blockfrost %d, Koios %d", bt.Height, kt.Height)
-
-	bp, err := b.ProtocolParameters(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if kp, err := k.ProtocolParameters(ctx); err != nil || bp != kp {
-		t.Errorf("parameters differ:\nBlockfrost %+v\nKoios      %+v (%v)", bp, kp, err)
-	}
+	t.Logf("parameters: epoch %d, protocol %d.%d, fee %d·size + %d", p.Epoch, p.ProtocolMajor, p.ProtocolMinor, p.MinFeeA, p.MinFeeB)
 
 	bech := os.Getenv("MCPCARDANO_LIVE_ADDRESS")
 	if bech == "" {
@@ -162,45 +151,72 @@ func TestLiveBlockfrostPreprod(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	bu, err := b.UTxOs(ctx, addr)
+	utxos, err := b.UTxOs(ctx, addr)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if ku, err := k.UTxOs(ctx, addr); err != nil || !reflect.DeepEqual(bu, ku) {
-		t.Errorf("UTxOs differ: Blockfrost %d, Koios %d (%v); a block between the two reads can do it, so run it again", len(bu), len(ku), err)
+	t.Logf("UTxOs: %d", len(utxos))
+	acc, err := b.Account(ctx, delegatingAccount)
+	if err != nil {
+		t.Fatal(err)
 	}
-	t.Logf("UTxOs: %d", len(bu))
-
-	if ba, err := b.Account(ctx, delegatingAccount); err != nil {
-		t.Error(err)
-	} else if ka, _ := k.Account(ctx, delegatingAccount); ba.Registered != ka.Registered || ba.Pool != ka.Pool || ba.DRep != ka.DRep {
-		t.Errorf("accounts differ: Blockfrost %+v, Koios %+v", ba, ka)
-	}
+	t.Logf("account: registered %v, pool %s, drep %s", acc.Registered, acc.Pool, acc.DRep)
+	assets := map[string]Asset{}
 	for _, s := range []string{cip25Asset, cip68Asset} {
-		ba, err := b.Asset(ctx, asset(t, s))
-		ka, _ := k.Asset(ctx, asset(t, s))
-		if err != nil || ba.Standard != ka.Standard || ba.Supply != ka.Supply {
-			t.Errorf("asset %s: Blockfrost %+v (%v), Koios %+v", s, ba, err, ka)
+		a, err := b.Asset(ctx, asset(t, s))
+		if err != nil || a.Standard == "" || a.Metadata == nil {
+			t.Fatalf("asset %s: %+v, %v", s, a, err)
 		}
-		t.Logf("asset %s: %s, metadata %v", s, ba.Standard, ba.Metadata)
+		assets[s] = a
+		t.Logf("asset %s: %s, supply %s, metadata %v", s, a.Standard, a.Supply, a.Metadata)
 	}
 	if _, err := b.AssetByFingerprint(ctx, cip25Fingerprint); !errors.Is(err, ErrUnsupported) {
 		t.Errorf("fingerprint: %v", err)
 	}
-	btx, err := b.Transaction(ctx, txID(t, mintTx))
+	tx, err := b.Transaction(ctx, txID(t, mintTx))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if ktx, err := k.Transaction(ctx, txID(t, mintTx)); err != nil || !reflect.DeepEqual(btx, ktx) {
-		t.Errorf("transactions differ: %v", err)
+	d, err := chain.DecodeTransaction(tx.CBOR)
+	if err != nil || hex.EncodeToString(d.ID[:]) != mintTx {
+		t.Fatalf("the CBOR is not the transaction: %v", err)
 	}
 	ids := [][32]byte{txID(t, mintTx), {1, 0xff}}
-	bc, err := b.Confirmations(ctx, ids)
-	if err != nil || bc[ids[0]] == 0 || bc[ids[1]] != 0 {
-		t.Fatalf("confirmations %v: %v", bc, err)
+	conf, err := b.Confirmations(ctx, ids)
+	if err != nil || conf[ids[0]] == 0 || conf[ids[1]] != 0 {
+		t.Fatalf("confirmations %v: %v", conf, err)
 	}
-	if kc, _ := k.Confirmations(ctx, ids); int64(bc[ids[0]])-int64(kc[ids[0]]) > 3 || int64(kc[ids[0]])-int64(bc[ids[0]]) > 3 {
-		t.Errorf("confirmations: Blockfrost %d, Koios %d", bc[ids[0]], kc[ids[0]])
+	t.Logf("transaction %s in block %d, %d confirmations", mintTx, tx.BlockHeight, conf[ids[0]])
+
+	// The same chain through Koios, if it answers: the public endpoint
+	// limits each address to a quota a day.
+	k, err := NewKoios(KoiosConfig{Network: model.Preprod})
+	if err != nil {
+		t.Fatal(err)
 	}
-	t.Logf("%d confirmations of %s", bc[ids[0]], mintTx)
+	kt, err := k.Tip(ctx)
+	if err != nil {
+		t.Logf("Koios does not answer (%v): nothing to compare with", err)
+		return
+	}
+	if gap := int64(tip.Height) - int64(kt.Height); gap > 3 || gap < -3 {
+		t.Errorf("Blockfrost's tip is at %d and Koios's at %d", tip.Height, kt.Height)
+	}
+	if kp, err := k.ProtocolParameters(ctx); err != nil || p != kp {
+		t.Errorf("parameters differ:\nBlockfrost %+v\nKoios      %+v (%v)", p, kp, err)
+	}
+	if ku, err := k.UTxOs(ctx, addr); err != nil || !reflect.DeepEqual(utxos, ku) {
+		t.Errorf("UTxOs differ: Blockfrost %d, Koios %d (%v); a block between the two reads can do it, so run it again", len(utxos), len(ku), err)
+	}
+	if ka, err := k.Account(ctx, delegatingAccount); err != nil || acc.Registered != ka.Registered || acc.Pool != ka.Pool || acc.DRep != ka.DRep {
+		t.Errorf("accounts differ: Blockfrost %+v, Koios %+v (%v)", acc, ka, err)
+	}
+	for s, a := range assets {
+		if ka, err := k.Asset(ctx, asset(t, s)); err != nil || a.Standard != ka.Standard || a.Supply != ka.Supply {
+			t.Errorf("asset %s: Blockfrost %+v, Koios %+v (%v)", s, a, ka, err)
+		}
+	}
+	if ktx, err := k.Transaction(ctx, txID(t, mintTx)); err != nil || !reflect.DeepEqual(tx, ktx) {
+		t.Errorf("transactions differ: %v", err)
+	}
 }

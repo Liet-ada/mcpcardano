@@ -5,6 +5,7 @@ package datasource
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -27,9 +28,10 @@ import (
 // testProjectID is the key the test endpoint expects.
 const testProjectID = "preprodTestKey0123456789"
 
-// The fixtures in testdata/blockfrost-preprod hold the same chain data as
-// those of koios-preprod, written by hand in the shapes of Blockfrost's
-// OpenAPI description, so that both clients must read the same things.
+// The fixtures in testdata/blockfrost-preprod are answers recorded from
+// Blockfrost's preprod endpoint on 2026-10-24, about the address, account,
+// tokens and transaction of those of koios-preprod, recorded a week earlier.
+// What the week did not change, both clients must read the same.
 func bfFixture(t testing.TB, name string) string {
 	t.Helper()
 	b, err := os.ReadFile(filepath.Join("testdata", "blockfrost-preprod", name))
@@ -127,19 +129,37 @@ func TestBlockfrostFixtures(t *testing.T) {
 	if err := b.CheckNetwork(ctx); err != nil {
 		t.Fatal(err)
 	}
-	k := serve(t, nil)
 
 	tip, err := b.Tip(ctx)
-	if want, _ := k.Tip(ctx); err != nil || tip != want {
-		t.Errorf("tip %+v, %v; Koios reads %+v", tip, err, want)
+	if err != nil || tip.Slot != 137142002 || tip.Height != 5328936 || tip.Epoch != 321 ||
+		!tip.Time.Equal(time.Unix(1792825202, 0)) || fmt.Sprintf("%x", tip.Hash[:2]) != "5706" {
+		t.Errorf("tip %+v, %v", tip, err)
 	}
+	// Two epochs after Koios's recording, with the same parameters.
 	p, err := b.ProtocolParameters(ctx)
-	if want, _ := k.ProtocolParameters(ctx); err != nil || p != want {
-		t.Errorf("parameters %+v, %v\nKoios reads %+v", p, err, want)
+	kp, _ := serve(t, nil).ProtocolParameters(ctx)
+	kp.Epoch = 321
+	if err != nil || p != kp {
+		t.Errorf("parameters %+v, %v\nKoios read %+v", p, err, kp)
 	}
-	utxos, err := b.UTxOs(ctx, fixtureAddress(t))
-	if want, _ := k.UTxOs(ctx, fixtureAddress(t)); err != nil || len(utxos) != 3 || !reflect.DeepEqual(utxos, want) {
-		t.Errorf("UTxOs %+v, %v\nKoios reads %+v", utxos, err, want)
+
+	addr := fixtureAddress(t)
+	utxos, err := b.UTxOs(ctx, addr)
+	if err != nil || len(utxos) != 10 {
+		t.Fatalf("%d UTxOs, %v", len(utxos), err)
+	}
+	var total uint64
+	tokens := 0
+	for i, u := range utxos {
+		total += u.Value.Lovelace
+		tokens += len(u.Value.Assets)
+		if !u.Address.Equal(addr) || u.HasDatum || u.HasScript || i > 0 && utxos[i-1].In.Compare(u.In) >= 0 {
+			t.Errorf("UTxO %d: %+v", i, u)
+		}
+	}
+	if first := utxos[0]; first.In.String() != "177f83d6b2265fdf97be696e5d88bdf26ac99838d087a90367a8fcff359586a6#0" ||
+		first.Value.Lovelace != 2_000_000 || total != 9_945_430_623 || tokens != 7 {
+		t.Errorf("first %+v, %d lovelace and %d tokens in all", first, total, tokens)
 	}
 }
 
@@ -147,9 +167,11 @@ func TestBlockfrostLookups(t *testing.T) {
 	b := serveBlockfrost(t, nil)
 	k := lookups(t, nil)
 
+	// The rewards grew in the week between the two recordings.
 	a, err := b.Account(ctx, delegatingAccount)
-	if want, _ := k.Account(ctx, delegatingAccount); err != nil || a != want {
-		t.Errorf("account %+v, %v; Koios reads %+v", a, err, want)
+	if want, _ := k.Account(ctx, delegatingAccount); err != nil || a.Registered != want.Registered || a.Pool != want.Pool ||
+		a.DRep != want.DRep || a.Rewards != 459_940_341 {
+		t.Errorf("account %+v, %v; Koios read %+v", a, err, want)
 	}
 	if _, err := b.Account(ctx, "stake_test1uqqmxsw5l0g448x8k9ykmn0usw9n8q0ydadgy52wdghekzqwdwj27"); !errors.Is(err, ErrNotFound) {
 		t.Errorf("an account the chain never saw: %v", err)
@@ -158,11 +180,24 @@ func TestBlockfrostLookups(t *testing.T) {
 		t.Errorf("a stake address that is a path: %v", err)
 	}
 
-	for _, s := range []string{cip25Asset, cip68Asset} {
-		x, err := b.Asset(ctx, asset(t, s))
-		if want, _ := k.Asset(ctx, asset(t, s)); err != nil || x.Standard == "" || !reflect.DeepEqual(x, want) {
-			t.Errorf("asset %+v, %v\nKoios reads %+v", x, err, want)
-		}
+	x, err := b.Asset(ctx, asset(t, cip25Asset))
+	if want, _ := k.Asset(ctx, asset(t, cip25Asset)); err != nil || x.Standard != CIP25 || !reflect.DeepEqual(x, want) {
+		t.Errorf("CIP-25 asset %+v, %v\nKoios reads %+v", x, err, want)
+	}
+	// The CIP-68 datum, read by each source: the same, but for its image,
+	// which Blockfrost gives as the hex of its CBOR, and Koios as the text.
+	y, err := b.Asset(ctx, asset(t, cip68Asset))
+	ky, _ := k.Asset(ctx, asset(t, cip68Asset))
+	bm, _ := y.Metadata.(map[string]any)
+	km, _ := ky.Metadata.(map[string]any)
+	if err != nil || y.Standard != CIP68 || y.Supply != ky.Supply ||
+		bm["image"] != "58"+"35"+hex.EncodeToString([]byte(km["image"].(string))) {
+		t.Errorf("CIP-68 asset %+v, %v\nKoios reads %+v", y, err, ky)
+	}
+	delete(bm, "image")
+	delete(km, "image")
+	if !reflect.DeepEqual(bm, km) {
+		t.Errorf("CIP-68 metadata\nBlockfrost %v\nKoios      %v", bm, km)
 	}
 	if _, err := b.Asset(ctx, asset(t, strings.Repeat("ab", 28)+".00")); !errors.Is(err, ErrNotFound) {
 		t.Errorf("an asset never minted: %v", err)
@@ -341,8 +376,15 @@ func TestBlockfrostLyingUTxOs(t *testing.T) {
 	rows[0]["inline_datum"] = "19a6aa"
 	rows[1]["reference_script_hash"] = "13a3efd825703a352a8f71f4e2758d08c28c564e8dfcce9f77776ad1"
 	u, err := utxoServer(t, rows).UTxOs(ctx, addr)
-	if err != nil || !u[0].HasDatum || u[0].HasScript || u[1].HasDatum || !u[1].HasScript {
-		t.Errorf("flags %+v, %v", u, err)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ref := func(r map[string]any) string { return fmt.Sprintf("%s#%v", r["tx_hash"], r["output_index"]) }
+	for _, x := range u {
+		datum, script := x.In.String() == ref(rows[0]), x.In.String() == ref(rows[1])
+		if x.HasDatum != datum || x.HasScript != script {
+			t.Errorf("flags of %s: datum %v, script %v", x.In, x.HasDatum, x.HasScript)
+		}
 	}
 }
 
@@ -374,8 +416,8 @@ func TestBlockfrostLyingParameters(t *testing.T) {
 		change func(*map[string]any)
 		want   error
 	}{
-		"the next epoch":   {func(p *map[string]any) { (*p)["epoch"] = 320 }, ErrUnavailable},
-		"the last epoch":   {func(p *map[string]any) { (*p)["epoch"] = 318 }, ErrUnavailable},
+		"the next epoch":   {func(p *map[string]any) { (*p)["epoch"] = 322 }, ErrUnavailable}, // the tip is in 321
+		"the last epoch":   {func(p *map[string]any) { (*p)["epoch"] = 320 }, ErrUnavailable},
 		"an old epoch":     {func(p *map[string]any) { (*p)["epoch"] = 300 }, ErrInvalidResponse},
 		"no fee":           {func(p *map[string]any) { delete(*p, "min_fee_a") }, ErrInvalidResponse},
 		"a null price":     {func(p *map[string]any) { (*p)["price_mem"] = nil }, ErrInvalidResponse},
@@ -522,13 +564,20 @@ func TestBlockfrostConfirmations(t *testing.T) {
 	}
 }
 
-func TestBlockfrostReadsTheSameChainAsKoios(t *testing.T) {
-	// The parameters are read with an exponent, as Blockfrost writes small
-	// numbers.
-	if p := bfFixture(t, "epochs_latest_parameters.json"); !strings.Contains(p, `"price_step":7.21e-05`) {
-		t.Fatalf("the fixture does not have the exponent: %s", p)
+// TestBlockfrostExponents: a price may come with an exponent, as JSON lets
+// a source write it.
+func TestBlockfrostExponents(t *testing.T) {
+	params := bfFixture(t, "epochs_latest_parameters.json")
+	if !strings.Contains(params, `"price_step":0.0000721`) {
+		t.Fatal("the fixture's price_step changed")
 	}
-	b := serveBlockfrost(t, nil)
+	b := serveBlockfrost(t, func(w http.ResponseWriter, r *http.Request) bool {
+		if strings.HasSuffix(r.URL.Path, "/parameters") {
+			fmt.Fprint(w, strings.Replace(params, `"price_step":0.0000721`, `"price_step":7.21e-05`, 1))
+			return true
+		}
+		return false
+	})
 	p, err := b.ProtocolParameters(ctx)
 	if err != nil || p.PriceStep != (chain.Rational{Num: 721, Den: 10000000}) {
 		t.Errorf("price_step %+v, %v", p.PriceStep, err)
