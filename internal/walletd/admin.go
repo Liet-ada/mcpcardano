@@ -173,6 +173,9 @@ func (d *Daemon) prepare(action string, params ipc.Body) (prepared, error) {
 		if err != nil {
 			return prepared{}, err
 		}
+		if err := frozenAsIs(p, r); err != nil {
+			return prepared{}, err
+		}
 		lines := append([]string{fmt.Sprintf("Change the policy of wallet %s (%s) to:", r.Label, r.ID)}, policyLines(p.Mode, p.Policy)...)
 		return prepared{r.ID, map[string]any{"hash": d.hash(p)}, lines}, nil
 	case *ipc.Template:
@@ -222,6 +225,16 @@ func (d *Daemon) prepare(action string, params ipc.Body) (prepared, error) {
 			"Address: " + addr.Bech32()}}, nil
 	}
 	return prepared{}, fail(ipc.Malformed, "unknown action %s", action)
+}
+
+// frozenAsIs refuses a policy that would change whether its wallet is frozen:
+// only freeze, unfreeze and a recovery do. The wallet cannot correct it,
+// because the key signs the hash of the policy whole (section 6.3).
+func frozenAsIs(p *ipc.WalletPolicy, r *record) error {
+	if p.Policy.Frozen != r.Policy.Frozen {
+		return fail(ipc.Frozen, "the policy does not say whether the wallet is frozen as it is now: read it again")
+	}
+	return nil
 }
 
 // expired returns the reservations a release names: each must be the
@@ -306,6 +319,9 @@ func (d *Daemon) run(ctx context.Context, au *authz.Authorization) (ipc.Body, er
 			r := st.find(p.WalletID)
 			if r == nil {
 				return fail(ipc.UnknownWallet, "no wallet %s", p.WalletID)
+			}
+			if err := frozenAsIs(p, r); err != nil {
+				return err
 			}
 			// A new budget, or a wallet that starts having one, counts from
 			// now (section 8.5).
@@ -424,7 +440,7 @@ func (d *Daemon) freeze(b *ipc.Freeze) error {
 		return nil
 	})
 	if err == nil {
-		d.record("frozen", map[string]any{"wallet_id": b.WalletID})
+		d.record("frozen", map[string]any{"wallet_id": b.WalletID, "cancelled": d.authz.Cancel(model.WalletID(b.WalletID))})
 	}
 	return err
 }

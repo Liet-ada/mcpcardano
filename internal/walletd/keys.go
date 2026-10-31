@@ -230,7 +230,7 @@ func (d *Daemon) runKey(au *authz.Authorization) (ipc.Body, error) {
 		if err != nil {
 			return nil, err
 		}
-		d.record("recovery.started", map[string]any{"ends_at": r.EndsAt})
+		d.record("recovery.started", map[string]any{"ends_at": r.EndsAt, "cancelled": d.authz.Cancel("")})
 		return r, nil
 	case ipc.ActCancelRecovery:
 		if d.st.Recovery == nil {
