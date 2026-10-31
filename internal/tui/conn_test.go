@@ -7,6 +7,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -89,5 +90,119 @@ func TestViewApproves(t *testing.T) {
 	m = drive(t, m, tea.Msg(tick{}))
 	if v := plain(press(t, m, "esc")); !strings.Contains(v, "● LOCKED") || strings.Contains(v, "ERROR") {
 		t.Errorf("after the restart, the view did not connect again:\n%s", v)
+	}
+}
+
+// authorized answers the dialog with the key's touch, and its PIN if the
+// action takes it.
+func authorized(t *testing.T, m Model) Model {
+	t.Helper()
+	if m.auth == nil {
+		t.Fatalf("no authorization:\n%s", plain(m))
+	}
+	if m.auth.ch.PIN {
+		return press(t, m, "a", "1", "2", "3", "4", "enter")
+	}
+	return press(t, m, "a")
+}
+
+// TestViewWalletActions drives every action of a wallet over a real admin
+// connection, each authorized with a software key: the wallet is the one that
+// says they happened.
+func TestViewWalletActions(t *testing.T) {
+	ctx := context.Background()
+	w := walletkit.Start(t)
+	admin, service := w.Admin(t), w.Service(t)
+	walletkit.Unlock(t, admin)
+	agent := walletkit.CreateWallet(t, service, "agent")
+	key := softkey.New("YubiKey", "1234")
+	if err := walletkit.AddKey(admin, key.Credential, "YubiKey", walletkit.WithPassword); err != nil {
+		t.Fatal(err)
+	}
+	slot := &softkey.Slot{}
+	slot.Insert(key)
+	conn := &Conn{Socket: w.Config.AdminSocket, Hello: walletkit.Hello()}
+	defer conn.Close()
+	m := New(ctx, conn, slot.Open, "preprod")
+	m = drive(t, m, m.Init()())
+	find := func(label string) *ipc.WalletStatus {
+		st, err := conn.Status(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for i := range st.Wallets {
+			if st.Wallets[i].Wallet.Label == label {
+				return &st.Wallets[i]
+			}
+		}
+		return nil
+	}
+
+	// A session of 30 minutes up to 12.5 ADA, and closing it.
+	m = press(t, m, "2", "s", "backspace", "backspace", "3", "0", "m", "enter", "1", "2", ".", "5", "enter")
+	if s := plain(m); !strings.Contains(s, "for 30m0s, up to 12.500000 ADA") {
+		t.Fatalf("the summary of the session:\n%s", s)
+	}
+	m = authorized(t, m)
+	ws := find("agent")
+	if ws.Session == nil || ws.Session.Remaining != 12_500_000 || !strings.Contains(plain(m), "close session") {
+		t.Fatalf("the session %+v:\n%s", ws.Session, plain(m))
+	}
+	m = press(t, m, "s")
+	if find("agent").Session != nil || !strings.Contains(plain(m), "Session closed") {
+		t.Fatalf("the session was not closed:\n%s", plain(m))
+	}
+
+	// What the wallet signed and did not see on the chain, released.
+	body := walletkit.Encode(t, walletkit.Payment(agent.Address, walletkit.Address(6, 7, 0), 5_000_000, w.Clock))
+	res, err := walletkit.Sign(service, agent.ID, body, nil)
+	if err != nil || res.Status != ipc.Signed {
+		t.Fatalf("the payment: %+v, %v", res, err)
+	}
+	w.Clock.Advance(11 * time.Minute)
+	m = press(t, m, "b", "space", "enter")
+	if s := plain(m); !strings.Contains(s, "Release 5.170000 ADA") {
+		t.Fatalf("the summary of the release:\n%s", s)
+	}
+	if m = authorized(t, m); !strings.Contains(plain(m), "Released 5.170000 ADA") {
+		t.Fatalf("after the release:\n%s", plain(m))
+	}
+	if left, err := conn.Expired(ctx, agent.ID); err != nil || len(left) != 0 {
+		t.Fatalf("still to release: %v, %v", left, err)
+	}
+
+	// A wallet created, and one restored from a phrase.
+	m = press(t, m, "c", "m", "i", "a", "enter")
+	m = authorized(t, m)
+	if find("mia") == nil || !strings.Contains(plain(m), "Wallet mia created") {
+		t.Fatalf("no wallet was created:\n%s", plain(m))
+	}
+	m = press(t, m, "R", "o", "l", "d", "enter")
+	for range 23 {
+		m = press(t, m, "a", "b", "a", "n", "enter")
+	}
+	m = press(t, m, "a", "r", "t", "enter")
+	m = authorized(t, m)
+	restored := find("old")
+	if restored == nil || !strings.Contains(plain(m), "Wallet old restored") {
+		t.Fatalf("no wallet was restored:\n%s", plain(m))
+	}
+	if m.restore != nil {
+		t.Error("the phrase stayed on its screen")
+	}
+
+	// Its phrase, back from the wallet with the PIN and the touch.
+	st, _ := conn.Status(ctx)
+	for i := range st.Wallets {
+		if st.Wallets[i].Wallet.ID == restored.Wallet.ID {
+			m.wallets.at = i
+		}
+	}
+	m = authorized(t, press(t, m, "p"))
+	if m.phrase == nil || string(m.phrase.words) != strings.Repeat("abandon ", 23)+"art" {
+		t.Fatalf("the phrase:\n%s", plain(m))
+	}
+	if s := plain(press(t, m, "esc")); strings.Contains(s, "abandon") {
+		t.Errorf("the phrase stayed on show:\n%s", s)
 	}
 }

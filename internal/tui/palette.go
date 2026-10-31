@@ -9,6 +9,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+
+	"github.com/Liet-ada/mcpcardano/internal/ipc"
 )
 
 // command is one entry of the palette: what it does, the CLI command that
@@ -34,6 +36,17 @@ func onWallet(key string) func(Model) (Model, tea.Cmd) {
 	}
 }
 
+// onChosen runs f on the chosen wallet.
+func onChosen(f func(Model, ipc.WalletStatus) (Model, tea.Cmd)) func(Model) (Model, tea.Cmd) {
+	return func(m Model) (Model, tea.Cmd) {
+		m.tab = tabWallets
+		if m.status == nil || len(m.status.Wallets) == 0 {
+			return m, nil
+		}
+		return f(m, m.status.Wallets[m.wallets.at])
+	}
+}
+
 // commands are grouped and coloured by purpose: cyan to look, pink for
 // what reduces risk, orange for what raises it and takes an authorization,
 // dim for the view itself.
@@ -44,7 +57,13 @@ var commands = []command{
 	{"LOOK", "Security keys", "mcpcardano key list", sCyan, goTo(tabKeys)},
 	{"REDUCE RISK", "Freeze every wallet", "mcpcardano freeze", sRed, func(m Model) (Model, tea.Cmd) { return m, m.freeze("") }},
 	{"REDUCE RISK", "Freeze the chosen wallet", "mcpcardano freeze -wallet <id>", sRed, onWallet("F")},
-	{"AUTHORIZE", "Unfreeze the chosen wallet", "mcpcardano unfreeze -wallet <id>", sOrange, onWallet("u")},
+	{"REDUCE RISK", "Close the chosen wallet's session", "mcpcardano session close -wallet <id>", sRed, onChosen(Model.closeSession)},
+	{"AUTHORIZE", "Unfreeze the chosen wallet", "mcpcardano unfreeze -wallet <id>", sOrange, onChosen(Model.unfreeze)},
+	{"AUTHORIZE", "Open a session on the chosen wallet", "mcpcardano session open -wallet <id> -for 1h -max <lovelace>", sOrange, onChosen(Model.sessionForm)},
+	{"AUTHORIZE", "Release the chosen wallet's budget", "mcpcardano budget release -wallet <id>", sOrange, onWallet("b")},
+	{"AUTHORIZE", "See the chosen wallet's recovery phrase", "mcpcardano wallet backup -wallet <id>", sOrange, onChosen(Model.askPhrase)},
+	{"AUTHORIZE", "Create a wallet", "mcpcardano wallet create -label <name>", sOrange, onWallet("c")},
+	{"AUTHORIZE", "Restore a wallet", "mcpcardano wallet restore -label <name>", sOrange, onWallet("R")},
 	{"VIEW", "Help", "", sDim, func(m Model) (Model, tea.Cmd) { m.overlay = helpOverlay; return m, nil }},
 	{"VIEW", "Quit", "", sDim, func(m Model) (Model, tea.Cmd) { m.forget(); return m, tea.Quit }},
 }

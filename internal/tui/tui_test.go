@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -40,7 +41,14 @@ type fakeWallet struct {
 	begun     []string // the actions of BeginAuthorization, with the wallet if any
 	rejected  []string
 	frozen    []string // the wallets frozen, "" for every one
+	closed    []string // the wallets whose session was closed
+	expired   []ipc.Expired
+	params    ipc.Body // the parameters of the last Begin, with a phrase copied
+	sent      []byte   // the phrase of the last Begin, as the view sent it
+	returned  []byte   // the result of the last Complete, as the view got it
 	refuse    error    // what Complete answers
+	refuseAsk error    // what Begin answers
+	result    []byte   // what Complete returns
 }
 
 func (f *fakeWallet) Status(context.Context) (*ipc.StatusReport, error) { return f.st, nil }
@@ -54,16 +62,24 @@ func (f *fakeWallet) Begin(_ context.Context, action string, params ipc.Body) (*
 	if ref, ok := params.(*ipc.WalletRef); ok {
 		action += " " + ref.WalletID
 	}
-	f.begun = append(f.begun, action)
+	if r, ok := params.(*ipc.RestoreWallet); ok {
+		f.sent = r.Phrase
+		params = &ipc.RestoreWallet{Label: r.Label, Phrase: slices.Clone(r.Phrase)}
+	}
+	f.begun, f.params = append(f.begun, action), params
+	if f.refuseAsk != nil {
+		return nil, f.refuseAsk
+	}
 	return f.ch, nil
 }
-func (f *fakeWallet) Complete(_ context.Context, c *ipc.CompleteAuthorization) error {
+func (f *fakeWallet) Complete(_ context.Context, c *ipc.CompleteAuthorization) ([]byte, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	cp := *c
 	cp.Password = append([]byte(nil), c.Password...)
 	f.completed = append(f.completed, &cp)
-	return f.refuse
+	f.returned = slices.Clone(f.result)
+	return f.returned, f.refuse
 }
 func (f *fakeWallet) Reject(_ context.Context, id string) error {
 	f.rejected = append(f.rejected, id)
@@ -72,6 +88,13 @@ func (f *fakeWallet) Reject(_ context.Context, id string) error {
 func (f *fakeWallet) Freeze(_ context.Context, id string) error {
 	f.frozen = append(f.frozen, id)
 	return nil
+}
+func (f *fakeWallet) CloseSession(_ context.Context, id string) error {
+	f.closed = append(f.closed, id)
+	return nil
+}
+func (f *fakeWallet) Expired(context.Context, string) ([]ipc.Expired, error) {
+	return f.expired, nil
 }
 
 const (
@@ -138,7 +161,7 @@ func run(cmd tea.Cmd) tea.Msg {
 	select {
 	case msg := <-out:
 		switch msg.(type) {
-		case tick, spinTick, tea.QuitMsg:
+		case tick, spinTick, phraseTick, tea.QuitMsg:
 			return nil
 		}
 		return msg
@@ -147,25 +170,33 @@ func run(cmd tea.Cmd) tea.Msg {
 	}
 }
 
+// pressKey is the message of a key, named as the view names it.
+func pressKey(k string) tea.KeyPressMsg {
+	switch k {
+	case "enter":
+		return tea.KeyPressMsg{Code: tea.KeyEnter}
+	case "esc":
+		return tea.KeyPressMsg{Code: tea.KeyEscape}
+	case "backspace":
+		return tea.KeyPressMsg{Code: tea.KeyBackspace}
+	case "down":
+		return tea.KeyPressMsg{Code: tea.KeyDown}
+	case "tab":
+		return tea.KeyPressMsg{Code: tea.KeyTab}
+	case "space":
+		return tea.KeyPressMsg{Code: tea.KeySpace, Text: " "}
+	case "ctrl+r":
+		return tea.KeyPressMsg{Code: 'r', Mod: tea.ModCtrl}
+	case "ctrl+c":
+		return tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl}
+	}
+	return tea.KeyPressMsg{Code: []rune(k)[0], Text: k}
+}
+
 func press(t *testing.T, m Model, keys ...string) Model {
 	t.Helper()
 	for _, k := range keys {
-		var msg tea.KeyPressMsg
-		switch k {
-		case "enter":
-			msg = tea.KeyPressMsg{Code: tea.KeyEnter}
-		case "esc":
-			msg = tea.KeyPressMsg{Code: tea.KeyEscape}
-		case "backspace":
-			msg = tea.KeyPressMsg{Code: tea.KeyBackspace}
-		case "down":
-			msg = tea.KeyPressMsg{Code: tea.KeyDown}
-		case "tab":
-			msg = tea.KeyPressMsg{Code: tea.KeyTab}
-		default:
-			msg = tea.KeyPressMsg{Code: []rune(k)[0], Text: k}
-		}
-		m = drive(t, m, msg)
+		m = drive(t, m, pressKey(k))
 	}
 	return m
 }
@@ -372,6 +403,11 @@ func TestVisible(t *testing.T) {
 		m = press(t, m, k)
 		views = append(views, m.render())
 	}
+	// The forms and the budget name the wallet too.
+	f.st.Wallets[0].Session = nil
+	f.expired = []ipc.Expired{{WalletID: walletA, BodyHash: make([]byte, 32)}}
+	m = drive(t, press(t, m, "esc", "2"), m.fetch())
+	views = append(views, press(t, m, "s").render(), press(t, m, "b").render())
 	all := strings.Join(views, "\n")
 	bare := sgr.ReplaceAllString(all, "")
 	for _, bad := range []string{"\x1b", "\x07", "\u202e"} {
@@ -388,16 +424,25 @@ func TestVisible(t *testing.T) {
 // colours; go test -run Snapshots -update writes them again.
 func TestSnapshots(t *testing.T) {
 	f := newFake(ipc.MethodPassword)
+	f.expired = testExpired
 	m := start(t, f, &softkey.Slot{})
 	for _, c := range []struct{ name, keys string }{
 		{"overview", "1"}, {"wallets", "2"}, {"approvals", "3"}, {"keys", "4"}, {"authorize", "3\n"}, {"help", "?"}, {"palette", ":"},
+		{"session", "2js"}, {"create", "2c"}, {"budget", "2b "}, {"restore", "2Rab\nabandon\nab"}, {"phrase", "2jp"},
 	} {
 		v := m
 		for _, k := range strings.Split(c.keys, "") {
-			if k == "\n" {
+			switch k {
+			case "\n":
 				k = "enter"
+			case " ":
+				k = "space"
 			}
 			v = press(t, v, k)
+		}
+		if c.name == "phrase" {
+			f.result = encoded(t, &ipc.RecoveryPhrase{Phrase: []byte(testPhrase)})
+			v = press(t, v, "a", "p", "w", "enter")
 		}
 		got := plain(v)
 		path := filepath.Join("testdata", c.name+".golden")

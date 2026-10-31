@@ -14,12 +14,12 @@
     q, ctrl+c                 quit                                                                            
                                                                                                               
     u / F                     in a wallet: unfreeze it / freeze it                                            
+    s                         in a wallet: open its session, or close it                                      
+    b / p                     in a wallet: release its budget / see its recovery phrase                       
+    c / R                     in the wallets: create one / restore one                                        
     a / r                     in an authorization: authorize / reject an approval                             
                                                                                                               
     Everything here is also a command: mcpcardano with no arguments lists them.                               
-                                                                                                              
-                                                                                                              
-                                                                                                              
                                                                                                               
                                                                                                               
                                                                                                               

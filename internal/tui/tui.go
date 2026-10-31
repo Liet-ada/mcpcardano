@@ -5,9 +5,10 @@
 // 125, 126 and 142): the wallet as it changes, its wallets with their limits
 // and what they spent, the approvals as they arrive with the summary the
 // wallet computed, approving or rejecting them with a registered key's touch
-// or the password, the security keys, and freezing every wallet with one
-// key. It talks only to the wallet's admin socket, through Wallet, and opens
-// no port. Every text it draws goes through visible first.
+// or the password, what the person does on a wallet, the security keys, and
+// freezing every wallet with one key. It talks only to the wallet's admin
+// socket, through Wallet, and opens no port. Every text it draws goes through
+// visible first.
 package tui
 
 import (
@@ -21,6 +22,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/Liet-ada/mcpcardano/internal/actions"
 	"github.com/Liet-ada/mcpcardano/internal/fido"
 	"github.com/Liet-ada/mcpcardano/internal/ipc"
 	"github.com/Liet-ada/mcpcardano/internal/model"
@@ -31,10 +33,15 @@ type Wallet interface {
 	Status(ctx context.Context) (*ipc.StatusReport, error)
 	PolicyStatus(ctx context.Context, walletID string) (*ipc.PolicyStatus, error)
 	Begin(ctx context.Context, action string, params ipc.Body) (*ipc.Challenge, error)
-	Complete(ctx context.Context, c *ipc.CompleteAuthorization) error
+	// Complete returns the action's result, which the caller wipes: it may
+	// carry a recovery phrase.
+	Complete(ctx context.Context, c *ipc.CompleteAuthorization) ([]byte, error)
 	Reject(ctx context.Context, approvalID string) error
 	// Freeze freezes a wallet, or every wallet if walletID is empty.
 	Freeze(ctx context.Context, walletID string) error
+	CloseSession(ctx context.Context, walletID string) error
+	// Expired lists a wallet's expired_unconfirmed entries (section 9.2).
+	Expired(ctx context.Context, walletID string) ([]ipc.Expired, error)
 }
 
 // refresh is how often the view asks for the status.
@@ -72,6 +79,10 @@ const (
 	noOverlay overlay = iota
 	helpOverlay
 	paletteOverlay
+	formOverlay
+	budgetOverlay
+	restoreOverlay
+	phraseOverlay
 )
 
 // stage is where an authorization is.
@@ -89,10 +100,10 @@ type authorization struct {
 	ch       *ipc.Challenge
 	title    string // what it is about, for the dialog
 	approval string // the approval it decides, which r rejects
-	success  string // what to say once it is done
 	stage    stage
-	asking   string // "PASSWORD" or "PIN"
-	secret   []byte // what is typed, never drawn
+	finish   func(result []byte) done // what comes of the wallet's result
+	asking   string                   // "PASSWORD" or "PIN"
+	secret   []byte                   // what is typed, never drawn
 }
 
 // Model is the view, as bubbletea runs it.
@@ -115,6 +126,10 @@ type Model struct {
 
 	overlay overlay
 	palette paletteState
+	form    *form
+	budget  *budget
+	restore *restore
+	phrase  *phrase
 
 	auth *authorization
 	spin int
@@ -143,9 +158,16 @@ type (
 		err  error
 	}
 	done struct {
-		note string
-		err  error
+		note   string
+		err    error
+		phrase *phrase // the screen to open with it
 	}
+	expiredMsg struct {
+		wallet  ipc.Wallet
+		entries []ipc.Expired
+		err     error
+	}
+	phraseTick struct{}
 )
 
 func (m Model) Init() tea.Cmd { return m.poll }
@@ -205,8 +227,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.note, m.failed = msg.err.Error(), true
 			return m, nil
 		}
-		m.auth, m.note = msg.auth, ""
+		m.close()
+		m.auth, m.note, m.failed = msg.auth, "", false
 		return m, nil
+	case expiredMsg:
+		return m.expiredList(msg)
+	case phraseTick:
+		return m.phraseTimer()
 	case done:
 		m.forget()
 		m.note, m.failed = msg.note, msg.err != nil
@@ -221,6 +248,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		m.auth = nil
+		if msg.phrase != nil {
+			return m.showPhrase(msg.phrase)
+		}
 		return m, m.fetch
 	case tea.KeyPressMsg:
 		return m.key(msg)
@@ -237,6 +267,7 @@ func (m Model) key(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	s := k.String()
 	if s == "ctrl+c" {
 		m.forget()
+		m.close()
 		return m, tea.Quit
 	}
 	// What went well was read once a key is pressed; an error stays until
@@ -258,13 +289,28 @@ func (m Model) key(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case paletteOverlay:
 		return m.paletteKey(k)
+	case formOverlay:
+		return m.formKey(k)
+	case restoreOverlay:
+		return m.restoreKey(k)
+	case budgetOverlay:
+		if s != "q" && s != "f" {
+			return m.budgetKey(s)
+		}
+	case phraseOverlay:
+		m.phrase.until = m.now().Add(phraseIdle)
+		if s != "q" && s != "f" {
+			return m.phraseKey(s)
+		}
 	}
 	switch s {
 	case "q":
 		m.forget()
+		m.close()
 		return m, tea.Quit
 	case "f":
 		m.auth = nil
+		m.close()
 		return m, m.freeze("")
 	}
 	if m.auth != nil {
@@ -314,20 +360,30 @@ func (m Model) tabKey(s string) (tea.Model, tea.Cmd) {
 	switch m.tab {
 	case tabWallets:
 		m.wallets.move(delta, len(st.Wallets))
+		switch s {
+		case "c":
+			return m.createForm()
+		case "R":
+			return m.restoreForm()
+		}
 		if len(st.Wallets) == 0 {
 			return m, nil
 		}
-		w := st.Wallets[m.wallets.at].Wallet
+		ws := st.Wallets[m.wallets.at]
 		switch s {
 		case "u":
-			if !w.Frozen {
-				m.note, m.failed = "Wallet "+w.Label+" is not frozen.", false
-				return m, nil
-			}
-			return m, m.begin(ipc.ActUnfreeze, &ipc.WalletRef{WalletID: w.ID},
-				&authorization{title: "UNFREEZE " + label(w), success: "Wallet " + w.Label + " is unfrozen."})
+			return m.unfreeze(ws)
 		case "F":
-			return m, m.freeze(w.ID)
+			return m, m.freeze(ws.Wallet.ID)
+		case "s":
+			if ws.Session != nil {
+				return m.closeSession(ws)
+			}
+			return m.sessionForm(ws)
+		case "b":
+			return m, m.expired(ws.Wallet)
+		case "p":
+			return m.askPhrase(ws)
 		}
 	case tabKeys:
 		m.keyList.move(delta, len(st.Keys))
@@ -339,8 +395,8 @@ func (m Model) tabKey(s string) (tea.Model, tea.Cmd) {
 		ap := st.Approvals[m.approvals.at]
 		switch s {
 		case "enter":
-			return m, m.begin(ipc.ActApproveDraft, &ipc.ApproveDraft{ApprovalID: ap.ID},
-				&authorization{title: ap.ID, approval: ap.ID, success: "Approved: the server sends the transaction."})
+			return m, m.begin(actions.ApproveDraft(ap.ID),
+				&authorization{title: ap.ID, approval: ap.ID, finish: say("Approved: the server sends the transaction.")})
 		case "r":
 			return m, m.reject(ap.ID)
 		}
@@ -350,9 +406,12 @@ func (m Model) tabKey(s string) (tea.Model, tea.Cmd) {
 
 // begin asks the wallet for the summary of an action, and opens the
 // authorization with it.
-func (m Model) begin(action string, params ipc.Body, a *authorization) tea.Cmd {
+func (m Model) begin(act actions.Action, a *authorization) tea.Cmd {
 	return func() tea.Msg {
-		ch, err := m.w.Begin(m.ctx, action, params)
+		if p, ok := act.Params.(*ipc.RestoreWallet); ok {
+			defer p.Wipe() // the wallet holds it from here on
+		}
+		ch, err := m.w.Begin(m.ctx, act.Name, act.Params)
 		if err != nil {
 			return challenged{err: err}
 		}
@@ -425,10 +484,11 @@ func (m Model) typed(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.forget()
 		a.stage = touching // nothing to touch with the password, but the wallet is working
 		if a.ch.Methods[0] == ipc.MethodPassword {
-			ch, success := a.ch, a.success
+			ch, finish := a.ch, a.finish
 			return m, tea.Batch(func() tea.Msg {
 				defer clear(secret)
-				return finished(m.w.Complete(m.ctx, &ipc.CompleteAuthorization{AuthID: ch.AuthID, Password: secret}), success)
+				result, err := m.w.Complete(m.ctx, &ipc.CompleteAuthorization{AuthID: ch.AuthID, Password: secret})
+				return finished(result, err, finish)
 			}, spinAfter())
 		}
 		pin := string(secret)
@@ -446,7 +506,7 @@ var errKey = errors.New("the security key refused")
 // touch waits for a registered key until the authorization expires, has it
 // sign, and completes the authorization with its assertion.
 func (m Model) touch(pin string) tea.Cmd {
-	ch, success := m.auth.ch, m.auth.success
+	ch, finish := m.auth.ch, m.auth.finish
 	return func() tea.Msg {
 		ctx, cancel := context.WithDeadline(m.ctx, time.Unix(ch.ExpiresAt, 0))
 		defer cancel()
@@ -467,16 +527,36 @@ func (m Model) touch(pin string) tea.Cmd {
 		if err != nil {
 			return done{err: fmt.Errorf("%w: %v", errKey, err)}
 		}
-		return finished(m.w.Complete(m.ctx, &ipc.CompleteAuthorization{AuthID: ch.AuthID,
-			Assertion: &ipc.Assertion{CredentialID: a.CredentialID, AuthenticatorData: a.AuthenticatorData, Signature: a.Signature}}), success)
+		result, err := m.w.Complete(m.ctx, &ipc.CompleteAuthorization{AuthID: ch.AuthID,
+			Assertion: &ipc.Assertion{CredentialID: a.CredentialID, AuthenticatorData: a.AuthenticatorData, Signature: a.Signature}})
+		return finished(result, err, finish)
 	}
 }
 
-func finished(err error, success string) tea.Msg {
+// finished is what comes of a completed authorization. The result goes no
+// further than finish, which keeps what it needs.
+func finished(result []byte, err error, finish func([]byte) done) tea.Msg {
+	defer clear(result)
 	if err != nil {
 		return done{err: err}
 	}
-	return done{note: success}
+	return finish(result)
+}
+
+// say is the finish of an action whose result says nothing new.
+func say(note string) func([]byte) done {
+	return func([]byte) done { return done{note: note} }
+}
+
+// decoded is the finish of an action with a result: then gets it decoded
+// into body.
+func decoded[B ipc.Body](body B, then func(B) done) func([]byte) done {
+	return func(result []byte) done {
+		if err := ipc.NewCodec().DecodeBody(result, body); err != nil {
+			return done{err: err}
+		}
+		return then(body)
+	}
 }
 
 // forget wipes what was typed.
@@ -485,6 +565,18 @@ func (m *Model) forget() {
 		clear(m.auth.secret)
 		m.auth.secret = nil
 	}
+}
+
+// close uncovers the tab, and wipes what the overlay held.
+func (m *Model) close() {
+	if m.restore != nil {
+		m.restore.typed.Wipe()
+	}
+	if m.phrase != nil {
+		m.phrase.words.Wipe()
+	}
+	m.form, m.budget, m.restore, m.phrase = nil, nil, nil, nil
+	m.overlay = noOverlay
 }
 
 // visible keeps what a terminal shows as text and puts "?" for anything

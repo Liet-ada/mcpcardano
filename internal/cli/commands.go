@@ -4,14 +4,12 @@
 package cli
 
 import (
-	"bytes"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"math"
-	"slices"
 	"time"
 
+	"github.com/Liet-ada/mcpcardano/internal/actions"
 	"github.com/Liet-ada/mcpcardano/internal/audit"
 	"github.com/Liet-ada/mcpcardano/internal/cborx"
 	"github.com/Liet-ada/mcpcardano/internal/ipc"
@@ -108,7 +106,8 @@ func (a *admin) approve(_ *options, args []string) error {
 	if err := approvalArg(args[0]); err != nil {
 		return err
 	}
-	if err := a.authorize(ipc.ActApproveDraft, &ipc.ApproveDraft{ApprovalID: args[0]}, nil); err != nil {
+	act := actions.ApproveDraft(args[0])
+	if err := a.authorize(act.Name, act.Params, nil); err != nil {
 		return err
 	}
 	a.printf("Approved. The server sends the transaction on its next round, within 20 seconds.\n")
@@ -145,7 +144,8 @@ func (a *admin) unfreeze(o *options, _ []string) error {
 	if err := walletArg(o.wallet, true); err != nil {
 		return err
 	}
-	if err := a.authorize(ipc.ActUnfreeze, &ipc.WalletRef{WalletID: o.wallet}, nil); err != nil {
+	act := actions.Unfreeze(o.wallet)
+	if err := a.authorize(act.Name, act.Params, nil); err != nil {
 		return err
 	}
 	a.printf("Wallet %s is unfrozen.\n", o.wallet)
@@ -156,15 +156,15 @@ func (a *admin) sessionOpen(o *options, _ []string) error {
 	if err := walletArg(o.wallet, true); err != nil {
 		return err
 	}
-	if o.duration < time.Second || o.duration/time.Second > math.MaxUint32 {
-		return usageError("-for must be a duration such as 30m or 2h")
-	}
 	max, err := model.ParseAmount(o.max)
-	if err != nil || max == 0 {
+	if err != nil {
 		return usageError("-max must be an amount of lovelace above zero")
 	}
-	s := &ipc.OpenSession{WalletID: o.wallet, Seconds: uint32(o.duration / time.Second), MaxLovelace: max}
-	if err := a.authorize(ipc.ActOpenSession, s, nil); err != nil {
+	act, err := actions.OpenSession(o.wallet, o.duration, max)
+	if err != nil {
+		return usageError("%v", err)
+	}
+	if err := a.authorize(act.Name, act.Params, nil); err != nil {
 		return err
 	}
 	a.printf("Session open on wallet %s.\n", o.wallet)
@@ -236,21 +236,12 @@ func (a *admin) budgetRelease(o *options, args []string) error {
 		a.printf("No expired_unconfirmed entries.\n")
 		return nil
 	}
-	slices.SortFunc(ids, bytes.Compare)
-	ids = slices.CompactFunc(ids, bytes.Equal)
 	var r ipc.Released
-	if err := a.authorize(ipc.ActReleaseBudget, &ipc.ReleaseBudget{WalletID: o.wallet, Entries: ids}, &r); err != nil {
+	act := actions.ReleaseBudget(o.wallet, ids)
+	if err := a.authorize(act.Name, act.Params, &r); err != nil {
 		return err
 	}
 	a.printf("Released %s of the budget of wallet %s.\n", ada(r.Lovelace), o.wallet)
-	return nil
-}
-
-// labelArg checks a wallet label: the visible text the wallet accepts.
-func labelArg(label string) error {
-	if n := len(label); n == 0 || n > ipc.MaxLabel || ipc.Detail(label) != label {
-		return usageError("-label must be 1 to %d bytes of visible text", ipc.MaxLabel)
-	}
 	return nil
 }
 
@@ -259,11 +250,12 @@ func (a *admin) printWallet(w ipc.Wallet) {
 }
 
 func (a *admin) walletCreate(o *options, _ []string) error {
-	if err := labelArg(o.label); err != nil {
-		return err
+	act, err := actions.CreateWallet(o.label)
+	if err != nil {
+		return usageError("%v", err)
 	}
 	var w ipc.Wallet
-	if err := a.authorize(ipc.ActCreateWallet, &ipc.CreateWallet{Label: o.label}, &w); err != nil {
+	if err := a.authorize(act.Name, act.Params, &w); err != nil {
 		return err
 	}
 	a.printWallet(w)
@@ -273,16 +265,20 @@ func (a *admin) walletCreate(o *options, _ []string) error {
 }
 
 func (a *admin) walletRestore(o *options, _ []string) error {
-	if err := labelArg(o.label); err != nil {
-		return err
+	if _, err := actions.RestoreWallet(o.label, nil); err != nil {
+		return usageError("%v", err)
 	}
 	phrase, err := a.secret("Recovery phrase, its words separated by spaces: ")
 	if err != nil {
 		return err
 	}
 	defer clear(phrase)
+	act, err := actions.RestoreWallet(o.label, phrase)
+	if err != nil {
+		return usageError("%v", err)
+	}
 	var w ipc.Wallet
-	if err := a.authorize(ipc.ActRestoreWallet, &ipc.RestoreWallet{Label: o.label, Phrase: phrase}, &w); err != nil {
+	if err := a.authorize(act.Name, act.Params, &w); err != nil {
 		return err
 	}
 	a.printWallet(w)
@@ -295,7 +291,8 @@ func (a *admin) walletBackup(o *options, _ []string) error {
 		return err
 	}
 	var r ipc.RecoveryPhrase
-	if err := a.authorize(ipc.ActShowRecoveryPhrase, &ipc.WalletRef{WalletID: o.wallet}, &r); err != nil {
+	act := actions.ShowPhrase(o.wallet)
+	if err := a.authorize(act.Name, act.Params, &r); err != nil {
 		return err
 	}
 	defer clear(r.Phrase)

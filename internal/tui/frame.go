@@ -127,18 +127,19 @@ func (m Model) footer(w int) string {
 		hints = []string{keyHint("any key", "close")}
 	case m.overlay == paletteOverlay:
 		hints = []string{keyHint("↑↓", "choose"), keyHint("enter", "run"), keyHint("esc", "close")}
+	case m.overlay == formOverlay:
+		hints = []string{keyHint("tab", "next"), keyHint("enter", "go on"), keyHint("esc", "back")}
+	case m.overlay == budgetOverlay:
+		hints = []string{keyHint("↑↓", "choose"), keyHint("space", "mark"), keyHint("a", "mark all"), keyHint("enter", "release"), keyHint("esc", "back")}
+	case m.overlay == restoreOverlay:
+		hints = []string{keyHint("enter", "next word"), keyHint("backspace", "go back"), keyHint("ctrl+r", "show or hide"), keyHint("esc", "cancel")}
+	case m.overlay == phraseOverlay:
+		hints = []string{keyHint("space", "show or hide the words"), keyHint("esc", "hide and go back")}
 	default:
 		hints = []string{keyHint("1-4", "tabs")}
 		switch m.tab {
 		case tabWallets:
 			hints = append(hints, keyHint("↑↓", "choose"))
-			if st := m.status; st != nil && len(st.Wallets) > 0 {
-				if st.Wallets[m.wallets.at].Wallet.Frozen {
-					hints = append(hints, keyHint("u", "unfreeze"))
-				} else {
-					hints = append(hints, keyHint("F", "freeze this"))
-				}
-			}
 		case tabKeys:
 			hints = append(hints, keyHint("↑↓", "choose"))
 		case tabApprovals:
@@ -158,6 +159,14 @@ func (m Model) body(w, height int) []string {
 		return m.helpView()
 	case m.overlay == paletteOverlay:
 		return m.paletteView(w, height)
+	case m.overlay == formOverlay:
+		return m.formView()
+	case m.overlay == budgetOverlay:
+		return m.budgetView(height)
+	case m.overlay == restoreOverlay:
+		return m.restoreView(w)
+	case m.overlay == phraseOverlay:
+		return m.phraseView(w)
 	case m.status == nil:
 		return []string{"", sp(2) + paint(sDim, "Asking the wallet…")}
 	}
@@ -176,14 +185,12 @@ func (m Model) body(w, height int) []string {
 // says it, the time left, and the password, the PIN or the key.
 func (m Model) authView(w int) []string {
 	a := m.auth
-	dw := min(w-6, 96)
 	left := max(time.Unix(a.ch.ExpiresAt, 0).Sub(m.now()), 0).Round(time.Second)
-	title := m.frame().Render("┏━ ") + badge("AUTHORIZE", cHUD) + sp(1)
+	title := badge("AUTHORIZE", cHUD) + sp(1)
 	if a.title != "" {
 		title += paint(sDim, a.title+" ")
 	}
-	timer := paint(sOrange, fmt.Sprintf(" %d:%02d ", int(left.Minutes()), int(left.Seconds())%60)) + m.frame().Render("━┓")
-	top := title + m.frame().Render(strings.Repeat("━", max(dw+3-lipgloss.Width(title)-lipgloss.Width(timer), 0))) + timer
+	timer := paint(sOrange, fmt.Sprintf(" %d:%02d ", int(left.Minutes()), int(left.Seconds())%60))
 
 	inner := []string{paint(sPanel.Foreground(cYellow).Bold(true), "WHAT THE WALLET SAYS")}
 	for _, l := range a.ch.Summary {
@@ -207,6 +214,16 @@ func (m Model) authView(w int) []string {
 		}
 		inner = append(inner, paint(sPanel.Foreground(cCyan), spinner[m.spin%len(spinner)]+" "+what))
 	}
+	return m.panel(w, title, timer, inner)
+}
+
+// panel is a dialog over the tab: a frame with a title, what stands at its
+// right, and its lines cut to its width.
+func (m Model) panel(w int, title, right string, inner []string) []string {
+	dw := min(w-6, 96)
+	title = m.frame().Render("┏━ ") + title
+	right += m.frame().Render("━┓")
+	top := title + m.frame().Render(strings.Repeat("━", max(dw+3-lipgloss.Width(title)-lipgloss.Width(right), 0))) + right
 	out := []string{"", sp(2) + top}
 	for _, s := range inner {
 		s = sPanel.Render("  ") + s
@@ -230,6 +247,9 @@ func (m Model) helpView() []string {
 		{"q, ctrl+c", "quit"},
 		{"", ""},
 		{"u / F", "in a wallet: unfreeze it / freeze it"},
+		{"s", "in a wallet: open its session, or close it"},
+		{"b / p", "in a wallet: release its budget / see its recovery phrase"},
+		{"c / R", "in the wallets: create one / restore one"},
 		{"a / r", "in an authorization: authorize / reject an approval"},
 	}
 	out := []string{"", sp(2) + section("HELP"), ""}

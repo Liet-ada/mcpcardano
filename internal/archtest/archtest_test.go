@@ -25,7 +25,7 @@ var common = []string{"model", "policy", "ipc", "audit", "cborx"}
 var (
 	serverOnly = []string{"server", "mcp", "drafts", "txbuild", "txdecode", "sanitize", "plutus", "chain", "datasource", "venues"}
 	walletOnly = []string{"walletd", "txcheck", "keystore", "ledger", "hdkey", "authz"}
-	cliOnly    = []string{"cli", "fido", "tui", "signer", "mcpclient", "install", "doctor"}
+	cliOnly    = []string{"cli", "actions", "fido", "tui", "signer", "mcpclient", "install", "doctor"}
 
 	// deployPkg holds what install writes, which only the CLI carries.
 	deployPkg = module + "/deploy"
