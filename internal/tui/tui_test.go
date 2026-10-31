@@ -96,6 +96,15 @@ func (f *fakeWallet) CloseSession(_ context.Context, id string) error {
 func (f *fakeWallet) Expired(context.Context, string) ([]ipc.Expired, error) {
 	return f.expired, nil
 }
+func (f *fakeWallet) ShowPolicy(_ context.Context, id string) (*ipc.WalletPolicy, error) {
+	if ps, ok := f.policies[id]; ok {
+		return &ipc.WalletPolicy{WalletID: id, Mode: ps.Mode, Policy: ps.Policy}, nil
+	}
+	return nil, &ipc.Error{Code: ipc.NotFound}
+}
+func (f *fakeWallet) ShowTemplate(context.Context) (*ipc.Template, error) {
+	return &ipc.Template{Mode: "C", Policy: f.policies[walletA].Policy}, nil
+}
 
 const (
 	approvalID = "ap_aaaaaaaaaaaaaaaaaaaaaaaaaa"
@@ -177,7 +186,7 @@ func pressKey(k string) tea.KeyPressMsg {
 		return tea.KeyPressMsg{Code: tea.KeyEnter}
 	case "esc":
 		return tea.KeyPressMsg{Code: tea.KeyEscape}
-	case "backspace":
+	case "backspace", "\b":
 		return tea.KeyPressMsg{Code: tea.KeyBackspace}
 	case "down":
 		return tea.KeyPressMsg{Code: tea.KeyDown}
@@ -407,7 +416,7 @@ func TestVisible(t *testing.T) {
 	f.st.Wallets[0].Session = nil
 	f.expired = []ipc.Expired{{WalletID: walletA, BodyHash: make([]byte, 32)}}
 	m = drive(t, press(t, m, "esc", "2"), m.fetch())
-	views = append(views, press(t, m, "s").render(), press(t, m, "b").render())
+	views = append(views, press(t, m, "s").render(), press(t, m, "b").render(), press(t, m, "e").render())
 	all := strings.Join(views, "\n")
 	bare := sgr.ReplaceAllString(all, "")
 	for _, bad := range []string{"\x1b", "\x07", "\u202e"} {
@@ -429,6 +438,7 @@ func TestSnapshots(t *testing.T) {
 	for _, c := range []struct{ name, keys string }{
 		{"overview", "1"}, {"wallets", "2"}, {"approvals", "3"}, {"keys", "4"}, {"authorize", "3\n"}, {"help", "?"}, {"palette", ":"},
 		{"session", "2js"}, {"create", "2c"}, {"budget", "2b "}, {"restore", "2Rab\nabandon\nab"}, {"phrase", "2jp"},
+		{"editor", "2e"}, {"review", "2e\b\b\b\b\b\b\b\b\b\b9\x12"},
 	} {
 		v := m
 		for _, k := range strings.Split(c.keys, "") {
@@ -437,6 +447,10 @@ func TestSnapshots(t *testing.T) {
 				k = "enter"
 			case " ":
 				k = "space"
+			case "\b":
+				k = "backspace"
+			case "\x12":
+				k = "ctrl+r"
 			}
 			v = press(t, v, k)
 		}

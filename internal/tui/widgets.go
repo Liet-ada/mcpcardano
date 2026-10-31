@@ -98,5 +98,29 @@ func (m Model) formView() []string {
 	return out
 }
 
+// wrap splits text into lines of at most width runes, at the spaces if it
+// can: a long address goes on the next line whole, or in pieces if it is
+// longer than a line.
+func wrap(text string, width int) []string {
+	r := []rune(text)
+	width = max(width, 1)
+	var out []string
+	for len(r) > width {
+		cut := width
+		for i := width; i > 0; i-- {
+			if r[i] == ' ' {
+				cut = i
+				break
+			}
+		}
+		out = append(out, string(r[:cut]))
+		r = r[cut:]
+		for len(r) > 0 && r[0] == ' ' {
+			r = r[1:]
+		}
+	}
+	return append(out, string(r))
+}
+
 // spinner is the only motion in the view: while it waits for a key.
 var spinner = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}

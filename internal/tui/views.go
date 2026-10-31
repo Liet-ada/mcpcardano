@@ -248,7 +248,7 @@ func walletKeys(ws ipc.WalletStatus) string {
 	if ws.Session != nil {
 		session = keyHint("s", "close session")
 	}
-	return strings.Join([]string{freeze, session, keyHint("b", "budget"), keyHint("p", "phrase")}, sp(2))
+	return strings.Join([]string{freeze, session, keyHint("e", "policy"), keyHint("b", "budget"), keyHint("p", "phrase")}, sp(2))
 }
 
 func tokenCaps(caps []ipc.AssetCap) string {

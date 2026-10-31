@@ -5,7 +5,7 @@
  // WALLETS                    │  AGENTE  w_aaaaaaaaaaaaaaaaaaaaaaaaaa                                        
                                │  MODE  C ◤  CREATED BY AGENT  ·  NOT FROZEN                                  
   ▸ AGENTE          C ◤        │  addr_test1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq… 
-    NUEVA2          B ◤ ❄      │  F freeze  s close session  b budget  p phrase                               
+    NUEVA2          B ◤ ❄      │  F freeze  s close session  e policy  b budget  p phrase                     
                                │  ── LIMITS ADA ────────────────────────────────────────────────────────────  
   2 wallets                    │  PER TX              350.00                                                  
   c create  R restore          │  PER HOUR         10,000.00  ▰▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱        120.00                  

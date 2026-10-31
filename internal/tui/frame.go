@@ -5,6 +5,7 @@ package tui
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -114,6 +115,9 @@ func (m Model) footer(w int) string {
 		switch m.auth.stage {
 		case reading:
 			hints = []string{keyHint("a", "authorize")}
+			if m.authOverflow() > 0 {
+				hints = append(hints, keyHint("↑↓", "read it all"))
+			}
 			if m.auth.approval != "" {
 				hints = append(hints, keyHint("r", "reject"))
 			}
@@ -129,6 +133,8 @@ func (m Model) footer(w int) string {
 		hints = []string{keyHint("↑↓", "choose"), keyHint("enter", "run"), keyHint("esc", "close")}
 	case m.overlay == formOverlay:
 		hints = []string{keyHint("tab", "next"), keyHint("enter", "go on"), keyHint("esc", "back")}
+	case m.overlay == editorOverlay:
+		hints = []string{keyHint("↑↓", "choose"), keyHint("enter", "open or switch"), keyHint("x", "remove from a list"), keyHint("ctrl+r", "review"), keyHint("esc", "discard")}
 	case m.overlay == budgetOverlay:
 		hints = []string{keyHint("↑↓", "choose"), keyHint("space", "mark"), keyHint("a", "mark all"), keyHint("enter", "release"), keyHint("esc", "back")}
 	case m.overlay == restoreOverlay:
@@ -154,13 +160,15 @@ func (m Model) footer(w int) string {
 func (m Model) body(w, height int) []string {
 	switch {
 	case m.auth != nil:
-		return m.authView(w)
+		return m.authView(w, height)
 	case m.overlay == helpOverlay:
 		return m.helpView()
 	case m.overlay == paletteOverlay:
 		return m.paletteView(w, height)
 	case m.overlay == formOverlay:
 		return m.formView()
+	case m.overlay == editorOverlay:
+		return m.editorView(w, height)
 	case m.overlay == budgetOverlay:
 		return m.budgetView(height)
 	case m.overlay == restoreOverlay:
@@ -181,9 +189,43 @@ func (m Model) body(w, height int) []string {
 	return m.overview(w)
 }
 
-// authView is the dialog of an authorization: what the wallet says, as it
-// says it, the time left, and the password, the PIN or the key.
-func (m Model) authView(w int) []string {
+// authBody is what there is to read in an authorization: what the person
+// changed, as the editor sees it, and below it what the wallet says, as it
+// says it and whole.
+func (m Model) authBody(w int) []string {
+	a := m.auth
+	var out []string
+	if len(a.changes) > 0 {
+		out = append(out, paint(sPanel.Foreground(cYellow).Bold(true), "WHAT YOU CHANGED"))
+		for _, c := range byWay(a.changes) {
+			out = append(out, changeLine(c))
+		}
+		for _, warning := range a.warnings {
+			for _, l := range wrap("! "+warning, panelWidth(w)-1) {
+				out = append(out, paint(sPanel.Foreground(cOrange), l))
+			}
+		}
+		out = append(out, paint(sPanel, ""))
+	}
+	out = append(out, paint(sPanel.Foreground(cYellow).Bold(true), "WHAT THE WALLET SAYS"))
+	for _, s := range a.ch.Summary {
+		for _, l := range wrap(s, panelWidth(w)-1) {
+			out = append(out, paint(sPanel, l))
+		}
+	}
+	return out
+}
+
+// authOverflow is how many lines of the dialog do not fit: its frame, a blank
+// line, the way to authorize and the line that says there is more take six.
+func (m Model) authOverflow() int {
+	w, h := m.size()
+	return max(len(m.authBody(w))-(h-chrome-6), 0)
+}
+
+// authView is the dialog of an authorization: what there is to read, the time
+// left, and the password, the PIN or the key.
+func (m Model) authView(w, height int) []string {
 	a := m.auth
 	left := max(time.Unix(a.ch.ExpiresAt, 0).Sub(m.now()), 0).Round(time.Second)
 	title := badge("AUTHORIZE", cHUD) + sp(1)
@@ -192,9 +234,14 @@ func (m Model) authView(w int) []string {
 	}
 	timer := paint(sOrange, fmt.Sprintf(" %d:%02d ", int(left.Minutes()), int(left.Seconds())%60))
 
-	inner := []string{paint(sPanel.Foreground(cYellow).Bold(true), "WHAT THE WALLET SAYS")}
-	for _, l := range a.ch.Summary {
-		inner = append(inner, paint(sPanel, l))
+	inner := m.authBody(w)
+	if over := m.authOverflow(); over > 0 {
+		at := min(m.scroll, over)
+		more := paint(sPanel.Foreground(cCyan), fmt.Sprintf("↓ %d more lines: ↑↓ to read them", over-at))
+		if at == over {
+			more = paint(sPanel.Foreground(cDim), "↑ that is all")
+		}
+		inner = append(slices.Clone(inner[at:len(inner)-over+at]), more)
 	}
 	inner = append(inner, paint(sPanel, ""))
 	how := "TOUCH OF A REGISTERED KEY"
@@ -217,10 +264,12 @@ func (m Model) authView(w int) []string {
 	return m.panel(w, title, timer, inner)
 }
 
+func panelWidth(w int) int { return min(w-6, 96) }
+
 // panel is a dialog over the tab: a frame with a title, what stands at its
 // right, and its lines cut to its width.
 func (m Model) panel(w int, title, right string, inner []string) []string {
-	dw := min(w-6, 96)
+	dw := panelWidth(w)
 	title = m.frame().Render("┏━ ") + title
 	right += m.frame().Render("━┓")
 	top := title + m.frame().Render(strings.Repeat("━", max(dw+3-lipgloss.Width(title)-lipgloss.Width(right), 0))) + right
@@ -248,6 +297,7 @@ func (m Model) helpView() []string {
 		{"", ""},
 		{"u / F", "in a wallet: unfreeze it / freeze it"},
 		{"s", "in a wallet: open its session, or close it"},
+		{"e", "in a wallet: edit its policy"},
 		{"b / p", "in a wallet: release its budget / see its recovery phrase"},
 		{"c / R", "in the wallets: create one / restore one"},
 		{"a / r", "in an authorization: authorize / reject an approval"},

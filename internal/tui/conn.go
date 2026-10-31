@@ -96,6 +96,22 @@ func (c *Conn) Expired(ctx context.Context, walletID string) ([]ipc.Expired, err
 	return l.Entries, err
 }
 
+func (c *Conn) ShowPolicy(ctx context.Context, walletID string) (*ipc.WalletPolicy, error) {
+	var w ipc.WalletPolicy
+	if err := c.call(ctx, ipc.MsgShowPolicy, &ipc.WalletRef{WalletID: walletID}, &w); err != nil {
+		return nil, err
+	}
+	return &w, nil
+}
+
+func (c *Conn) ShowTemplate(ctx context.Context) (*ipc.Template, error) {
+	var t ipc.Template
+	if err := c.call(ctx, ipc.MsgShowTemplate, &ipc.Empty{}, &t); err != nil {
+		return nil, err
+	}
+	return &t, nil
+}
+
 func (c *Conn) PolicyStatus(ctx context.Context, walletID string) (*ipc.PolicyStatus, error) {
 	var ps ipc.PolicyStatus
 	if err := c.call(ctx, ipc.MsgGetPolicyStatus, &ipc.GetPolicyStatus{WalletID: walletID}, &ps); err != nil {

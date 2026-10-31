@@ -5,13 +5,17 @@ package tui
 
 import (
 	"context"
+	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/Liet-ada/mcpcardano/internal/actions"
 	"github.com/Liet-ada/mcpcardano/internal/ipc"
+	"github.com/Liet-ada/mcpcardano/internal/model"
 	"github.com/Liet-ada/mcpcardano/test/softkey"
 	"github.com/Liet-ada/mcpcardano/test/walletkit"
 )
@@ -204,5 +208,140 @@ func TestViewWalletActions(t *testing.T) {
 	}
 	if s := plain(press(t, m, "esc")); strings.Contains(s, "abandon") {
 		t.Errorf("the phrase stayed on show:\n%s", s)
+	}
+}
+
+// TestEditorIsPolicySet: the same change, once as the JSON policy set reads
+// and once typed in the editor over a real admin connection, leaves the same
+// policy in the wallet, for a wallet and for the template.
+func TestEditorIsPolicySet(t *testing.T) {
+	ctx := context.Background()
+	w := walletkit.Start(t)
+	admin, service := w.Admin(t), w.Service(t)
+	walletkit.Unlock(t, admin)
+	byFile := walletkit.CreateWallet(t, service, "file")
+	byView := walletkit.CreateWallet(t, service, "view")
+	key := softkey.New("YubiKey", "1234")
+	if err := walletkit.AddKey(admin, key.Credential, "YubiKey", walletkit.WithPassword); err != nil {
+		t.Fatal(err)
+	}
+	touch := walletkit.Touch(key.Credential)
+	slot := &softkey.Slot{}
+	slot.Insert(key)
+	conn := &Conn{Socket: w.Config.AdminSocket, Hello: walletkit.Hello()}
+	defer conn.Close()
+	// Frozen before anything: neither way may thaw it.
+	for _, id := range []string{byFile.ID, byView.ID} {
+		if err := conn.Freeze(ctx, id); err != nil {
+			t.Fatal(err)
+		}
+	}
+	shop := model.Address{Raw: walletkit.Address(6, 7, 0)}.Bech32()
+	const token = "aabbccddeeff00112233445566778899aabbccddeeff001122334455.6d6961"
+
+	// What the person writes in a file, from what policy show gave.
+	show, err := conn.ShowPolicy(ctx, byFile.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	file := actions.PolicyFromWire(show.Mode, show.Policy)
+	file.Mode, file.SessionRequired = "B", true
+	file.Limits.PerTx, file.Limits.ApprovalThreshold, file.Limits.TxPerHour = "15500000", "3000000", 7
+	file.Destinations = actions.DestinationsFile{Allowed: []string{shop}}
+	file.Assets = map[string]string{token: "9"}
+	file.Structure.Mint = true
+	file.UTxO.DustThreshold = "2000000"
+	text, err := json.Marshal(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	parsed, err := actions.ParsePolicy(text)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mode, p, err := parsed.Wire(model.Preprod)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p.Frozen = show.Policy.Frozen
+	act := actions.ChangePolicy(byFile.ID, mode, p)
+	if _, err := walletkit.AuthorizeWith(admin, act.Name, act.Params, &ipc.PolicyHash{}, touch); err != nil {
+		t.Fatal(err)
+	}
+
+	// The same in the editor, field by field.
+	m := New(ctx, conn, slot.Open, "preprod")
+	m = drive(t, m, m.Init()())
+	m = press(t, m, "2", "down", "e")
+	if !strings.Contains(plain(m), "POLICY OF VIEW") {
+		t.Fatalf("the editor:\n%s", plain(m))
+	}
+	typeChanges := func(m Model) Model {
+		for _, c := range []struct{ name, text string }{{"PER TRANSACTION", "15.5"}, {"APPROVE ABOVE", "3"}, {"TX PER HOUR", "7"}} {
+			m = goToRow(t, m, c.name)
+			m = press(t, m, strings.Split(strings.Repeat("\b", 20), "")...)
+			m = press(t, m, strings.Split(c.text, "")...)
+		}
+		m = onRow(t, m, "DESTINATIONS", "enter", "ANY ADDRESS", "enter", "ADD AN ADDRESS")
+		m = press(t, m, strings.Split(shop, "")...)
+		m = press(t, m, "enter")
+		m = onRow(t, m, "TOKENS", "enter", "ADD A TOKEN")
+		m = press(t, m, strings.Split(token+" 9", "")...)
+		m = press(t, m, "enter")
+		m = onRow(t, m, "STRUCTURE", "enter", "MINT", "enter")
+		m = onRow(t, m, "UTXO", "enter", "DUST BELOW")
+		m = press(t, m, strings.Split(strings.Repeat("\b", 12), "")...)
+		m = press(t, m, "2")
+		return onRow(t, m, "MODE", "enter", "MODE", "enter", "SESSION REQUIRED", "enter")
+	}
+	m = press(t, typeChanges(m), "ctrl+r")
+	if s := plain(m); !strings.Contains(s, "WHAT YOU CHANGED") || !strings.Contains(s, "WHAT THE WALLET SAYS") {
+		t.Fatalf("the review:\n%s", s)
+	}
+	if m = authorized(t, m); !strings.Contains(plain(m), "The audit log records it as") || m.overlay != noOverlay {
+		t.Fatalf("after the review:\n%s", plain(m))
+	}
+	want, _ := conn.ShowPolicy(ctx, byFile.ID)
+	got, _ := conn.ShowPolicy(ctx, byView.ID)
+	if got.Mode != want.Mode || !reflect.DeepEqual(got.Policy, want.Policy) {
+		t.Errorf("by the view %+v\nby the file %+v", got, want)
+	}
+	if !got.Policy.Frozen {
+		t.Error("the editor thawed the wallet")
+	}
+
+	// And the template, from the palette.
+	tpl, err := conn.ShowTemplate(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	file = actions.PolicyFromWire(tpl.Mode, tpl.Policy)
+	file.Limits.PerTx = "7000000"
+	mode, p, err = file.Wire(model.Preprod)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var hashFile, hashView ipc.PolicyHash
+	act = actions.SetTemplate(mode, p)
+	if _, err := walletkit.AuthorizeWith(admin, act.Name, act.Params, &hashFile, touch); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := walletkit.AuthorizeWith(admin, ipc.ActSetTemplate, tpl, &ipc.PolicyHash{}, touch); err != nil {
+		t.Fatal(err)
+	}
+	m = press(t, m, ":")
+	m = press(t, m, strings.Split("edit the template", "")...)
+	m = press(t, m, "enter")
+	m = goToRow(t, m, "PER TRANSACTION")
+	m = press(t, m, strings.Split(strings.Repeat("\b", 12), "")...)
+	if m = authorized(t, press(t, m, "7", "ctrl+r")); !strings.Contains(plain(m), "Template changed") {
+		t.Fatalf("the template:\n%s", plain(m))
+	}
+	now, _ := conn.ShowTemplate(ctx)
+	if _, err := walletkit.AuthorizeWith(admin, ipc.ActSetTemplate, now, &hashView, touch); err != nil {
+		t.Fatal(err)
+	}
+	if string(hashView.Hash) != string(hashFile.Hash) {
+		t.Errorf("the template by the view hashes %x, by the file %x", hashView.Hash, hashFile.Hash)
 	}
 }

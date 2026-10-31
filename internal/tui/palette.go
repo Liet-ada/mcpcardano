@@ -60,6 +60,8 @@ var commands = []command{
 	{"REDUCE RISK", "Close the chosen wallet's session", "mcpcardano session close -wallet <id>", sRed, onChosen(Model.closeSession)},
 	{"AUTHORIZE", "Unfreeze the chosen wallet", "mcpcardano unfreeze -wallet <id>", sOrange, onChosen(Model.unfreeze)},
 	{"AUTHORIZE", "Open a session on the chosen wallet", "mcpcardano session open -wallet <id> -for 1h -max <lovelace>", sOrange, onChosen(Model.sessionForm)},
+	{"AUTHORIZE", "Edit the chosen wallet's policy", "mcpcardano policy set -wallet <id> <policy.json>", sOrange, onChosen(Model.editPolicy)},
+	{"AUTHORIZE", "Edit the template of the agent's wallets", "mcpcardano policy set -template <policy.json>", sOrange, Model.editTemplate},
 	{"AUTHORIZE", "Release the chosen wallet's budget", "mcpcardano budget release -wallet <id>", sOrange, onWallet("b")},
 	{"AUTHORIZE", "See the chosen wallet's recovery phrase", "mcpcardano wallet backup -wallet <id>", sOrange, onChosen(Model.askPhrase)},
 	{"AUTHORIZE", "Create a wallet", "mcpcardano wallet create -label <name>", sOrange, onWallet("c")},

@@ -42,6 +42,8 @@ type Wallet interface {
 	CloseSession(ctx context.Context, walletID string) error
 	// Expired lists a wallet's expired_unconfirmed entries (section 9.2).
 	Expired(ctx context.Context, walletID string) ([]ipc.Expired, error)
+	ShowPolicy(ctx context.Context, walletID string) (*ipc.WalletPolicy, error)
+	ShowTemplate(ctx context.Context) (*ipc.Template, error)
 }
 
 // refresh is how often the view asks for the status.
@@ -83,6 +85,7 @@ const (
 	budgetOverlay
 	restoreOverlay
 	phraseOverlay
+	editorOverlay
 )
 
 // stage is where an authorization is.
@@ -102,8 +105,10 @@ type authorization struct {
 	approval string // the approval it decides, which r rejects
 	stage    stage
 	finish   func(result []byte) done // what comes of the wallet's result
-	asking   string                   // "PASSWORD" or "PIN"
-	secret   []byte                   // what is typed, never drawn
+	changes  []change                 // from the editor, shown above the summary
+	warnings []string
+	asking   string // "PASSWORD" or "PIN"
+	secret   []byte // what is typed, never drawn
 }
 
 // Model is the view, as bubbletea runs it.
@@ -130,9 +135,11 @@ type Model struct {
 	budget  *budget
 	restore *restore
 	phrase  *phrase
+	editor  *editor
 
-	auth *authorization
-	spin int
+	auth   *authorization
+	scroll int // how far the dialog of the authorization was read
+	spin   int
 
 	note   string // what last happened
 	failed bool   // whether the note is an error
@@ -166,6 +173,10 @@ type (
 		wallet  ipc.Wallet
 		entries []ipc.Expired
 		err     error
+	}
+	editorMsg struct {
+		editor *editor
+		err    error
 	}
 	phraseTick struct{}
 )
@@ -227,8 +238,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.note, m.failed = msg.err.Error(), true
 			return m, nil
 		}
-		m.close()
-		m.auth, m.note, m.failed = msg.auth, "", false
+		if m.overlay != editorOverlay { // the editor stays, to go back to it
+			m.close()
+		}
+		m.auth, m.note, m.failed, m.scroll = msg.auth, "", false, 0
+		return m, nil
+	case editorMsg:
+		if msg.err != nil {
+			return m.refuse(msg.err.Error())
+		}
+		m.overlay, m.editor = editorOverlay, msg.editor
 		return m, nil
 	case expiredMsg:
 		return m.expiredList(msg)
@@ -248,6 +267,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		m.auth = nil
+		if msg.err == nil && m.overlay == editorOverlay {
+			m.close()
+		}
 		if msg.phrase != nil {
 			return m.showPhrase(msg.phrase)
 		}
@@ -283,24 +305,28 @@ func (m Model) key(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m, nil // the key answers, or gives up, on its own
 		}
 	}
-	switch m.overlay {
-	case helpOverlay:
-		m.overlay = noOverlay
-		return m, nil
-	case paletteOverlay:
-		return m.paletteKey(k)
-	case formOverlay:
-		return m.formKey(k)
-	case restoreOverlay:
-		return m.restoreKey(k)
-	case budgetOverlay:
-		if s != "q" && s != "f" {
-			return m.budgetKey(s)
-		}
-	case phraseOverlay:
-		m.phrase.until = m.now().Add(phraseIdle)
-		if s != "q" && s != "f" {
-			return m.phraseKey(s)
+	if m.auth == nil {
+		switch m.overlay {
+		case helpOverlay:
+			m.overlay = noOverlay
+			return m, nil
+		case paletteOverlay:
+			return m.paletteKey(k)
+		case formOverlay:
+			return m.formKey(k)
+		case editorOverlay:
+			return m.editorKey(k)
+		case restoreOverlay:
+			return m.restoreKey(k)
+		case budgetOverlay:
+			if s != "q" && s != "f" {
+				return m.budgetKey(s)
+			}
+		case phraseOverlay:
+			m.phrase.until = m.now().Add(phraseIdle)
+			if s != "q" && s != "f" {
+				return m.phraseKey(s)
+			}
 		}
 	}
 	switch s {
@@ -321,6 +347,10 @@ func (m Model) key(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			if m.auth.approval != "" {
 				return m, m.reject(m.auth.approval)
 			}
+		case "up":
+			m.scroll = max(m.scroll-1, 0)
+		case "down":
+			m.scroll = min(m.scroll+1, m.authOverflow())
 		case "esc":
 			m.auth = nil
 		}
@@ -382,6 +412,8 @@ func (m Model) tabKey(s string) (tea.Model, tea.Cmd) {
 			return m.sessionForm(ws)
 		case "b":
 			return m, m.expired(ws.Wallet)
+		case "e":
+			return m.editPolicy(ws)
 		case "p":
 			return m.askPhrase(ws)
 		}
@@ -575,7 +607,7 @@ func (m *Model) close() {
 	if m.phrase != nil {
 		m.phrase.words.Wipe()
 	}
-	m.form, m.budget, m.restore, m.phrase = nil, nil, nil, nil
+	m.form, m.budget, m.restore, m.phrase, m.editor = nil, nil, nil, nil, nil
 	m.overlay = noOverlay
 }
 

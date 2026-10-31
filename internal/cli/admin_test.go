@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Liet-ada/mcpcardano/internal/actions"
 	"github.com/Liet-ada/mcpcardano/internal/ipc"
 	"github.com/Liet-ada/mcpcardano/internal/model"
 	"github.com/Liet-ada/mcpcardano/test/softkey"
@@ -119,7 +120,7 @@ func TestAdminCommands(t *testing.T) {
 	}
 	w.Clock.Advance(11 * time.Minute)
 	file := filepath.Join(t.TempDir(), "policy.json")
-	var pol policyFile
+	var pol actions.PolicyFile
 	if err := json.Unmarshal([]byte(p.must("", "policy show", "-wallet", id).out), &pol); err != nil {
 		t.Fatal(err)
 	}
@@ -201,12 +202,12 @@ func TestAdminCommands(t *testing.T) {
 	}
 
 	// The template, from the CLI (decision 106): its mode and its values.
-	var tpl policyFile
+	var tpl actions.PolicyFile
 	json.Unmarshal([]byte(p.must("", "policy show", "-template").out), &tpl)
 	shop := model.Address{Raw: walletkit.Address(6, 7, 0)}.Bech32()
 	gold := strings.Repeat("0d", 28) + ".676f6c64"
 	silver := strings.Repeat("0c", 28) + ".73696c766572"
-	tpl.Limits.Budget, tpl.Destinations = "50000000", destinationsFile{Allowed: []string{shop, m[2]}}
+	tpl.Limits.Budget, tpl.Destinations = "50000000", actions.DestinationsFile{Allowed: []string{shop, m[2]}}
 	tpl.Assets = map[string]string{gold: "5", silver: "7"}
 	writeJSON(t, file, tpl)
 	if r := p.must(password, "policy set", "-template", file); !strings.Contains(r.errOut, "Destinations: 2 addresses") {
@@ -408,14 +409,14 @@ func TestPolicyFile(t *testing.T) {
 		model.Address{Raw: walletkit.Address(0, 2, 3)}.Bech32(),
 		model.Address{Raw: walletkit.Address(6, 1, 0)}.Bech32(),
 	}
-	f := policyFile{Mode: "B", Networks: []string{"preview", "preprod"}, Limits: limitsFile{PerTx: "7", ApprovalThreshold: "3"},
-		Destinations: destinationsFile{Allowed: addrs}, Assets: tokens, UTxO: utxoFile{MinSplit: "5"}}
+	f := actions.PolicyFile{Mode: "B", Networks: []string{"preview", "preprod"}, Limits: actions.LimitsFile{PerTx: "7", ApprovalThreshold: "3"},
+		Destinations: actions.DestinationsFile{Allowed: addrs}, Assets: tokens, UTxO: actions.UTxOFile{MinSplit: "5"}}
 	for range 50 {
-		mode, p, err := f.wire(model.Preprod)
+		mode, p, err := f.Wire(model.Preprod)
 		if err != nil {
 			t.Fatal(err)
 		}
-		back := policyFromWire(mode, p)
+		back := actions.PolicyFromWire(mode, p)
 		if back.Mode != "B" || back.Limits.PerTx != "7" || back.Limits.ApprovalThreshold != "3" || back.Limits.Budget != "0" ||
 			back.UTxO.MinSplit != "5" || !slices.Equal(back.Networks, []string{"preprod", "preview"}) ||
 			!slices.Equal(back.Destinations.Allowed, []string{addrs[1], addrs[2], addrs[0]}) || len(back.Assets) != 5 {
