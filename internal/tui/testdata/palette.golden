@@ -1,4 +1,4 @@
-  MCPCARDANO ◤ // PREPROD                                                   ● UNLOCKED  │  1 KEY  │  14:32:08 
+  MCPCARDANO ◤ // PREPROD                                     ● UNLOCKED  │  1 KEY  │  NO SERVER  │  14:32:08 
   1 OVERVIEW ◤   2 WALLETS    3 APPROVALS  1 ◤   4 KEYS    5 AUDIT    6 SYSTEM                                
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━◆
                                                                                                               
@@ -10,6 +10,8 @@
     ◆ Approvals waiting                            mcpcardano status                                          
     ◆ Security keys                                mcpcardano key list                                        
     ◆ What the chosen wallet may release           mcpcardano budget pending -wallet <id>                     
+    ◆ Ask for the chosen wallet's balance                                                                     
+    ◆ Ask how the network is                                                                                  
     ◆ Audit log                                    mcpcardano audit show                                      
     ◆ Verify the audit log's chains                mcpcardano audit verify                                    
     ◆ A recovery waiting                           mcpcardano recover status                                  
@@ -26,7 +28,5 @@
     ◆ Remove the chosen security key               mcpcardano key remove -name <name>                         
     ◆ Start a recovery without keys                mcpcardano recover start                                   
     ◆ Cancel the recovery                          mcpcardano recover cancel                                  
-    ◆ Unfreeze the chosen wallet                   mcpcardano unfreeze -wallet <id>                           
-    ◆ Open a session on the chosen wallet          mcpcardano session open -wallet <id> -for 1h -max <lovelac…
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━◆
  ↑↓ choose   enter run   esc close                                                                            

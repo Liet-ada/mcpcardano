@@ -65,6 +65,8 @@ var commands = []command{
 	{"LOOK", "Approvals waiting", "mcpcardano status", sCyan, goTo(tabApprovals)},
 	{"LOOK", "Security keys", "mcpcardano key list", sCyan, goTo(tabKeys)},
 	{"LOOK", "What the chosen wallet may release", "mcpcardano budget pending -wallet <id>", sCyan, onWallet("b")},
+	{"LOOK", "Ask for the chosen wallet's balance", "", sCyan, onWallet("r")},
+	{"LOOK", "Ask how the network is", "", sCyan, onKey(tabSystem, "n")},
 	{"LOOK", "Audit log", "mcpcardano audit show", sCyan, goTo(tabAudit)},
 	{"LOOK", "Verify the audit log's chains", "mcpcardano audit verify", sCyan, onKey(tabAudit, "v")},
 	{"LOOK", "A recovery waiting", "mcpcardano recover status", sCyan, goTo(tabSystem)},

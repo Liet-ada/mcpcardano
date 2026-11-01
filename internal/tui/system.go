@@ -73,6 +73,8 @@ func (m Model) systemKey(s string, delta int) (Model, tea.Cmd) {
 		return m.editTemplate()
 	case "d":
 		return m.runDoctor()
+	case "n":
+		return m.wantChain(true)
 	}
 	return m, nil
 }
@@ -101,8 +103,9 @@ func (m Model) systemView(height int) []string {
 	} else {
 		out = append(out, kv("WAITING", paint(sDim, "none")+sp(2)+keyHint("r", "start it, with the password; it freezes every wallet")))
 	}
-	out = append(out, "", sp(2)+section("TEMPLATE OF THE AGENT'S WALLETS"), sp(4)+keyHint("t", "edit it"),
-		"", sp(2)+section("ONLY WITH SUDO, IN ANOTHER TERMINAL"))
+	out = append(out, "", sp(2)+section("TEMPLATE OF THE AGENT'S WALLETS"), sp(4)+keyHint("t", "edit it"))
+	out = append(out, m.serverView()...)
+	out = append(out, "", sp(2)+section("ONLY WITH SUDO, IN ANOTHER TERMINAL"))
 	for _, c := range sudo {
 		out = append(out, sp(4)+paint(sBase, c))
 	}

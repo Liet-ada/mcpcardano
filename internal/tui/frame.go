@@ -81,7 +81,7 @@ func (m Model) header(w int) []string {
 		}
 		state += paint(sDim, "  │  ") + paint(sBold, fmt.Sprint(len(st.Keys))) + paint(sDim, plural(len(st.Keys), " KEY", " KEYS"))
 	}
-	right := state + paint(sDim, "  │  ") + paint(sCyan, m.now().Format(time.TimeOnly)) + sp(1)
+	right := state + paint(sDim, "  │  ") + m.serverState() + paint(sDim, "  │  ") + paint(sCyan, m.now().Format(time.TimeOnly)) + sp(1)
 
 	var t strings.Builder
 	t.WriteString(sp(1))
@@ -98,6 +98,18 @@ func (m Model) header(w int) []string {
 		t.WriteString(sp(2))
 	}
 	return []string{spread(left, right, w), t.String(), rule("", w, m.frame())}
+}
+
+// serverState says in the frame whether the server answers, without which
+// the view has no balances.
+func (m Model) serverState() string {
+	switch {
+	case m.server == nil || m.link.answered && !m.link.up:
+		return paint(sOrange, "NO SERVER")
+	case !m.link.answered:
+		return paint(sDim, "SERVER?")
+	}
+	return paint(sGreen, "SERVER")
 }
 
 // footer shows the error that last happened, what last happened, or the
@@ -324,13 +336,13 @@ func (m Model) helpView() []string {
 		{"q, ctrl+c", "quit"},
 		{"u / F", "in a wallet: unfreeze it / freeze it"},
 		{"s", "in a wallet: open its session, or close it"},
-		{"e", "in a wallet: edit its policy"},
+		{"e / r", "in a wallet: edit its policy / ask for its balance now"},
 		{"b / p", "in a wallet: release its budget / see its recovery phrase"},
 		{"c / R", "in the wallets: create one / restore one"},
 		{"a / r", "in an authorization: authorize / reject an approval"},
 		{"a / d", "in the keys: add one / remove one"},
 		{"/ m v", "in the audit: filter / load older entries / verify the chain"},
-		{"u r x t d", "in the system: unlock / recover / cancel / template / doctor"},
+		{"u r x t d n", "in the system: unlock / recover / cancel / template / doctor / network"},
 	}
 	out := []string{"", sp(2) + section("HELP"), ""}
 	for _, r := range rows {

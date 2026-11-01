@@ -54,9 +54,9 @@ type Wallet interface {
 const refresh = 2 * time.Second
 
 // Run shows the view on a terminal until the person quits.
-func Run(ctx context.Context, w Wallet, keys fido.Opener, network string, check Doctor, in io.Reader, out io.Writer) error {
+func Run(ctx context.Context, w Wallet, keys fido.Opener, network string, check Doctor, server Server, in io.Reader, out io.Writer) error {
 	m := New(ctx, w, keys, network)
-	m.doctor = check
+	m.doctor, m.server = check, server
 	p := tea.NewProgram(m, tea.WithContext(ctx), tea.WithInput(in), tea.WithOutput(out))
 	_, err := p.Run()
 	// An interruption from outside, as Ctrl-C to the CLI, is a way to quit;
@@ -130,6 +130,7 @@ type Model struct {
 	keys    fido.Opener
 	network string
 	doctor  Doctor
+	server  Server // nil if there is none to read from
 	now     func() time.Time
 
 	width, height int
@@ -155,6 +156,7 @@ type Model struct {
 	unlockSkipped bool // the person chose to see the wallet locked
 	audit         auditLog
 	sys           system
+	link          link
 
 	auth   *authorization
 	scroll int // how far the dialog of the authorization was read
@@ -166,7 +168,7 @@ type Model struct {
 
 // New returns the view before its first status.
 func New(ctx context.Context, w Wallet, keys fido.Opener, network string) Model {
-	return Model{ctx: ctx, w: w, keys: keys, network: network, now: time.Now}
+	return Model{ctx: ctx, w: w, keys: keys, network: network, now: time.Now, link: link{overviews: map[string]*overviewEntry{}}}
 }
 
 // The messages of the view's commands.
@@ -222,7 +224,12 @@ type (
 	phraseTick struct{}
 )
 
-func (m Model) Init() tea.Cmd { return m.poll }
+func (m Model) Init() tea.Cmd {
+	if m.server == nil {
+		return m.poll
+	}
+	return tea.Batch(m.poll, m.pollServer)
+}
 
 // poll is the refresh: one chain of it runs, every refresh, for as long as
 // the view does. An action asks for the status with fetch, out of the chain.
@@ -316,6 +323,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.fetch
 	case auditLoaded:
 		return m.auditArrived(msg)
+	case serverTick:
+		return m, m.pollServer
+	case serverMsg:
+		return m.serverAnswered(msg)
+	case overviewWanted:
+		return m.overviewAsked(msg)
+	case overviewMsg:
+		return m.overviewCame(msg)
+	case chainMsg:
+		return m.chainCame(msg)
 	case doctorDone:
 		m.sys.busy = false
 		if msg.err != nil {
@@ -461,9 +478,14 @@ func (m Model) key(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 // show goes to a tab. The audit tab reads the log as it opens.
 func (m Model) show(t tab) (Model, tea.Cmd) {
 	m.tab = t
-	if t == tabAudit && !m.audit.busy {
+	switch {
+	case t == tabAudit && !m.audit.busy:
 		m.audit.busy = true
 		return m, m.loadAudit()
+	case t == tabWallets:
+		return m, m.wantOverview(false)
+	case t == tabSystem:
+		return m.wantChain(false)
 	}
 	return m, nil
 }
@@ -477,12 +499,17 @@ func (m Model) tabKey(s string) (tea.Model, tea.Cmd) {
 	}
 	switch m.tab {
 	case tabWallets:
-		m.wallets.move(delta, len(st.Wallets))
+		if delta != 0 {
+			m.wallets.move(delta, len(st.Wallets))
+			return m, m.wantOverview(false)
+		}
 		switch s {
 		case "c":
 			return m.createForm()
 		case "R":
 			return m.restoreForm()
+		case "r":
+			return m, m.wantOverview(true)
 		}
 		if len(st.Wallets) == 0 {
 			return m, nil

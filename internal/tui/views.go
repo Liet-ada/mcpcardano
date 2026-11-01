@@ -76,6 +76,9 @@ func (m Model) overview(w int) []string {
 		}
 		out = append(out, row)
 	}
+	if n := m.link.modeA; n > 0 {
+		out = append(out, sp(4)+paint(sDim, fmt.Sprintf("%d of mode A %s only in the server's config.json", n, plural(n, "lives", "live"))))
+	}
 	if notes := m.notices(); len(notes) > 0 {
 		out = append(out, "", sp(2)+section("NOTICES"))
 		out = append(out, notes...)
@@ -177,6 +180,7 @@ func (m Model) walletDetail(ws ipc.WalletStatus, w int) []string {
 		paint(sDim, "MODE ") + modeBadge(wl.Mode) + paint(sDim, "  CREATED BY ") + paint(sBold, strings.ToUpper(wl.CreatedBy)) + paint(sDim, "  ·  ") + frozen,
 		paint(sCyan, truncate(model.Address{Raw: wl.Address}.Bech32(), max(w, 10))),
 		walletKeys(ws),
+		m.balance(wl),
 	}
 	ps := m.policies[wl.ID]
 	if ps == nil {
@@ -216,8 +220,7 @@ func (m Model) walletDetail(ws ipc.WalletStatus, w int) []string {
 		count("TX / HOUR", ps.TxHour, l.TxPerHour),
 		count("NEW DEST / H", ps.NewDestinationsHour, l.NewDestinationsPerHour),
 		count("NEW DEST / DAY", ps.NewDestinationsDay, l.NewDestinationsPerDay),
-		paint(sDim, fmt.Sprintf("%-14s", "MAX FEE"))+paint(sBase, fmt.Sprintf("%12s", adaShort(l.MaxFee))),
-		"")
+		paint(sDim, fmt.Sprintf("%-14s", "MAX FEE"))+paint(sBase, fmt.Sprintf("%12s", adaShort(l.MaxFee))))
 	session := paint(sDim, "none")
 	if s := ws.Session; s != nil {
 		session = paint(sOrange, "▲ OPEN ") + paint(sDim, adaShort(s.Remaining)+" ADA left, ends "+clock(s.ExpiresAt))
@@ -262,7 +265,7 @@ func (m Model) approvalsView(w, height int) []string {
 	st := m.status
 	out := []string{"", sp(2) + section("APPROVALS"), ""}
 	if len(st.Approvals) == 0 {
-		return append(out, sp(4)+paint(sDim, "No approval is waiting."))
+		return append(append(out, sp(4)+paint(sDim, "No approval is waiting.")), m.draftsView()...)
 	}
 	out = append(out, sp(4)+paint(sDim, fmt.Sprintf("%-30s %-16s %18s  %s", "APPROVAL", "WALLET", "SPENDS", "UNTIL")))
 	from, to := m.approvals.window(len(st.Approvals), height-5)
@@ -278,7 +281,7 @@ func (m Model) approvalsView(w, height int) []string {
 			out = append(out, sp(4)+paint(sBase, text))
 		}
 	}
-	return out
+	return append(out, m.draftsView()...)
 }
 
 func (m Model) keysView(w, height int) []string {

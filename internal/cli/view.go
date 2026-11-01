@@ -40,5 +40,7 @@ func (a *admin) view(*options, []string) error {
 		}
 		return doctor.Run(ctx, env), nil
 	}
-	return tui.Run(a.ctx, conn, a.keys.open, a.network, check, in, out)
+	server := &tui.ServerConn{Socket: DefaultSocket(), Version: a.hello.Software}
+	defer server.Close()
+	return tui.Run(a.ctx, conn, a.keys.open, a.network, check, server, in, out)
 }

@@ -1,4 +1,4 @@
-  MCPCARDANO ◤ // PREPROD                                                   ● UNLOCKED  │  1 KEY  │  14:32:08 
+  MCPCARDANO ◤ // PREPROD                                     ● UNLOCKED  │  1 KEY  │  NO SERVER  │  14:32:08 
   1 OVERVIEW ◤   2 WALLETS    3 APPROVALS  1 ◤   4 KEYS    5 AUDIT    6 SYSTEM                                
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━◆
                                                                                                               
@@ -14,13 +14,13 @@
     q, ctrl+c                 quit                                                                            
     u / F                     in a wallet: unfreeze it / freeze it                                            
     s                         in a wallet: open its session, or close it                                      
-    e                         in a wallet: edit its policy                                                    
+    e / r                     in a wallet: edit its policy / ask for its balance now                          
     b / p                     in a wallet: release its budget / see its recovery phrase                       
     c / R                     in the wallets: create one / restore one                                        
     a / r                     in an authorization: authorize / reject an approval                             
     a / d                     in the keys: add one / remove one                                               
     / m v                     in the audit: filter / load older entries / verify the chain                    
-    u r x t d                 in the system: unlock / recover / cancel / template / doctor                    
+    u r x t d n               in the system: unlock / recover / cancel / template / doctor / network          
                                                                                                               
                                                                                                               
                                                                                                               
