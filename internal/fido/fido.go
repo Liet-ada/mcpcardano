@@ -60,6 +60,10 @@ type Opener func(ctx context.Context) (Key, error)
 // ErrNoKey reports that no security key is attached.
 var ErrNoKey = errors.New("fido: no security key is attached")
 
+// ErrNotRegistered reports a key that holds none of the registered
+// credentials: any FIDO2 device may be the first attached, a Trezor too.
+var ErrNotRegistered = errors.New("not a registered key: connect the one you registered")
+
 // The COSE algorithms a credential may use, the preferred first.
 var algorithms = []int64{-8, -7} // EdDSA, ES256
 
@@ -163,6 +167,9 @@ func (k *key) Assert(ctx context.Context, rpID string, clientDataHash []byte, al
 	for _, id := range allow {
 		r.Allow = append(r.Allow, authn.Credential{Type: "public-key", ID: id})
 	}
+	if err := k.holds(ctx, r); err != nil {
+		return Assertion{}, err
+	}
 	if pin != "" {
 		t, err := k.token(ctx, pin)
 		if err != nil {
@@ -184,6 +191,23 @@ func (k *key) Assert(ctx context.Context, rpID string, clientDataHash []byte, al
 	}
 	return Assertion{CredentialID: id, AuthenticatorData: a.AuthData, Signature: a.Signature}, nil
 }
+
+// holds asks the key whether it has one of the credentials of r, with no
+// touch and no PIN, before the PIN goes to it. Only a plain no counts: a key
+// that cannot say goes on, and answers the assertion itself. This spares a
+// mistake, not an attack: a hostile device could say yes.
+func (k *key) holds(ctx context.Context, r authn.GetAssertionRequest) error {
+	r.Options = map[string]bool{"up": false}
+	_, err := k.k.GetAssertion(ctx, r)
+	if err != nil && strings.Contains(err.Error(), noCredentials) {
+		return fmt.Errorf("%s is %w", k.Name(), ErrNotRegistered)
+	}
+	return nil
+}
+
+// noCredentials is how go-authn/fido writes CTAP2_ERR_NO_CREDENTIALS: it has
+// no error to compare with.
+var noCredentials = authn.Status(0x2e).String()
 
 // token turns the PIN into a token, with the newest PIN protocol the key
 // has. It asks with getPinToken, the exchange of CTAP 2.0, which a key of

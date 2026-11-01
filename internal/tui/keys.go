@@ -42,6 +42,7 @@ type keyAdding struct {
 	name    string
 	stage   addStage
 	key     fido.Key // the new key, once open, until Register takes it
+	device  string   // what it calls itself: the first attached may not be the one meant
 	info    fido.Info
 	pin     []byte // never drawn
 	data    []byte // what it said when it made its credential
@@ -120,7 +121,7 @@ func (m Model) keyOpen(msg keyOpened) (Model, tea.Cmd) {
 		m.close()
 		return m.refuse(name + " has no PIN, and policies, keys and recovery phrases take one: set it with its maker's tool.")
 	}
-	a.key, a.info = msg.key, msg.info
+	a.key, a.info, a.device = msg.key, msg.info, msg.key.Name()
 	if msg.info.PINToRegister {
 		a.stage = addPIN
 		return m, nil
@@ -219,6 +220,7 @@ func (m Model) keyAddView(w int) []string {
 		if a.info.Retries <= 3 {
 			inner = append(inner, paint(sPanel.Foreground(cOrange), fmt.Sprintf("It locks after %d more wrong PINs.", a.info.Retries)))
 		}
+		inner = append(inner, paint(sPanel.Foreground(cDim), "NEW KEY  ")+paint(sPanel.Foreground(cCyan), a.device))
 		inner = append(inner, paint(sPanel.Foreground(cDim), "PIN OF THE NEW KEY  ")+
 			paint(sPanel.Foreground(cYellow), strings.Repeat("•", len([]rune(string(a.pin)))))+paint(sPanel.Foreground(cCyan), "▌"),
 			pressLine(sPanel, "enter", "GO ON", "esc", "CANCEL"))
@@ -229,7 +231,7 @@ func (m Model) keyAddView(w int) []string {
 	default:
 		what := "INSERT THE NEW SECURITY KEY"
 		if a.touched {
-			what = "TOUCH THE NEW SECURITY KEY"
+			what = "TOUCH THE NEW SECURITY KEY: " + a.device
 		}
 		inner = append(inner, paint(sPanel.Foreground(cCyan), spinner[m.spin%len(spinner)]+" "+what))
 	}

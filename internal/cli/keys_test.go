@@ -112,7 +112,7 @@ func TestKeyExitCodes(t *testing.T) {
 	}{
 		{"a wrong PIN", "0000\n", []*softkey.Key{key}, []string{"wallet backup", "-wallet", id}, ExitRejected, "PIN was wrong"},
 		{"an empty PIN", "\n", []*softkey.Key{key}, []string{"wallet backup", "-wallet", id}, ExitRejected, ""},
-		{"a key that is not registered", "", []*softkey.Key{stranger}, []string{"unfreeze", "-wallet", id}, ExitRejected, "no credential"},
+		{"a key that is not registered", "", []*softkey.Key{stranger}, []string{"unfreeze", "-wallet", id}, ExitRejected, "is not a registered key"},
 		{"no key", "", nil, []string{"unfreeze", "-wallet", id}, ExitError, "no security key was inserted"},
 		{"the password instead", password, nil, []string{"key remove", "-name", "nobody"}, ExitError, `no registered key is named "nobody"`},
 		{"no name", "", nil, []string{"key add"}, ExitUsage, "-name must be"},

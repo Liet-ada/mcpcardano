@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"sync"
 
@@ -59,7 +60,7 @@ func (k *Key) Register(_ context.Context, rpID, pin string) ([]byte, error) {
 
 func (k *Key) Assert(_ context.Context, rpID string, cdh []byte, allow [][]byte, pin string) (fido.Assertion, error) {
 	if !slices.ContainsFunc(allow, func(id []byte) bool { return bytes.Equal(id, k.Credential.CredentialID()) }) {
-		return fido.Assertion{}, errors.New("fido: soft key: no credential the authenticator holds matches")
+		return fido.Assertion{}, fmt.Errorf("%s is %w", k.name, fido.ErrNotRegistered)
 	}
 	if err := k.checkPIN(pin); err != nil {
 		return fido.Assertion{}, err
