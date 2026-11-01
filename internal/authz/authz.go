@@ -170,6 +170,22 @@ func (a *Authorizer) Complete(id [IDSize]byte, check func(*Authorization) error)
 	return au, nil
 }
 
+// Cancel drops the open challenges of a wallet, or of every wallet if wallet
+// is empty, and returns how many: freezing stops what was under way, and to
+// the person they are expired ones. Those of no wallet stay open.
+func (a *Authorizer) Cancel(wallet model.WalletID) int {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	n := 0
+	for id, p := range a.pending {
+		if p.Wallet != "" && (wallet == "" || p.Wallet == wallet) {
+			a.drop(id)
+			n++
+		}
+	}
+	return n
+}
+
 // open returns the open challenge with this id, or nil.
 func (a *Authorizer) open(id [IDSize]byte) *Authorization {
 	a.mu.Lock()
