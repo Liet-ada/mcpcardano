@@ -34,7 +34,7 @@ Each wallet has a mode. `list_wallets` gives it.
 
 1. `list_wallets` for the `wallet_id`.
 2. `get_policy_status` if the amount may hit a limit: it gives the limits and what is left.
-3. `build_payment`. It moves nothing. A payment the policy blocks fails here, with the rule.
+3. `build_payment`. It moves nothing. A payment the policy blocks fails here, with the rule. It builds first and checks the policy after, so `INSUFFICIENT_FUNDS` comes before `WALLET_FROZEN`: read `frozen` in `list_wallets`.
 4. Check the answer: `verdict.status` is `allowed` or `needs_approval`; in `summary`, `outputs` marks your change as `own: true`, with `fee` and `net_effect`.
 5. `authorize_draft`, if the person asked for it.
 6. Read `next` in the answer: it says what happens now. Follow with `get_draft`.
