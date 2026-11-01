@@ -357,6 +357,25 @@ func TestTools(t *testing.T) {
 	}
 }
 
+// TestDocsNameEverything: the agents' guide names every tool and every error
+// code, so that a new one cannot be left out of it.
+func TestDocsNameEverything(t *testing.T) {
+	guide, err := os.ReadFile("../../docs/agent-guide.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name := range newEnv(t).tools {
+		if !bytes.Contains(guide, []byte("`"+name+"`")) {
+			t.Errorf("docs/agent-guide.md does not name the tool %s", name)
+		}
+	}
+	for code := range hints {
+		if !bytes.Contains(guide, []byte("`"+code+"`")) {
+			t.Errorf("docs/agent-guide.md does not name the code %s", code)
+		}
+	}
+}
+
 func TestReadTools(t *testing.T) {
 	e := newEnv(t)
 	st := e.ok("get_network_status", nil)

@@ -6,6 +6,8 @@ The agent only prepares draft transactions. A separate, network-isolated wallet 
 
 **Status:** under construction. Milestone H-1 is done (read tools, payment and consolidation drafts, hardware-wallet signing on preprod); milestone H-2, the wallet of modes B and C, is in progress. Not ready for real funds; mainnet is disabled.
 
+For AI agents: start at [docs/](docs/README.md).
+
 ## Build
 
 ```
