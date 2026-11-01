@@ -108,6 +108,34 @@ In any other client:
 
 After a real install, `mcpcardano mcp` needs no `-socket`. Then ask your agent something like *"What is the balance of my agent wallet?"* or *"Pay 5 ADA to addr_test1..."*. A wallet created by you starts with the template: mode C, up to 20 ADA per transaction, 40 per hour, 100 per day, and a budget of 100.
 
+## Tools
+
+What the MCP server offers an agent:
+
+| Group | Tool | What it does |
+| --- | --- | --- |
+| Wallets | `list_wallets` | The wallets, with their mode and whether they are frozen |
+| | `get_wallet_overview` | Balance, tokens, UTxO count and health |
+| | `get_policy_status` | Limits, what was spent, budget left, open session |
+| | `create_wallet` | A new wallet with your template; it starts empty |
+| Payments | `build_payment` | A draft paying 1 to 50 recipients, with the policy's verdict. Moves nothing |
+| | `build_consolidation` | A draft joining the wallet's UTxOs |
+| | `list_drafts`, `get_draft` | Live drafts, and one in detail |
+| | `cancel_draft` | Drops an unsigned draft and frees its UTxOs |
+| | `authorize_draft` | Signs and sends a draft, or sends it to you for approval. Irreversible |
+| | `submit_signed_transaction` | Takes a hardware wallet's signature; used by the mode A signer |
+| Chain | `list_utxos` | The UTxOs of a wallet or any address |
+| | `get_address_info` | Any address: balance, tokens, delegation |
+| | `get_asset_info` | A native token: identity, supply, metadata |
+| | `get_transaction` | A transaction on the chain, decoded |
+| | `get_transaction_status` | Whether a transaction is in the mempool, confirmed or gone |
+| | `decode_transaction` | Reads transaction CBOR, offline |
+| Network | `get_network_status` | Chain tip and data sources |
+| | `get_protocol_parameters` | Fees, sizes and deposits of this epoch |
+| | `set_datasources` | Orders your data sources for the session |
+
+No tool changes a limit, unfreezes a wallet, approves a payment or reveals a key. Those are yours, through `mcpcardano`.
+
 ## Stay in control
 
 `mcpcardano view` opens a terminal interface for all of it: wallets, limits, approvals, keys, the audit log. Or use the commands:

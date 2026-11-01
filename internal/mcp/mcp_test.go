@@ -357,16 +357,23 @@ func TestTools(t *testing.T) {
 	}
 }
 
-// TestDocsNameEverything: the agents' guide names every tool and every error
-// code, so that a new one cannot be left out of it.
+// TestDocsNameEverything: the README and the agents' guide name every tool,
+// and the guide every error code, so that a new one cannot be left out.
 func TestDocsNameEverything(t *testing.T) {
 	guide, err := os.ReadFile("../../docs/agent-guide.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	readme, err := os.ReadFile("../../README.md")
 	if err != nil {
 		t.Fatal(err)
 	}
 	for name := range newEnv(t).tools {
 		if !bytes.Contains(guide, []byte("`"+name+"`")) {
 			t.Errorf("docs/agent-guide.md does not name the tool %s", name)
+		}
+		if !bytes.Contains(readme, []byte("`"+name+"`")) {
+			t.Errorf("README.md does not name the tool %s", name)
 		}
 	}
 	for code := range hints {
