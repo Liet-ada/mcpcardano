@@ -123,6 +123,33 @@ func TestUnrunParamsAreWiped(t *testing.T) {
 	}
 }
 
+// TestCancel: a wallet's challenges go, wiped, and to the person they are
+// expired; another wallet's stay, and so do those of no wallet, with every
+// wallet or with one.
+func TestCancel(t *testing.T) {
+	const other = model.WalletID("w_aiaqcaibaeaqcaibaeaqcaibae")
+	a, _ := newAuthorizer()
+	mine, theirs, none := &secret{}, &secret{}, &secret{}
+	one, _ := a.Begin("unfreeze", wallet, nil, mine)
+	two, _ := a.Begin("unfreeze", other, nil, theirs)
+	three, _ := a.Begin("set_template", "", nil, none)
+	if n := a.Cancel(wallet); n != 1 || !mine.wiped || theirs.wiped || none.wiped {
+		t.Fatalf("cancelled %d; wiped %v, %v, %v", n, mine.wiped, theirs.wiped, none.wiped)
+	}
+	if _, err := a.Complete(one.ID, attempt(a, password(true))); !errors.Is(err, ErrExpired) {
+		t.Errorf("a cancelled challenge: %v", err)
+	}
+	if n := a.Cancel(""); n != 1 || !theirs.wiped || none.wiped {
+		t.Fatalf("cancelled %d; wiped %v, %v", n, theirs.wiped, none.wiped)
+	}
+	if _, err := a.Complete(two.ID, attempt(a, password(true))); !errors.Is(err, ErrExpired) {
+		t.Errorf("a cancelled challenge: %v", err)
+	}
+	if _, err := a.Complete(three.ID, attempt(a, password(true))); err != nil {
+		t.Errorf("a challenge of no wallet: %v", err)
+	}
+}
+
 func TestWrongPasswordDoublesTheWait(t *testing.T) {
 	a, c := newAuthorizer()
 	au, _ := a.Begin("unfreeze", wallet, nil, nil)
