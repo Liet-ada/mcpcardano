@@ -257,10 +257,11 @@ func (m Model) authBody(w int) []string {
 }
 
 // authOverflow is how many lines of the dialog do not fit: its frame, a blank
-// line, the way to authorize and the line that says there is more take six.
+// line, the way to authorize, the keys and the line that says there is more
+// take seven.
 func (m Model) authOverflow() int {
 	w, h := m.size()
-	return max(len(m.authBody(w))-(h-chrome-6), 0)
+	return max(len(m.authBody(w))-(h-chrome-7), 0)
 }
 
 // authView is the dialog of an authorization: what there is to read, the time
@@ -291,9 +292,15 @@ func (m Model) authView(w, height int) []string {
 	switch a.stage {
 	case reading:
 		inner = append(inner, paint(sPanel.Foreground(cDim), "AUTHORIZE WITH  ")+paint(sPanel.Foreground(cCyan), how))
+		if a.approval != "" {
+			inner = append(inner, pressLine(sPanel, "a", "CONTINUE", "r", "REJECT", "esc", "GO BACK"))
+		} else {
+			inner = append(inner, pressLine(sPanel, "a", "CONTINUE", "esc", "GO BACK"))
+		}
 	case typing:
 		inner = append(inner, paint(sPanel.Foreground(cDim), a.asking+"  ")+
-			paint(sPanel.Foreground(cYellow), strings.Repeat("•", len([]rune(string(a.secret)))))+paint(sPanel.Foreground(cCyan), "▌"))
+			paint(sPanel.Foreground(cYellow), strings.Repeat("•", len([]rune(string(a.secret)))))+paint(sPanel.Foreground(cCyan), "▌"),
+			pressLine(sPanel, "enter", "SEND", "esc", "DECLINE"))
 	case touching:
 		what := "CHECKING…"
 		if a.ch.Methods[0] != ipc.MethodPassword {

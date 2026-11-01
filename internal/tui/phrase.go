@@ -118,6 +118,7 @@ func (m Model) phraseView(w int) []string {
 		}
 		inner = append(inner, row)
 	}
+	inner = append(inner, paint(sPanel, ""), pressLine(sPanel, "space", "SHOW OR HIDE", "esc", "HIDE AND GO BACK"))
 	timer := paint(sOrange, fmt.Sprintf(" hides in %d:%02d ", int(left.Minutes()), int(left.Seconds())%60))
 	return m.panel(w, badge("RECOVERY PHRASE", cRed)+sp(1)+paint(sDim, p.label+" "), timer, inner)
 }
@@ -260,5 +261,6 @@ func (m Model) restoreView(w int) []string {
 	if r.shown && len(typed) > 0 {
 		inner = append(inner, paint(sPanel.Foreground(cDim), "       "+strings.Join(completions(typed, 6), "  ")))
 	}
+	inner = append(inner, paint(sPanel, ""), pressLine(sPanel, "enter", "TAKE THE WORD", "esc", "CANCEL"))
 	return m.panel(w, badge("RESTORE", cRed)+sp(1)+paint(sDim, strings.ToUpper(r.label)+" "), "", inner)
 }

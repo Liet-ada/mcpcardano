@@ -129,7 +129,8 @@ const listWidth = 30
 func (m Model) walletsView(w, height int) []string {
 	st := m.status
 	left := []string{section("WALLETS"), ""}
-	from, to := m.wallets.window(len(st.Wallets), height-5)
+	box := walletBox(st, m.wallets.at, m.frame())
+	from, to := m.wallets.window(len(st.Wallets), height-4-len(box))
 	for i := from; i < to; i++ {
 		ws := st.Wallets[i].Wallet
 		name := fmt.Sprintf(" %s %-14s", map[bool]string{true: "▸", false: " "}[i == m.wallets.at], truncate(label(ws), 14))
@@ -146,8 +147,8 @@ func (m Model) walletsView(w, height int) []string {
 	if len(st.Wallets) == 0 {
 		left = append(left, paint(sDim, " none yet"))
 	}
-	left = append(left, "", paint(sDim, fmt.Sprintf(" %d %s", len(st.Wallets), plural(len(st.Wallets), "wallet", "wallets"))),
-		sp(1)+keyHint("c", "create")+sp(2)+keyHint("R", "restore"))
+	left = append(left, "", paint(sDim, fmt.Sprintf(" %d %s", len(st.Wallets), plural(len(st.Wallets), "wallet", "wallets"))))
+	left = append(left, box...)
 
 	var right []string
 	if len(st.Wallets) > 0 {
@@ -179,7 +180,6 @@ func (m Model) walletDetail(ws ipc.WalletStatus, w int) []string {
 		paint(sYellow, label(wl)) + sp(2) + paint(sDim, wl.ID),
 		paint(sDim, "MODE ") + modeBadge(wl.Mode) + paint(sDim, "  CREATED BY ") + paint(sBold, strings.ToUpper(wl.CreatedBy)) + paint(sDim, "  ·  ") + frozen,
 		paint(sCyan, truncate(model.Address{Raw: wl.Address}.Bech32(), max(w, 10))),
-		walletKeys(ws),
 		m.balance(wl),
 	}
 	ps := m.policies[wl.ID]
@@ -242,16 +242,31 @@ func (m Model) walletDetail(ws ipc.WalletStatus, w int) []string {
 	return out
 }
 
-// walletKeys are the keys of a wallet, those that apply to it as it is.
-func walletKeys(ws ipc.WalletStatus) string {
-	freeze, session := keyHint("F", "freeze"), keyHint("s", "open session")
-	if ws.Wallet.Frozen {
-		freeze = keyHint("u", "unfreeze")
+// walletBox frames what the person can do on the wallets, with the keys that
+// apply to the chosen one as it is: on a line of the detail they went unseen.
+func walletBox(st *ipc.StatusReport, at int, frame lipgloss.Style) []string {
+	const width = listWidth - 6 // what is inside: the margins and the frame take the rest
+	pair := func(a, b string) string { return fit(a, 13) + b }
+	var rows []string
+	if len(st.Wallets) > 0 {
+		ws := st.Wallets[at]
+		freeze, session := keyHint("F", "freeze"), keyHint("s", "open session")
+		if ws.Wallet.Frozen {
+			freeze = keyHint("u", "unfreeze")
+		}
+		if ws.Session != nil {
+			session = keyHint("s", "close session")
+		}
+		rows = append(rows, pair(freeze, keyHint("e", "policy")), session,
+			pair(keyHint("b", "budget"), keyHint("p", "phrase")), keyHint("r", "balance"))
 	}
-	if ws.Session != nil {
-		session = keyHint("s", "close session")
+	rows = append(rows, pair(keyHint("c", "create"), keyHint("R", "restore")))
+	top := frame.Render("┏━ ") + paint(sYellow, "ACTIONS") + sp(1)
+	out := []string{sp(1) + top + frame.Render(strings.Repeat("━", max(width+3-lipgloss.Width(top), 0))+"┓")}
+	for _, r := range rows {
+		out = append(out, sp(1)+frame.Render("┃")+sp(1)+fit(r, width)+sp(1)+frame.Render("┃"))
 	}
-	return strings.Join([]string{freeze, session, keyHint("e", "policy"), keyHint("b", "budget"), keyHint("p", "phrase")}, sp(2))
+	return append(out, sp(1)+frame.Render("┗"+strings.Repeat("━", width+2)+"◢"))
 }
 
 func tokenCaps(caps []ipc.AssetCap) string {

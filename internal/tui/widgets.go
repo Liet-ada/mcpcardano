@@ -95,7 +95,7 @@ func (m Model) formView() []string {
 		out = append(out, sp(2)+mark+paint(sDim, fmt.Sprintf("%-8s", fl.name))+paint(sHUD, "[ ")+
 			paint(sBold, string(fl.value))+caret+paint(sHUD, " ]")+sp(2)+paint(sDim, fl.hint))
 	}
-	return out
+	return append(out, "", sp(4)+pressLine(sBase, "enter", "GO ON", "esc", "GO BACK"))
 }
 
 // wrap splits text into lines of at most width runes, at the spaces if it

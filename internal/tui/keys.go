@@ -220,10 +220,12 @@ func (m Model) keyAddView(w int) []string {
 			inner = append(inner, paint(sPanel.Foreground(cOrange), fmt.Sprintf("It locks after %d more wrong PINs.", a.info.Retries)))
 		}
 		inner = append(inner, paint(sPanel.Foreground(cDim), "PIN OF THE NEW KEY  ")+
-			paint(sPanel.Foreground(cYellow), strings.Repeat("•", len([]rune(string(a.pin)))))+paint(sPanel.Foreground(cCyan), "▌"))
+			paint(sPanel.Foreground(cYellow), strings.Repeat("•", len([]rune(string(a.pin)))))+paint(sPanel.Foreground(cCyan), "▌"),
+			pressLine(sPanel, "enter", "GO ON", "esc", "CANCEL"))
 	case addSwap:
 		inner = append(inner, paint(sPanel, "The new key made its credential."),
-			paint(sPanel.Foreground(cCyan), "Now insert a registered key in its place, and press enter."))
+			paint(sPanel.Foreground(cCyan), "Now insert a registered key in its place."), paint(sPanel, ""),
+			pressLine(sPanel, "enter", "CONTINUE", "esc", "CANCEL"))
 	default:
 		what := "INSERT THE NEW SECURITY KEY"
 		if a.touched {
@@ -292,7 +294,8 @@ func (m Model) unlockView(w int) []string {
 		inner = append(inner, paint(sPanel.Foreground(cCyan), spinner[m.spin%len(spinner)]+" CHECKING…"))
 	} else {
 		inner = append(inner, paint(sPanel.Foreground(cDim), "PASSWORD  ")+
-			paint(sPanel.Foreground(cYellow), strings.Repeat("•", len([]rune(string(u.secret)))))+paint(sPanel.Foreground(cCyan), "▌"))
+			paint(sPanel.Foreground(cYellow), strings.Repeat("•", len([]rune(string(u.secret)))))+paint(sPanel.Foreground(cCyan), "▌"),
+			pressLine(sPanel, "enter", "UNLOCK", "esc", "SEE IT LOCKED"))
 	}
 	return m.panel(w, badge("LOCKED", cOrange)+sp(1), "", inner)
 }

@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/Liet-ada/mcpcardano/internal/ipc"
@@ -299,7 +300,7 @@ func TestPhrase(t *testing.T) {
 	}
 	body := ansi.Strip(strings.Join(m.phraseView(110), "\n"))
 	for _, w := range strings.Fields(testPhrase) {
-		if strings.Contains(body, " "+w+" ") {
+		if w != "space" && strings.Contains(body, " "+w+" ") { // the dialog names that key
 			t.Fatalf("the word %q shows before it is asked:\n%s", w, body)
 		}
 	}
@@ -396,5 +397,71 @@ func TestWordList(t *testing.T) {
 		if got, ok := complete([]byte(w[:min(len(w), 4)])); !ok || got != w {
 			t.Errorf("%s: %q, %v", w[:min(len(w), 4)], got, ok)
 		}
+	}
+}
+
+// TestActionsBox: the keys of a wallet stand in a frame of their own, those
+// that apply to it as it is, and with many wallets on a small terminal both
+// the box and the chosen wallet stay on show.
+func TestActionsBox(t *testing.T) {
+	f := newFake(ipc.MethodPassword)
+	m := press(t, start(t, f, &softkey.Slot{}), "2")
+	v := plain(m)
+	for _, s := range []string{"ACTIONS", "F freeze", "e policy", "s close session", "b budget", "p phrase", "r balance", "c create", "R restore", "━┓", "━◢"} {
+		if !strings.Contains(v, s) {
+			t.Errorf("no %q:\n%s", s, v)
+		}
+	}
+	if strings.Count(v, "┃") != 2*5 {
+		t.Errorf("the frame was cut:\n%s", v)
+	}
+	m = press(t, m, "down")
+	if v = plain(m); !strings.Contains(v, "u unfreeze") || !strings.Contains(v, "s open session") || strings.Contains(v, "F freeze") {
+		t.Errorf("the keys of a frozen wallet:\n%s", v)
+	}
+
+	for i := range 20 {
+		w := f.st.Wallets[1]
+		w.Wallet.ID, w.Wallet.Label = walletB, "w"+strings.Repeat("x", i%3)+string(rune('a'+i))
+		f.st.Wallets = append(f.st.Wallets, w)
+	}
+	m = drive(t, m, tea.WindowSizeMsg{Width: 80, Height: 24})
+	m = drive(t, m, m.fetch())
+	for range 21 {
+		m = press(t, m, "down")
+	}
+	v = plain(m)
+	if !strings.Contains(v, "ACTIONS") || !strings.Contains(v, "R restore") || !strings.Contains(v, "▸") {
+		t.Errorf("80×24 with 22 wallets:\n%s", v)
+	}
+
+	f.st.Wallets = nil
+	m = drive(t, m, m.fetch())
+	if v = plain(m); !strings.Contains(v, "c create") || strings.Contains(v, "e policy") {
+		t.Errorf("with no wallets:\n%s", v)
+	}
+}
+
+// TestDialogsSayTheKeys: each dialog says inside it which key goes on, not
+// only in the footer.
+func TestDialogsSayTheKeys(t *testing.T) {
+	inDialog := func(m Model) string {
+		return strings.Join(strings.Split(plain(m), "\n")[:len(strings.Split(plain(m), "\n"))-2], "\n")
+	}
+	f := newFake(ipc.MethodPassword)
+	m := press(t, start(t, f, &softkey.Slot{}), "2", "down", "u")
+	if v := inDialog(m); !strings.Contains(v, "PRESS a TO CONTINUE") || !strings.Contains(v, "esc TO GO BACK") || strings.Contains(v, "REJECT") {
+		t.Errorf("the dialog:\n%s", v)
+	}
+	if v := inDialog(press(t, m, "a")); !strings.Contains(v, "PRESS enter TO SEND") || !strings.Contains(v, "esc TO DECLINE") {
+		t.Errorf("the password:\n%s", v)
+	}
+	m = press(t, m, "esc", "3", "enter")
+	if v := inDialog(m); !strings.Contains(v, "r TO REJECT") {
+		t.Errorf("an approval:\n%s", v)
+	}
+	m = press(t, m, "esc", "2", "c")
+	if v := inDialog(m); !strings.Contains(v, "PRESS enter TO GO ON") {
+		t.Errorf("a form:\n%s", v)
 	}
 }

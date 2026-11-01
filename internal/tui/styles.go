@@ -79,6 +79,19 @@ func badge(text string, bg color.Color) string {
 // word stays quiet.
 func keyHint(key, desc string) string { return paint(sYellow, key) + paint(sDim, " "+desc) }
 
+// pressLine says inside a dialog which keys go on, in pairs of the key and what
+// it does: the footer alone is easy to miss. st is the dialog's background.
+func pressLine(st lipgloss.Style, pairs ...string) string {
+	out := paint(st.Foreground(cDim), "PRESS ")
+	for i := 0; i+1 < len(pairs); i += 2 {
+		if i > 0 {
+			out += paint(st.Foreground(cDim), "   OR   ")
+		}
+		out += paint(st.Foreground(cYellow).Bold(true), pairs[i]) + paint(st.Foreground(cDim), " TO "+pairs[i+1])
+	}
+	return out
+}
+
 // spread puts left and right on one line of width w, at least one space
 // apart.
 func spread(left, right string, w int) string {
