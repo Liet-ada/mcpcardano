@@ -349,7 +349,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.note = msg.err.Error()
 			// A wrong password or PIN leaves the authorization open.
 			var e *ipc.Error
-			if m.auth != nil && (errors.As(msg.err, &e) && e.Code == ipc.AuthFailed || errors.Is(msg.err, errKey)) {
+			if m.auth != nil && (errors.As(msg.err, &e) && e.Code == ipc.AuthFailed || errors.Is(msg.err, errKey) || errors.Is(msg.err, fido.ErrNotRegistered)) {
 				a := *m.auth
 				a.stage, m.auth = reading, &a
 				return m, m.fetch
@@ -681,6 +681,9 @@ func (m Model) touch(pin string) tea.Cmd {
 		}
 		defer k.Close()
 		a, err := k.Assert(ctx, ch.RPID, ch.ClientDataHash, ch.Credentials, pin)
+		if errors.Is(err, fido.ErrNotRegistered) {
+			return done{err: err}
+		}
 		if err != nil {
 			return done{err: fmt.Errorf("%w: %v", errKey, err)}
 		}

@@ -186,6 +186,41 @@ func TestSpinnerChain(t *testing.T) {
 	}
 }
 
+// TestNotRegisteredKey: a device that is not a registered key is named, and
+// the authorization stays open for the right one, with no PIN gone.
+func TestNotRegisteredKey(t *testing.T) {
+	f := newFake(ipc.MethodKey)
+	registered, other := softkey.New("YubiKey", "1234"), softkey.New("Trezor Safe 7", "")
+	f.ch.Credentials = [][]byte{registered.Credential.CredentialID()}
+	f.ch.PIN = true
+	slot := &softkey.Slot{}
+	slot.Insert(other)
+	m := press(t, start(t, f, slot), "3", "enter", "a", "1", "2", "3", "4", "enter")
+	if v := plain(m); !strings.Contains(v, "Trezor Safe 7 is not a registered key") || strings.Contains(v, "refused") || m.auth == nil || m.auth.stage != reading {
+		t.Fatalf("another device:\n%s", v)
+	}
+	if len(f.completed) != 0 || registered.Retries != 8 {
+		t.Errorf("%d completions, %d tries", len(f.completed), registered.Retries)
+	}
+	slot.Insert(registered)
+	if m = press(t, m, "a", "1", "2", "3", "4", "enter"); len(f.completed) != 1 {
+		t.Errorf("the right key after it: %d completions\n%s", len(f.completed), plain(m))
+	}
+}
+
+// TestNewKeyNamed: registering says which device it is, before its touch.
+func TestNewKeyNamed(t *testing.T) {
+	f := newFake(ipc.MethodPassword)
+	k := softkey.New("Trezor Safe 7", "1234")
+	k.PINToRegister = true
+	slot := &softkey.Slot{}
+	slot.Insert(k)
+	m := press(t, start(t, f, slot), "4", "a", "n", "enter")
+	if !strings.Contains(plain(m), "NEW KEY  Trezor Safe 7") {
+		t.Errorf("the device:\n%s", plain(m))
+	}
+}
+
 // TestRemoveKey: d goes through the dialog, with the chosen key.
 func TestRemoveKey(t *testing.T) {
 	f := newFake(ipc.MethodPassword)

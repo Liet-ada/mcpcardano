@@ -8,6 +8,8 @@ import (
 	"crypto/ecdh"
 	"crypto/rand"
 	"encoding/binary"
+	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -24,7 +26,9 @@ type ctapKey struct {
 	channel uint32
 	agree   *ecdh.PrivateKey
 	reasm   *authn.Reassembler
-	asked   map[int]any // the request for a token
+	asked   map[int]any   // the request for a token
+	silent  []map[int]any // the assertions asked for
+	holds   bool          // whether it has the credential
 }
 
 func newCTAPKey(t *testing.T) *ctapKey {
@@ -61,10 +65,26 @@ func (k *ctapKey) answer(d *device, w []byte) {
 		return
 	}
 	msg, done, err := k.reasm.Feed(r)
-	if err != nil || !done || msg.Cmd != authn.CmdCBOR || len(msg.Data) == 0 || msg.Data[0] != authn.CmdClientPIN {
+	if err != nil || !done || msg.Cmd != authn.CmdCBOR || len(msg.Data) == 0 {
 		return
 	}
 	c, _ := cborx.New(cborx.RecordLimits())
+	if msg.Data[0] == 0x02 { // getAssertion
+		var req map[int]any
+		if err := c.Unmarshal(msg.Data[1:], &req); err != nil {
+			k.t.Errorf("getAssertion: %v", err)
+		}
+		k.silent = append(k.silent, req)
+		if k.holds {
+			k.reply(d, authn.CmdCBOR, []byte{0x01}) // any other failure: it cannot say
+			return
+		}
+		k.reply(d, authn.CmdCBOR, []byte{0x2e}) // CTAP2_ERR_NO_CREDENTIALS
+		return
+	}
+	if msg.Data[0] != authn.CmdClientPIN {
+		return
+	}
 	var params map[int]any
 	if err := c.Unmarshal(msg.Data[1:], &params); err != nil {
 		k.t.Errorf("clientPIN: %v", err)
@@ -120,5 +140,56 @@ func TestPINTokenWithGetPinToken(t *testing.T) {
 	k.info.Options["noMcGaPermissionsWithClientPin"] = true
 	if _, err := k.token(ctx, "1234"); err == nil || ck.asked != nil {
 		t.Errorf("a key that wants permissions: %v, asked %v", err, ck.asked)
+	}
+}
+
+// TestNoPINForAnotherKey: a key that holds none of the credentials hears
+// nothing of the PIN, and the error names it. The question takes no touch and
+// no PIN.
+func TestNoPINForAnotherKey(t *testing.T) {
+	ck := newCTAPKey(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	ak, err := authn.Open(ctx, newHidraw(newDevice(ck.answer), "Trezor Safe 7"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ak.Close()
+	k := &key{k: ak, info: authn.Info{PINProtocols: []uint{2, 1}, Options: map[string]bool{"clientPin": true}}}
+	_, err = k.Assert(ctx, "mcpcardano", make([]byte, 32), [][]byte{{1}}, "1234")
+	if !errors.Is(err, ErrNotRegistered) || !strings.Contains(err.Error(), "Trezor Safe 7 is not a registered key") {
+		t.Fatalf("Assert: %v", err)
+	}
+	if ck.asked != nil {
+		t.Error("the PIN reached a key that is not registered")
+	}
+	if len(ck.silent) != 1 {
+		t.Fatalf("%d assertions asked for", len(ck.silent))
+	}
+	if opts, _ := ck.silent[0][5].(map[any]any); opts["up"] != false {
+		t.Errorf("the question asks for a touch: %v", ck.silent[0][5])
+	}
+	if _, ok := ck.silent[0][6]; ok {
+		t.Error("the question carries a PIN token")
+	}
+}
+
+// TestPINForTheKey: a key that does not say no goes on to the PIN.
+func TestPINForTheKey(t *testing.T) {
+	ck := newCTAPKey(t)
+	ck.holds = true
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	ak, err := authn.Open(ctx, newHidraw(newDevice(ck.answer), "YubiKey"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ak.Close()
+	k := &key{k: ak, info: authn.Info{PINProtocols: []uint{2, 1}, Options: map[string]bool{"clientPin": true}}}
+	if _, err = k.Assert(ctx, "mcpcardano", make([]byte, 32), [][]byte{{1}}, "1234"); errors.Is(err, ErrNotRegistered) {
+		t.Fatalf("Assert: %v", err)
+	}
+	if ck.asked == nil {
+		t.Error("the PIN did not reach the key")
 	}
 }
