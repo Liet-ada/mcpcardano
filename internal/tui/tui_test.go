@@ -19,6 +19,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/Liet-ada/mcpcardano/internal/audit"
+	"github.com/Liet-ada/mcpcardano/internal/cborx"
 	"github.com/Liet-ada/mcpcardano/internal/ipc"
 	"github.com/Liet-ada/mcpcardano/test/softkey"
 )
@@ -30,6 +32,15 @@ func TestMain(m *testing.M) {
 	time.Local = time.UTC
 	os.Exit(m.Run())
 }
+
+// recordCodec reads and writes the entries of the fake audit log.
+var recordCodec = func() *cborx.Codec {
+	c, err := cborx.New(cborx.RecordLimits())
+	if err != nil {
+		panic(err)
+	}
+	return c
+}()
 
 // fakeWallet answers as the wallet would, and keeps what it was asked.
 type fakeWallet struct {
@@ -49,6 +60,14 @@ type fakeWallet struct {
 	refuse    error    // what Complete answers
 	refuseAsk error    // what Begin answers
 	result    []byte   // what Complete returns
+
+	password     string // what Unlock got
+	sentPassword []byte // the same, as the view sent it
+	refuseUnlock error
+	audit        []cborx.Raw // the audit log
+	pages        []uint64    // the first seq of each page asked for
+	verified     int         // how many times the chains were checked
+	brokenChain  error
 }
 
 func (f *fakeWallet) Status(context.Context) (*ipc.StatusReport, error) { return f.st, nil }
@@ -101,6 +120,35 @@ func (f *fakeWallet) ShowPolicy(_ context.Context, id string) (*ipc.WalletPolicy
 		return &ipc.WalletPolicy{WalletID: id, Mode: ps.Mode, Policy: ps.Policy}, nil
 	}
 	return nil, &ipc.Error{Code: ipc.NotFound}
+}
+func (f *fakeWallet) Unlock(_ context.Context, password []byte) error {
+	f.password, f.sentPassword = string(password), password
+	if f.refuseUnlock != nil {
+		return f.refuseUnlock
+	}
+	f.st.Unlocked = true
+	return nil
+}
+func (f *fakeWallet) ShowAudit(_ context.Context, from uint64, limit uint32) (*ipc.AuditPage, error) {
+	f.pages = append(f.pages, from)
+	page := &ipc.AuditPage{}
+	for _, raw := range f.audit {
+		var e audit.Entry
+		if err := recordCodec.Unmarshal(raw, &e); err != nil {
+			return nil, err
+		}
+		if e.Seq >= from && len(page.Entries) < int(limit) {
+			page.Entries = append(page.Entries, raw)
+		}
+	}
+	return page, nil
+}
+func (f *fakeWallet) VerifyAudit(context.Context) (*ipc.AuditCheck, error) {
+	f.verified++
+	if f.brokenChain != nil {
+		return nil, f.brokenChain
+	}
+	return &ipc.AuditCheck{AuditEntries: uint64(len(f.audit))}, nil
 }
 func (f *fakeWallet) ShowTemplate(context.Context) (*ipc.Template, error) {
 	return &ipc.Template{Mode: "C", Policy: f.policies[walletA].Policy}, nil
@@ -434,11 +482,13 @@ func TestVisible(t *testing.T) {
 func TestSnapshots(t *testing.T) {
 	f := newFake(ipc.MethodPassword)
 	f.expired = testExpired
+	addAudit(t, f, 3)
 	m := start(t, f, &softkey.Slot{})
 	for _, c := range []struct{ name, keys string }{
 		{"overview", "1"}, {"wallets", "2"}, {"approvals", "3"}, {"keys", "4"}, {"authorize", "3\n"}, {"help", "?"}, {"palette", ":"},
 		{"session", "2js"}, {"create", "2c"}, {"budget", "2b "}, {"restore", "2Rab\nabandon\nab"}, {"phrase", "2jp"},
 		{"editor", "2e"}, {"review", "2e\b\b\b\b\b\b\b\b\b\b9\x12"},
+		{"audit", "5"}, {"system", "6"}, {"keyadd", "4a"},
 	} {
 		v := m
 		for _, k := range strings.Split(c.keys, "") {

@@ -1,5 +1,5 @@
   MCPCARDANO ◤ // PREPROD                                                   ● UNLOCKED  │  1 KEY  │  14:32:08 
-  1 OVERVIEW ◤   2 WALLETS    3 APPROVALS  1 ◤   4 KEYS                                                       
+  1 OVERVIEW ◤   2 WALLETS    3 APPROVALS  1 ◤   4 KEYS    5 AUDIT    6 SYSTEM                                
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━◆
                                                                                                               
   // COMMANDS  [ ▌ ]                                                                                          
@@ -9,24 +9,24 @@
     ◆ Wallets, their limits and what they spent    mcpcardano policy show -wallet <id>                        
     ◆ Approvals waiting                            mcpcardano status                                          
     ◆ Security keys                                mcpcardano key list                                        
+    ◆ What the chosen wallet may release           mcpcardano budget pending -wallet <id>                     
+    ◆ Audit log                                    mcpcardano audit show                                      
+    ◆ Verify the audit log's chains                mcpcardano audit verify                                    
+    ◆ A recovery waiting                           mcpcardano recover status                                  
+    ◆ Check the installation                       mcpcardano doctor                                          
     REDUCE RISK                                                                                               
     ◆ Freeze every wallet                          mcpcardano freeze                                          
     ◆ Freeze the chosen wallet                     mcpcardano freeze -wallet <id>                             
     ◆ Close the chosen wallet's session            mcpcardano session close -wallet <id>                      
+    ◆ Reject the chosen approval                   mcpcardano reject <approval_id>                            
     AUTHORIZE                                                                                                 
+    ◆ Approve the chosen approval                  mcpcardano approve <approval_id>                           
+    ◆ Unlock the wallet                            mcpcardano unlock                                          
+    ◆ Register a security key                      mcpcardano key add -name <name>                            
+    ◆ Remove the chosen security key               mcpcardano key remove -name <name>                         
+    ◆ Start a recovery without keys                mcpcardano recover start                                   
+    ◆ Cancel the recovery                          mcpcardano recover cancel                                  
     ◆ Unfreeze the chosen wallet                   mcpcardano unfreeze -wallet <id>                           
     ◆ Open a session on the chosen wallet          mcpcardano session open -wallet <id> -for 1h -max <lovelac…
-    ◆ Edit the chosen wallet's policy              mcpcardano policy set -wallet <id> <policy.json>           
-    ◆ Edit the template of the agent's wallets     mcpcardano policy set -template <policy.json>              
-    ◆ Release the chosen wallet's budget           mcpcardano budget release -wallet <id>                     
-    ◆ See the chosen wallet's recovery phrase      mcpcardano wallet backup -wallet <id>                      
-    ◆ Create a wallet                              mcpcardano wallet create -label <name>                     
-    ◆ Restore a wallet                             mcpcardano wallet restore -label <name>                    
-    VIEW                                                                                                      
-    ◆ Help                                                                                                    
-    ◆ Quit                                                                                                    
-                                                                                                              
-                                                                                                              
-                                                                                                              
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━◆
  ↑↓ choose   enter run   esc close                                                                            

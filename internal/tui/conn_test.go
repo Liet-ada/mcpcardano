@@ -345,3 +345,102 @@ func TestEditorIsPolicySet(t *testing.T) {
 		t.Errorf("the template by the view hashes %x, by the file %x", hashView.Hash, hashFile.Hash)
 	}
 }
+
+// slowly presses a key whose answer takes the wallet's password check, which
+// is longer than drive waits under the race detector: it runs the command to
+// its end, but for the spinner.
+func slowly(t *testing.T, m Model, key string) Model {
+	t.Helper()
+	next, cmd := m.Update(pressKey(key))
+	m = next.(Model)
+	msg := cmd()
+	batch, ok := msg.(tea.BatchMsg)
+	if !ok {
+		return drive(t, m, msg)
+	}
+	for _, c := range batch {
+		if got := c(); got != nil {
+			if _, spin := got.(spinTick); !spin {
+				m = drive(t, m, got)
+			}
+		}
+	}
+	return m
+}
+
+// withPassword answers the dialog with the password.
+func withPassword(t *testing.T, m Model) Model {
+	t.Helper()
+	if m.auth == nil {
+		t.Fatalf("no authorization:\n%s", plain(m))
+	}
+	m = press(t, m, "a")
+	m = press(t, m, strings.Split(string(walletkit.Password), "")...)
+	return slowly(t, m, "enter")
+}
+
+// TestViewKeysAndLog drives the rest of the view over a real admin
+// connection, with a wallet that starts locked: it is unlocked, a first key
+// registered with the password and a second with the first, one removed, the
+// log read, and a recovery started and cancelled.
+func TestViewKeysAndLog(t *testing.T) {
+	ctx := context.Background()
+	w := walletkit.Start(t)
+	slot := &softkey.Slot{}
+	conn := &Conn{Socket: w.Config.AdminSocket, Hello: walletkit.Hello()}
+	defer conn.Close()
+	m := New(ctx, conn, slot.Open, "preprod")
+	m = drive(t, m, m.Init()())
+	if m.overlay != unlockOverlay {
+		t.Fatalf("a locked wallet:\n%s", plain(m))
+	}
+	m = press(t, m, strings.Split(string(walletkit.Password), "")...)
+	if m = slowly(t, m, "enter"); m.overlay != noOverlay || !m.status.Unlocked {
+		t.Fatalf("unlocking:\n%s", plain(m))
+	}
+	walletkit.CreateWallet(t, w.Service(t), "agent")
+
+	first, second := softkey.New("First", "1234"), softkey.New("Second", "5678")
+	slot.Insert(first)
+	m = press(t, m, "4", "a", "o", "n", "e", "enter")
+	if m = withPassword(t, m); !strings.Contains(plain(m), "The security key one is registered.") {
+		t.Fatalf("the first key:\n%s", plain(m))
+	}
+	slot.Insert(second)
+	m = press(t, m, "a", "t", "w", "o", "enter")
+	if !strings.Contains(plain(m), "insert a registered key in its place") {
+		t.Fatalf("the swap:\n%s", plain(m))
+	}
+	slot.Insert(first)
+	m = authorized(t, press(t, m, "enter"))
+	st, err := conn.Status(ctx)
+	if err != nil || len(st.Keys) != 2 || !strings.Contains(plain(m), "The security key two is registered.") {
+		t.Fatalf("the second key: %+v, %v\n%s", st.Keys, err, plain(m))
+	}
+	m = authorized(t, press(t, m, "down", "d"))
+	if st, _ = conn.Status(ctx); len(st.Keys) != 1 || st.Keys[0].Name != "one" {
+		t.Fatalf("removing the second key: %+v\n%s", st.Keys, plain(m))
+	}
+
+	m = press(t, m, "5")
+	if v := plain(m); !strings.Contains(v, "chain ✓") || !strings.Contains(v, "key.added") {
+		t.Fatalf("the log:\n%s", v)
+	}
+	m = press(t, m, "/", "k", "e", "y", ".", "r", "enter", "enter")
+	if v := plain(m); !strings.Contains(v, "key.removed") || !strings.Contains(v, `"name": "two"`) {
+		t.Fatalf("an entry:\n%s", v)
+	}
+
+	// The recovery starts with the password and only a key cancels it.
+	m = press(t, m, "x", "6", "r")
+	if m = withPassword(t, m); !strings.Contains(plain(m), "every wallet is frozen") {
+		t.Fatalf("the recovery:\n%s", plain(m))
+	}
+	if st, _ = conn.Status(ctx); st.Recovery == nil || !st.Wallets[0].Wallet.Frozen {
+		t.Fatalf("after starting it: %+v", st.Recovery)
+	}
+	m = authorized(t, press(t, m, "x"))
+	if st, _ = conn.Status(ctx); st.Recovery != nil || !strings.Contains(plain(m), "The recovery is cancelled.") {
+		t.Fatalf("after cancelling it: %+v\n%s", st.Recovery, plain(m))
+	}
+}

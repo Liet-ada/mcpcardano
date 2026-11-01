@@ -104,6 +104,26 @@ func (c *Conn) ShowPolicy(ctx context.Context, walletID string) (*ipc.WalletPoli
 	return &w, nil
 }
 
+func (c *Conn) Unlock(ctx context.Context, password []byte) error {
+	return c.call(ctx, ipc.MsgUnlock, &ipc.Unlock{Password: password}, &ipc.Empty{})
+}
+
+func (c *Conn) ShowAudit(ctx context.Context, from uint64, limit uint32) (*ipc.AuditPage, error) {
+	var p ipc.AuditPage
+	if err := c.call(ctx, ipc.MsgShowAudit, &ipc.ShowAudit{From: from, Limit: limit}, &p); err != nil {
+		return nil, err
+	}
+	return &p, nil
+}
+
+func (c *Conn) VerifyAudit(ctx context.Context) (*ipc.AuditCheck, error) {
+	var r ipc.AuditCheck
+	if err := c.call(ctx, ipc.MsgVerifyAudit, &ipc.Empty{}, &r); err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
 func (c *Conn) ShowTemplate(ctx context.Context) (*ipc.Template, error) {
 	var t ipc.Template
 	if err := c.call(ctx, ipc.MsgShowTemplate, &ipc.Empty{}, &t); err != nil {

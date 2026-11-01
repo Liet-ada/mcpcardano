@@ -24,7 +24,16 @@ type command struct {
 }
 
 func goTo(t tab) func(Model) (Model, tea.Cmd) {
-	return func(m Model) (Model, tea.Cmd) { m.tab = t; return m, nil }
+	return func(m Model) (Model, tea.Cmd) { return m.show(t) }
+}
+
+// onKey presses a key of a tab.
+func onKey(t tab, key string) func(Model) (Model, tea.Cmd) {
+	return func(m Model) (Model, tea.Cmd) {
+		m.tab = t
+		next, cmd := m.tabKey(key)
+		return next.(Model), cmd
+	}
 }
 
 // onWallet runs a key of the wallets' tab on the chosen wallet.
@@ -55,9 +64,21 @@ var commands = []command{
 	{"LOOK", "Wallets, their limits and what they spent", "mcpcardano policy show -wallet <id>", sCyan, goTo(tabWallets)},
 	{"LOOK", "Approvals waiting", "mcpcardano status", sCyan, goTo(tabApprovals)},
 	{"LOOK", "Security keys", "mcpcardano key list", sCyan, goTo(tabKeys)},
+	{"LOOK", "What the chosen wallet may release", "mcpcardano budget pending -wallet <id>", sCyan, onWallet("b")},
+	{"LOOK", "Audit log", "mcpcardano audit show", sCyan, goTo(tabAudit)},
+	{"LOOK", "Verify the audit log's chains", "mcpcardano audit verify", sCyan, onKey(tabAudit, "v")},
+	{"LOOK", "A recovery waiting", "mcpcardano recover status", sCyan, goTo(tabSystem)},
+	{"LOOK", "Check the installation", "mcpcardano doctor", sCyan, Model.runDoctor},
 	{"REDUCE RISK", "Freeze every wallet", "mcpcardano freeze", sRed, func(m Model) (Model, tea.Cmd) { return m, m.freeze("") }},
 	{"REDUCE RISK", "Freeze the chosen wallet", "mcpcardano freeze -wallet <id>", sRed, onWallet("F")},
 	{"REDUCE RISK", "Close the chosen wallet's session", "mcpcardano session close -wallet <id>", sRed, onChosen(Model.closeSession)},
+	{"REDUCE RISK", "Reject the chosen approval", "mcpcardano reject <approval_id>", sRed, onKey(tabApprovals, "r")},
+	{"AUTHORIZE", "Approve the chosen approval", "mcpcardano approve <approval_id>", sOrange, onKey(tabApprovals, "enter")},
+	{"AUTHORIZE", "Unlock the wallet", "mcpcardano unlock", sOrange, onKey(tabSystem, "u")},
+	{"AUTHORIZE", "Register a security key", "mcpcardano key add -name <name>", sOrange, onKey(tabKeys, "a")},
+	{"AUTHORIZE", "Remove the chosen security key", "mcpcardano key remove -name <name>", sOrange, onKey(tabKeys, "d")},
+	{"AUTHORIZE", "Start a recovery without keys", "mcpcardano recover start", sOrange, onKey(tabSystem, "r")},
+	{"AUTHORIZE", "Cancel the recovery", "mcpcardano recover cancel", sOrange, onKey(tabSystem, "x")},
 	{"AUTHORIZE", "Unfreeze the chosen wallet", "mcpcardano unfreeze -wallet <id>", sOrange, onChosen(Model.unfreeze)},
 	{"AUTHORIZE", "Open a session on the chosen wallet", "mcpcardano session open -wallet <id> -for 1h -max <lovelace>", sOrange, onChosen(Model.sessionForm)},
 	{"AUTHORIZE", "Edit the chosen wallet's policy", "mcpcardano policy set -wallet <id> <policy.json>", sOrange, onChosen(Model.editPolicy)},
@@ -68,6 +89,18 @@ var commands = []command{
 	{"AUTHORIZE", "Restore a wallet", "mcpcardano wallet restore -label <name>", sOrange, onWallet("R")},
 	{"VIEW", "Help", "", sDim, func(m Model) (Model, tea.Cmd) { m.overlay = helpOverlay; return m, nil }},
 	{"VIEW", "Quit", "", sDim, func(m Model) (Model, tea.Cmd) { m.forget(); return m, tea.Quit }},
+}
+
+// CLICommands are the CLI's commands the palette names, for a test that none
+// is left out.
+func CLICommands() []string {
+	var out []string
+	for _, c := range commands {
+		if c.cli != "" {
+			out = append(out, c.cli)
+		}
+	}
+	return out
 }
 
 // paletteState is what the person typed to filter the palette, and the

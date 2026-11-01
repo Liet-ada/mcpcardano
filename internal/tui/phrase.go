@@ -163,7 +163,7 @@ func complete(typed []byte) (string, bool) {
 // restoreForm asks for the label; the words come on their own screen.
 func (m Model) restoreForm() (Model, tea.Cmd) {
 	if !m.status.Unlocked { // before the person types the 24 words
-		return m.refuse("The wallet is locked: unlock it with mcpcardano unlock.")
+		return m.refuse("The wallet is locked: unlock it in tab 6.")
 	}
 	m.overlay = formOverlay
 	m.form = &form{title: "RESTORE A WALLET",

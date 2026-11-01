@@ -73,7 +73,7 @@ func (m Model) header(w int) []string {
 	if st := m.status; st != nil {
 		switch {
 		case st.Recovery != nil:
-			state = paint(sRed, "! RECOVERY ENDS "+clock(st.Recovery.EndsAt))
+			state = paint(sRed, "! RECOVERY IN "+countdown(st.Recovery.EndsAt, m.now()))
 		case st.Unlocked:
 			state = paint(sGreen, "● UNLOCKED")
 		default:
@@ -133,6 +133,17 @@ func (m Model) footer(w int) string {
 		hints = []string{keyHint("↑↓", "choose"), keyHint("enter", "run"), keyHint("esc", "close")}
 	case m.overlay == formOverlay:
 		hints = []string{keyHint("tab", "next"), keyHint("enter", "go on"), keyHint("esc", "back")}
+	case m.overlay == keyOverlay:
+		hints = []string{keyHint("esc", "cancel")}
+		if m.adding.stage == addPIN || m.adding.stage == addSwap {
+			hints = []string{keyHint("enter", "go on"), keyHint("esc", "cancel")}
+		}
+	case m.overlay == unlockOverlay:
+		hints = []string{keyHint("enter", "unlock"), keyHint("esc", "see the wallet locked")}
+	case m.overlay == filterOverlay:
+		hints = []string{keyHint("enter", "keep the filter"), keyHint("esc", "clear it")}
+	case m.overlay == detailOverlay:
+		hints = []string{keyHint("any key", "close")}
 	case m.overlay == editorOverlay:
 		hints = []string{keyHint("↑↓", "choose"), keyHint("enter", "open or switch"), keyHint("x", "remove from a list"), keyHint("ctrl+r", "review"), keyHint("esc", "discard")}
 	case m.overlay == budgetOverlay:
@@ -142,12 +153,19 @@ func (m Model) footer(w int) string {
 	case m.overlay == phraseOverlay:
 		hints = []string{keyHint("space", "show or hide the words"), keyHint("esc", "hide and go back")}
 	default:
-		hints = []string{keyHint("1-4", "tabs")}
+		hints = []string{keyHint("1-6", "tabs")}
+		if m.tab == tabAudit { // to fit its own keys
+			hints = nil
+		}
 		switch m.tab {
 		case tabWallets:
 			hints = append(hints, keyHint("↑↓", "choose"))
 		case tabKeys:
-			hints = append(hints, keyHint("↑↓", "choose"))
+			hints = append(hints, keyHint("↑↓", "choose"), keyHint("a", "add"), keyHint("d", "remove"))
+		case tabAudit:
+			hints = append(hints, keyHint("↑↓", "choose"), keyHint("enter", "detail"), keyHint("/", "filter"), keyHint("m", "older"), keyHint("v", "verify"))
+		case tabSystem:
+			hints = append(hints, keyHint("↑↓", "scroll"))
 		case tabApprovals:
 			hints = append(hints, keyHint("↑↓", "choose"), keyHint("enter", "read"), keyHint("r", "reject"))
 		}
@@ -169,6 +187,12 @@ func (m Model) body(w, height int) []string {
 		return m.formView()
 	case m.overlay == editorOverlay:
 		return m.editorView(w, height)
+	case m.overlay == keyOverlay:
+		return m.keyAddView(w)
+	case m.overlay == unlockOverlay:
+		return m.unlockView(w)
+	case m.overlay == detailOverlay:
+		return m.detailView(w)
 	case m.overlay == budgetOverlay:
 		return m.budgetView(height)
 	case m.overlay == restoreOverlay:
@@ -185,6 +209,10 @@ func (m Model) body(w, height int) []string {
 		return m.approvalsView(w, height)
 	case tabKeys:
 		return m.keysView(w, height)
+	case tabAudit:
+		return m.auditView(w, height)
+	case tabSystem:
+		return m.systemView(height)
 	}
 	return m.overview(w)
 }
@@ -286,7 +314,7 @@ func (m Model) panel(w int, title, right string, inner []string) []string {
 
 func (m Model) helpView() []string {
 	rows := [][2]string{
-		{"1 to 4, tab, shift+tab", "change tabs"},
+		{"1 to 6, tab, shift+tab", "change tabs"},
 		{"↑ ↓, j k", "choose in a list"},
 		{"enter", "open what is chosen"},
 		{"esc", "go back, or clear the last note"},
@@ -294,17 +322,19 @@ func (m Model) helpView() []string {
 		{"f", "freeze every wallet, with no authorization"},
 		{"?", "this help"},
 		{"q, ctrl+c", "quit"},
-		{"", ""},
 		{"u / F", "in a wallet: unfreeze it / freeze it"},
 		{"s", "in a wallet: open its session, or close it"},
 		{"e", "in a wallet: edit its policy"},
 		{"b / p", "in a wallet: release its budget / see its recovery phrase"},
 		{"c / R", "in the wallets: create one / restore one"},
 		{"a / r", "in an authorization: authorize / reject an approval"},
+		{"a / d", "in the keys: add one / remove one"},
+		{"/ m v", "in the audit: filter / load older entries / verify the chain"},
+		{"u r x t d", "in the system: unlock / recover / cancel / template / doctor"},
 	}
 	out := []string{"", sp(2) + section("HELP"), ""}
 	for _, r := range rows {
 		out = append(out, sp(4)+paint(sYellow, fmt.Sprintf("%-26s", r[0]))+paint(sBase, r[1]))
 	}
-	return append(out, "", sp(4)+paint(sDim, "Everything here is also a command: mcpcardano with no arguments lists them."))
+	return out
 }

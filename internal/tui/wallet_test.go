@@ -268,7 +268,7 @@ func TestRestore(t *testing.T) {
 func TestRestoreLocked(t *testing.T) {
 	f := newFake(ipc.MethodPassword)
 	f.st.Unlocked = false
-	m := press(t, start(t, f, &softkey.Slot{}), "2", "R")
+	m := press(t, start(t, f, &softkey.Slot{}), "esc", "2", "R")
 	if m.overlay != noOverlay || !strings.Contains(plain(m), "The wallet is locked") {
 		t.Errorf("locked:\n%s", plain(m))
 	}

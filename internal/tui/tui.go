@@ -23,6 +23,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/Liet-ada/mcpcardano/internal/actions"
+	"github.com/Liet-ada/mcpcardano/internal/doctor"
 	"github.com/Liet-ada/mcpcardano/internal/fido"
 	"github.com/Liet-ada/mcpcardano/internal/ipc"
 	"github.com/Liet-ada/mcpcardano/internal/model"
@@ -44,14 +45,19 @@ type Wallet interface {
 	Expired(ctx context.Context, walletID string) ([]ipc.Expired, error)
 	ShowPolicy(ctx context.Context, walletID string) (*ipc.WalletPolicy, error)
 	ShowTemplate(ctx context.Context) (*ipc.Template, error)
+	Unlock(ctx context.Context, password []byte) error
+	ShowAudit(ctx context.Context, from uint64, limit uint32) (*ipc.AuditPage, error)
+	VerifyAudit(ctx context.Context) (*ipc.AuditCheck, error)
 }
 
 // refresh is how often the view asks for the status.
 const refresh = 2 * time.Second
 
 // Run shows the view on a terminal until the person quits.
-func Run(ctx context.Context, w Wallet, keys fido.Opener, network string, in io.Reader, out io.Writer) error {
-	p := tea.NewProgram(New(ctx, w, keys, network), tea.WithContext(ctx), tea.WithInput(in), tea.WithOutput(out))
+func Run(ctx context.Context, w Wallet, keys fido.Opener, network string, check Doctor, in io.Reader, out io.Writer) error {
+	m := New(ctx, w, keys, network)
+	m.doctor = check
+	p := tea.NewProgram(m, tea.WithContext(ctx), tea.WithInput(in), tea.WithOutput(out))
 	_, err := p.Run()
 	// An interruption from outside, as Ctrl-C to the CLI, is a way to quit;
 	// anything else, a panic included, is an error to report.
@@ -69,10 +75,12 @@ const (
 	tabWallets
 	tabApprovals
 	tabKeys
+	tabAudit
+	tabSystem
 	tabs
 )
 
-var tabNames = [tabs]string{"OVERVIEW", "WALLETS", "APPROVALS", "KEYS"}
+var tabNames = [tabs]string{"OVERVIEW", "WALLETS", "APPROVALS", "KEYS", "AUDIT", "SYSTEM"}
 
 // overlay is what covers the tab, if anything.
 type overlay int
@@ -86,6 +94,10 @@ const (
 	restoreOverlay
 	phraseOverlay
 	editorOverlay
+	keyOverlay
+	unlockOverlay
+	filterOverlay
+	detailOverlay
 )
 
 // stage is where an authorization is.
@@ -117,6 +129,7 @@ type Model struct {
 	w       Wallet
 	keys    fido.Opener
 	network string
+	doctor  Doctor
 	now     func() time.Time
 
 	width, height int
@@ -136,6 +149,12 @@ type Model struct {
 	restore *restore
 	phrase  *phrase
 	editor  *editor
+	adding  *keyAdding
+	unlock  *unlocking
+
+	unlockSkipped bool // the person chose to see the wallet locked
+	audit         auditLog
+	sys           system
 
 	auth   *authorization
 	scroll int // how far the dialog of the authorization was read
@@ -178,6 +197,28 @@ type (
 		editor *editor
 		err    error
 	}
+	keyOpened struct {
+		adding *keyAdding // whom it answers
+		key    fido.Key
+		info   fido.Info
+		err    error
+	}
+	keyRegistered struct {
+		adding *keyAdding
+		data   []byte
+		err    error
+	}
+	unlocked    struct{ err error }
+	auditLoaded struct {
+		check *ipc.AuditCheck
+		lines []actions.AuditEntry
+		older bool
+		err   error
+	}
+	doctorDone struct {
+		report doctor.Report
+		err    error
+	}
 	phraseTick struct{}
 )
 
@@ -215,7 +256,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tick:
 		return m, m.poll
 	case spinTick:
-		if m.auth == nil || m.auth.stage != touching {
+		waiting := m.auth != nil && m.auth.stage == touching
+		waiting = waiting || m.adding != nil && m.adding.stage == addInsert || m.unlock != nil && m.unlock.busy
+		if !waiting {
 			return m, nil
 		}
 		m.spin++
@@ -228,6 +271,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.wallets.clamp(len(m.status.Wallets))
 			m.approvals.clamp(len(m.status.Approvals))
 			m.keyList.clamp(len(m.status.Keys))
+			if m.status.Unlocked {
+				m.unlockSkipped = false
+			} else if !m.unlockSkipped && m.overlay == noOverlay && m.auth == nil {
+				m.overlay, m.unlock = unlockOverlay, &unlocking{}
+			}
 		}
 		if !msg.poll {
 			return m, nil
@@ -251,6 +299,30 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case expiredMsg:
 		return m.expiredList(msg)
+	case keyOpened:
+		return m.keyOpen(msg)
+	case keyRegistered:
+		return m.keyMade(msg)
+	case unlocked:
+		if m.unlock == nil {
+			return m, nil
+		}
+		if msg.err != nil {
+			m.unlock.busy = false
+			return m.refuse(msg.err.Error())
+		}
+		m.close()
+		m.note, m.failed = "The wallet is unlocked.", false
+		return m, m.fetch
+	case auditLoaded:
+		return m.auditArrived(msg)
+	case doctorDone:
+		m.sys.busy = false
+		if msg.err != nil {
+			return m.refuse(msg.err.Error())
+		}
+		m.sys.report, m.sys.ran, m.sys.scroll = msg.report, true, 0
+		return m, nil
 	case phraseTick:
 		return m.phraseTimer()
 	case done:
@@ -316,6 +388,15 @@ func (m Model) key(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m.formKey(k)
 		case editorOverlay:
 			return m.editorKey(k)
+		case keyOverlay:
+			return m.keyAddKey(k)
+		case unlockOverlay:
+			return m.unlockKey(k)
+		case filterOverlay:
+			return m.filterKey(k)
+		case detailOverlay:
+			m.overlay, m.audit.detail = noOverlay, nil
+			return m, nil
 		case restoreOverlay:
 			return m.restoreKey(k)
 		case budgetOverlay:
@@ -364,20 +445,27 @@ func (m Model) key(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.overlay, m.palette = paletteOverlay, paletteState{}
 		return m, nil
 	case "tab":
-		m.tab = (m.tab + 1) % tabs
-		return m, nil
+		return m.show((m.tab + 1) % tabs)
 	case "shift+tab":
-		m.tab = (m.tab + tabs - 1) % tabs
-		return m, nil
+		return m.show((m.tab + tabs - 1) % tabs)
 	case "esc":
 		m.note, m.failed = "", false
 		return m, nil
 	}
 	if len(s) == 1 && s[0] >= '1' && s[0] < '1'+byte(tabs) {
-		m.tab = tab(s[0] - '1')
-		return m, nil
+		return m.show(tab(s[0] - '1'))
 	}
 	return m.tabKey(s)
+}
+
+// show goes to a tab. The audit tab reads the log as it opens.
+func (m Model) show(t tab) (Model, tea.Cmd) {
+	m.tab = t
+	if t == tabAudit && !m.audit.busy {
+		m.audit.busy = true
+		return m, m.loadAudit()
+	}
+	return m, nil
 }
 
 // tabKey handles the keys of the tab on show.
@@ -419,6 +507,16 @@ func (m Model) tabKey(s string) (tea.Model, tea.Cmd) {
 		}
 	case tabKeys:
 		m.keyList.move(delta, len(st.Keys))
+		switch {
+		case s == "a":
+			return m.addKeyForm()
+		case s == "d" && len(st.Keys) > 0:
+			return m.removeKey(st.Keys[m.keyList.at])
+		}
+	case tabAudit:
+		return m.auditKey(s, delta)
+	case tabSystem:
+		return m.systemKey(s, delta)
 	case tabApprovals:
 		m.approvals.move(delta, len(st.Approvals))
 		if len(st.Approvals) == 0 {
@@ -607,7 +705,13 @@ func (m *Model) close() {
 	if m.phrase != nil {
 		m.phrase.words.Wipe()
 	}
-	m.form, m.budget, m.restore, m.phrase, m.editor = nil, nil, nil, nil, nil
+	if m.adding != nil {
+		m.adding.stop()
+	}
+	if m.unlock != nil {
+		clear(m.unlock.secret)
+	}
+	m.form, m.budget, m.restore, m.phrase, m.editor, m.adding, m.unlock = nil, nil, nil, nil, nil, nil, nil
 	m.overlay = noOverlay
 }
 

@@ -105,14 +105,14 @@ func (m Model) notices() []string {
 		out = append(out, sp(4)+paint(st, mark+" ")+paint(sBase, text))
 	}
 	if st.Recovery != nil {
-		note(sRed, "!", "A recovery without keys is waiting: at "+clock(st.Recovery.EndsAt)+
-			" the keys are removed. If you did not start it: mcpcardano recover cancel")
+		note(sRed, "!", "A recovery without keys is waiting: at "+when(st.Recovery.EndsAt, m.now())+
+			" the keys are removed. If you did not start it, cancel it in tab 6.")
 	}
 	if !st.Unlocked {
-		note(sOrange, "!", "The wallet is locked: unlock it with mcpcardano unlock.")
+		note(sOrange, "!", "The wallet is locked: unlock it in tab 6.")
 	}
 	if len(st.Keys) == 0 {
-		note(sOrange, "!", "No security key is registered: for relevant funds, mcpcardano key add.")
+		note(sOrange, "!", "No security key is registered: for relevant funds, add one in tab 4.")
 	}
 	if n := len(st.Approvals); n > 0 {
 		note(sOrange, "!", fmt.Sprintf("%d %s waiting: tab 3.", n, plural(n, "approval is", "approvals are")))
@@ -285,7 +285,7 @@ func (m Model) keysView(w, height int) []string {
 	st := m.status
 	out := []string{"", sp(2) + section("SECURITY KEYS"), ""}
 	if len(st.Keys) == 0 {
-		return append(out, sp(4)+paint(sOrange, "! ")+paint(sBase, "No security key is registered: for relevant funds, mcpcardano key add."))
+		return append(out, sp(4)+paint(sOrange, "! ")+paint(sBase, "No security key is registered: for relevant funds, add one with a."))
 	}
 	out = append(out, sp(4)+paint(sDim, fmt.Sprintf("%-32s %-6s  %s", "NAME", "ALG", "ADDED")))
 	from, to := m.keyList.window(len(st.Keys), height-6)

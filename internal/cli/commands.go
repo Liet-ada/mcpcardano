@@ -5,13 +5,10 @@ package cli
 
 import (
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/Liet-ada/mcpcardano/internal/actions"
-	"github.com/Liet-ada/mcpcardano/internal/audit"
-	"github.com/Liet-ada/mcpcardano/internal/cborx"
 	"github.com/Liet-ada/mcpcardano/internal/ipc"
 	"github.com/Liet-ada/mcpcardano/internal/model"
 )
@@ -303,14 +300,6 @@ func (a *admin) walletBackup(o *options, _ []string) error {
 	return nil
 }
 
-var auditCodec = func() *cborx.Codec {
-	c, err := cborx.New(cborx.RecordLimits())
-	if err != nil {
-		panic(err) // constant limits
-	}
-	return c
-}()
-
 func (a *admin) auditShow(o *options, _ []string) error {
 	if o.limit == 0 || o.limit > ipc.MaxAuditPage {
 		return usageError("-limit must be 1 to %d", ipc.MaxAuditPage)
@@ -320,46 +309,16 @@ func (a *admin) auditShow(o *options, _ []string) error {
 		return err
 	}
 	for _, raw := range p.Entries {
-		var e audit.Entry
-		var body any
-		if err := auditCodec.Unmarshal(raw, &e); err != nil {
-			return err
-		}
-		if err := auditCodec.Unmarshal(e.Body, &body); err != nil {
-			return err
-		}
-		text, err := json.Marshal(jsonable(body))
+		e, err := actions.ReadAudit(raw)
 		if err != nil {
 			return err
 		}
-		a.printf("%d  %s  %s  %s\n", e.Seq, time.Unix(e.Time, 0).Format(time.DateTime), e.Type, text)
+		a.printf("%d  %s  %s  %s\n", e.Seq, time.Unix(e.Time, 0).Format(time.DateTime), e.Type, e.Body)
 	}
 	if p.Next != 0 {
 		a.printf("More with: mcpcardano audit show -from %d\n", p.Next)
 	}
 	return nil
-}
-
-// jsonable turns a decoded CBOR value into one encoding/json can write: map
-// keys as text and bytes as hex.
-func jsonable(v any) any {
-	switch x := v.(type) {
-	case map[any]any:
-		m := make(map[string]any, len(x))
-		for k, val := range x {
-			m[fmt.Sprint(jsonable(k))] = jsonable(val)
-		}
-		return m
-	case []any:
-		out := make([]any, len(x))
-		for i := range x {
-			out[i] = jsonable(x[i])
-		}
-		return out
-	case []byte:
-		return hex.EncodeToString(x)
-	}
-	return v
 }
 
 func (a *admin) auditVerify(*options, []string) error {

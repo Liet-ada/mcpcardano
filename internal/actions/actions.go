@@ -77,6 +77,35 @@ func RestoreWallet(label string, phrase model.Secret) (Action, error) {
 	return Action{ipc.ActRestoreWallet, &ipc.RestoreWallet{Label: label, Phrase: phrase}}, nil
 }
 
+// CheckKeyName checks the name of a security key: the wallet takes the same
+// text as a label. The CLI and the view ask it before touching the key.
+func CheckKeyName(name string) error {
+	if n := len(name); n == 0 || n > ipc.MaxLabel || ipc.Detail(name) != name {
+		return fmt.Errorf("a key's name is 1 to %d bytes of visible text", ipc.MaxLabel)
+	}
+	return nil
+}
+
+// AddKey registers a security key with what it said when it made its
+// credential.
+func AddKey(name string, authenticatorData []byte) (Action, error) {
+	if err := CheckKeyName(name); err != nil {
+		return Action{}, err
+	}
+	return Action{ipc.ActAddKey, &ipc.AddKey{Name: name, AuthenticatorData: authenticatorData}}, nil
+}
+
+// RemoveKey removes a registered key.
+func RemoveKey(credentialID []byte) Action {
+	return Action{ipc.ActRemoveKey, &ipc.KeyRef{CredentialID: credentialID}}
+}
+
+// StartRecovery starts a recovery without keys.
+func StartRecovery() Action { return Action{ipc.ActStartRecovery, &ipc.Empty{}} }
+
+// CancelRecovery cancels a recovery that is waiting.
+func CancelRecovery() Action { return Action{ipc.ActCancelRecovery, &ipc.Empty{}} }
+
 // checkLabel accepts the visible text the wallet accepts as a label.
 func checkLabel(label string) error {
 	if n := len(label); n == 0 || n > ipc.MaxLabel || ipc.Detail(label) != label {
