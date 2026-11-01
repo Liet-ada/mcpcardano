@@ -5,130 +5,291 @@ package tui
 
 import (
 	"context"
+	"flag"
+	"math"
+	"os"
+	"path/filepath"
+	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 
+	"github.com/Liet-ada/mcpcardano/internal/audit"
+	"github.com/Liet-ada/mcpcardano/internal/cborx"
 	"github.com/Liet-ada/mcpcardano/internal/ipc"
 	"github.com/Liet-ada/mcpcardano/test/softkey"
 )
+
+var update = flag.Bool("update", false, "write the snapshots of testdata again")
+
+func TestMain(m *testing.M) {
+	// The view writes times in the local zone; the snapshots are in UTC.
+	time.Local = time.UTC
+	os.Exit(m.Run())
+}
+
+// recordCodec reads and writes the entries of the fake audit log.
+var recordCodec = func() *cborx.Codec {
+	c, err := cborx.New(cborx.RecordLimits())
+	if err != nil {
+		panic(err)
+	}
+	return c
+}()
 
 // fakeWallet answers as the wallet would, and keeps what it was asked.
 type fakeWallet struct {
 	mu        sync.Mutex
 	st        *ipc.StatusReport
+	policies  map[string]*ipc.PolicyStatus
 	ch        *ipc.Challenge
 	completed []*ipc.CompleteAuthorization
+	begun     []string // the actions of BeginAuthorization, with the wallet if any
 	rejected  []string
-	frozen    int
-	refuse    error // what Complete answers
+	frozen    []string // the wallets frozen, "" for every one
+	closed    []string // the wallets whose session was closed
+	expired   []ipc.Expired
+	params    ipc.Body // the parameters of the last Begin, with a phrase copied
+	sent      []byte   // the phrase of the last Begin, as the view sent it
+	returned  []byte   // the result of the last Complete, as the view got it
+	refuse    error    // what Complete answers
+	refuseAsk error    // what Begin answers
+	result    []byte   // what Complete returns
+
+	password     string // what Unlock got
+	sentPassword []byte // the same, as the view sent it
+	refuseUnlock error
+	audit        []cborx.Raw // the audit log
+	pages        []uint64    // the first seq of each page asked for
+	verified     int         // how many times the chains were checked
+	brokenChain  error
 }
 
 func (f *fakeWallet) Status(context.Context) (*ipc.StatusReport, error) { return f.st, nil }
-func (f *fakeWallet) Begin(context.Context, string, ipc.Body) (*ipc.Challenge, error) {
+func (f *fakeWallet) PolicyStatus(_ context.Context, id string) (*ipc.PolicyStatus, error) {
+	if ps, ok := f.policies[id]; ok {
+		return ps, nil
+	}
+	return nil, &ipc.Error{Code: ipc.NotFound}
+}
+func (f *fakeWallet) Begin(_ context.Context, action string, params ipc.Body) (*ipc.Challenge, error) {
+	if ref, ok := params.(*ipc.WalletRef); ok {
+		action += " " + ref.WalletID
+	}
+	if r, ok := params.(*ipc.RestoreWallet); ok {
+		f.sent = r.Phrase
+		params = &ipc.RestoreWallet{Label: r.Label, Phrase: slices.Clone(r.Phrase)}
+	}
+	f.begun, f.params = append(f.begun, action), params
+	if f.refuseAsk != nil {
+		return nil, f.refuseAsk
+	}
 	return f.ch, nil
 }
-func (f *fakeWallet) Complete(_ context.Context, c *ipc.CompleteAuthorization) error {
+func (f *fakeWallet) Complete(_ context.Context, c *ipc.CompleteAuthorization) ([]byte, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	cp := *c
 	cp.Password = append([]byte(nil), c.Password...)
 	f.completed = append(f.completed, &cp)
-	return f.refuse
+	f.returned = slices.Clone(f.result)
+	return f.returned, f.refuse
 }
 func (f *fakeWallet) Reject(_ context.Context, id string) error {
 	f.rejected = append(f.rejected, id)
 	return nil
 }
-func (f *fakeWallet) FreezeAll(context.Context) error { f.frozen++; return nil }
+func (f *fakeWallet) Freeze(_ context.Context, id string) error {
+	f.frozen = append(f.frozen, id)
+	return nil
+}
+func (f *fakeWallet) CloseSession(_ context.Context, id string) error {
+	f.closed = append(f.closed, id)
+	return nil
+}
+func (f *fakeWallet) Expired(context.Context, string) ([]ipc.Expired, error) {
+	return f.expired, nil
+}
+func (f *fakeWallet) ShowPolicy(_ context.Context, id string) (*ipc.WalletPolicy, error) {
+	if ps, ok := f.policies[id]; ok {
+		return &ipc.WalletPolicy{WalletID: id, Mode: ps.Mode, Policy: ps.Policy}, nil
+	}
+	return nil, &ipc.Error{Code: ipc.NotFound}
+}
+func (f *fakeWallet) Unlock(_ context.Context, password []byte) error {
+	f.password, f.sentPassword = string(password), password
+	if f.refuseUnlock != nil {
+		return f.refuseUnlock
+	}
+	f.st.Unlocked = true
+	return nil
+}
+func (f *fakeWallet) ShowAudit(_ context.Context, from uint64, limit uint32) (*ipc.AuditPage, error) {
+	f.pages = append(f.pages, from)
+	page := &ipc.AuditPage{}
+	for _, raw := range f.audit {
+		var e audit.Entry
+		if err := recordCodec.Unmarshal(raw, &e); err != nil {
+			return nil, err
+		}
+		if e.Seq >= from && len(page.Entries) < int(limit) {
+			page.Entries = append(page.Entries, raw)
+		}
+	}
+	return page, nil
+}
+func (f *fakeWallet) VerifyAudit(context.Context) (*ipc.AuditCheck, error) {
+	f.verified++
+	if f.brokenChain != nil {
+		return nil, f.brokenChain
+	}
+	return &ipc.AuditCheck{AuditEntries: uint64(len(f.audit))}, nil
+}
+func (f *fakeWallet) ShowTemplate(context.Context) (*ipc.Template, error) {
+	return &ipc.Template{Mode: "C", Policy: f.policies[walletA].Policy}, nil
+}
 
-const approvalID = "ap_aaaaaaaaaaaaaaaaaaaaaaaaaa"
+const (
+	approvalID = "ap_aaaaaaaaaaaaaaaaaaaaaaaaaa"
+	walletA    = "w_aaaaaaaaaaaaaaaaaaaaaaaaaa"
+	walletB    = "w_bbbbbbbbbbbbbbbbbbbbbbbbbb"
+)
+
+// at is the view's clock in the tests and the snapshots.
+var at = time.Date(2026, 10, 28, 14, 32, 8, 0, time.UTC)
 
 func newFake(method string) *fakeWallet {
-	exp := time.Now().Add(5 * time.Minute).Unix()
+	exp := at.Add(5 * time.Minute).Unix()
+	limits := ipc.Limits{PerTx: 350_000_000, PerHour: 10_000_000_000, PerDay: 10_000_000_000, Budget: 20_000_000_000,
+		MaxFee: 2_000_000, TxPerHour: 1000, NewDestinationsPerHour: 1000, NewDestinationsPerDay: 2000}
 	return &fakeWallet{
 		st: &ipc.StatusReport{Unlocked: true,
-			Wallets:   []ipc.WalletStatus{{Wallet: ipc.Wallet{ID: "w_aaaaaaaaaaaaaaaaaaaaaaaaaa", Label: "agent", Mode: "B"}}},
-			Approvals: []ipc.Approval{{ID: approvalID, WalletID: "w_aaaaaaaaaaaaaaaaaaaaaaaaaa", Spend: ipc.Spend{Lovelace: 4_000_000}, ExpiresAt: exp}}},
+			Wallets: []ipc.WalletStatus{
+				{Wallet: ipc.Wallet{ID: walletA, Label: "agente", Mode: "C", CreatedBy: "agent", Address: make([]byte, 57)},
+					Session: &ipc.Session{ExpiresAt: at.Add(38 * time.Minute).Unix(), Remaining: 40_000_000}, OpenDestinations: true},
+				{Wallet: ipc.Wallet{ID: walletB, Label: "nueva2", Mode: "B", CreatedBy: "person", Address: make([]byte, 57), Frozen: true}},
+			},
+			Approvals: []ipc.Approval{{ID: approvalID, WalletID: walletB, Spend: ipc.Spend{Lovelace: 4_000_000}, ExpiresAt: exp}},
+			Keys:      []ipc.KeyInfo{{Name: "YubiKey 5C", Alg: -8, Added: at.Add(-6 * 24 * time.Hour).Unix()}}},
+		policies: map[string]*ipc.PolicyStatus{
+			walletA: {Mode: "C", Policy: ipc.Policy{Networks: []string{"preprod"}, Limits: limits, Destinations: ipc.Destinations{Any: true}},
+				SpentHour: 120_000_000, SpentDay: 7_400_000_000, TxHour: 3, BudgetRemaining: 1_100_000_000},
+		},
 		ch: &ipc.Challenge{AuthID: make([]byte, 16), Summary: []string{"Pay 4.000000 ADA to addr_test1qz..."}, Methods: []string{method},
 			ExpiresAt: exp, RPID: "mcpcardano", ClientDataHash: make([]byte, 32)},
 	}
 }
 
-// drive feeds a message to the view and runs what it asks for, except the
-// tick that waits for the next refresh.
+// drive feeds a message to the view and runs what it asks for, but for the
+// ticks that wait for the next refresh or turn the spinner.
 func drive(t *testing.T, m Model, msg tea.Msg) Model {
 	t.Helper()
-	for msg != nil {
+	queue := []tea.Msg{msg}
+	for len(queue) > 0 {
+		msg, queue = queue[0], queue[1:]
+		if msg == nil {
+			continue
+		}
+		if batch, ok := msg.(tea.BatchMsg); ok {
+			for _, cmd := range batch {
+				queue = append(queue, run(cmd))
+			}
+			continue
+		}
 		next, cmd := m.Update(msg)
-		m, msg = next.(Model), nil
-		if cmd == nil {
-			break
-		}
-		out := make(chan tea.Msg, 1)
-		go func() { out <- cmd() }()
-		select {
-		case msg = <-out:
-		case <-time.After(300 * time.Millisecond): // the refresh tick
-		}
-		if _, quit := msg.(tea.QuitMsg); quit {
-			break
-		}
+		m = next.(Model)
+		queue = append(queue, run(cmd))
 	}
 	return m
+}
+
+// run runs a command, giving up on the ticks.
+func run(cmd tea.Cmd) tea.Msg {
+	if cmd == nil {
+		return nil
+	}
+	out := make(chan tea.Msg, 1)
+	go func() { out <- cmd() }()
+	select {
+	case msg := <-out:
+		switch msg.(type) {
+		case tick, spinTick, phraseTick, tea.QuitMsg:
+			return nil
+		}
+		return msg
+	case <-time.After(300 * time.Millisecond):
+		return nil
+	}
+}
+
+// pressKey is the message of a key, named as the view names it.
+func pressKey(k string) tea.KeyPressMsg {
+	switch k {
+	case "enter":
+		return tea.KeyPressMsg{Code: tea.KeyEnter}
+	case "esc":
+		return tea.KeyPressMsg{Code: tea.KeyEscape}
+	case "backspace", "\b":
+		return tea.KeyPressMsg{Code: tea.KeyBackspace}
+	case "down":
+		return tea.KeyPressMsg{Code: tea.KeyDown}
+	case "tab":
+		return tea.KeyPressMsg{Code: tea.KeyTab}
+	case "space":
+		return tea.KeyPressMsg{Code: tea.KeySpace, Text: " "}
+	case "ctrl+r":
+		return tea.KeyPressMsg{Code: 'r', Mod: tea.ModCtrl}
+	case "ctrl+c":
+		return tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl}
+	}
+	return tea.KeyPressMsg{Code: []rune(k)[0], Text: k}
 }
 
 func press(t *testing.T, m Model, keys ...string) Model {
 	t.Helper()
 	for _, k := range keys {
-		var msg tea.KeyPressMsg
-		switch k {
-		case "enter":
-			msg = tea.KeyPressMsg{Code: tea.KeyEnter}
-		case "esc":
-			msg = tea.KeyPressMsg{Code: tea.KeyEscape}
-		case "backspace":
-			msg = tea.KeyPressMsg{Code: tea.KeyBackspace}
-		case "down":
-			msg = tea.KeyPressMsg{Code: tea.KeyDown}
-		default:
-			msg = tea.KeyPressMsg{Code: []rune(k)[0], Text: k}
-		}
-		m = drive(t, m, msg)
+		m = drive(t, m, pressKey(k))
 	}
 	return m
 }
 
 func start(t *testing.T, f *fakeWallet, slot *softkey.Slot) Model {
 	m := New(context.Background(), f, slot.Open, "preprod")
+	m.now = func() time.Time { return at }
+	m = drive(t, m, tea.WindowSizeMsg{Width: 110, Height: 32})
 	return drive(t, m, m.Init()())
 }
+
+// plain is what the view draws, without its colours.
+func plain(m Model) string { return ansi.Strip(m.render()) }
 
 // TestApproveWithPassword: the summary is the wallet's, the password is
 // never drawn, it goes to the wallet once and is wiped.
 func TestApproveWithPassword(t *testing.T) {
 	f := newFake(ipc.MethodPassword)
-	m := start(t, f, &softkey.Slot{})
-	if v := m.content(); !strings.Contains(v, approvalID) || !strings.Contains(v, "spends 4.000000 ADA") {
+	m := press(t, start(t, f, &softkey.Slot{}), "3")
+	if v := plain(m); !strings.Contains(v, approvalID) || !strings.Contains(v, "4.000000 ADA") || !strings.Contains(v, "NUEVA2") {
 		t.Fatalf("the approvals:\n%s", v)
 	}
 	m = press(t, m, "enter")
-	if v := m.content(); !strings.Contains(v, "Pay 4.000000 ADA to addr_test1qz...") || !strings.Contains(v, "[a] approve (password)") {
+	if v := plain(m); !strings.Contains(v, "Pay 4.000000 ADA to addr_test1qz...") || !strings.Contains(v, "AUTHORIZE WITH  PASSWORD") {
 		t.Fatalf("the summary:\n%s", v)
 	}
 	m = press(t, m, "a", "s", "e", "c", "r", "x", "backspace", "e", "t")
-	if v := m.content(); strings.Contains(v, "secret") || !strings.Contains(v, "••••••") {
+	if v := plain(m); strings.Contains(v, "secret") || !strings.Contains(v, "PASSWORD  ••••••") {
 		t.Fatalf("while typing:\n%s", v)
 	}
 	m = press(t, m, "enter")
 	if len(f.completed) != 1 || string(f.completed[0].Password) != "secret" || f.completed[0].Assertion != nil {
 		t.Fatalf("completed %+v", f.completed)
 	}
-	if m.secret != nil || !strings.Contains(m.content(), "Approved") {
-		t.Errorf("after approving: %q\n%s", m.secret, m.content())
+	if m.auth != nil || !strings.Contains(plain(m), "Approved") {
+		t.Errorf("after approving:\n%s", plain(m))
 	}
 }
 
@@ -137,18 +298,17 @@ func TestApproveWithPassword(t *testing.T) {
 func TestWrongPassword(t *testing.T) {
 	f := newFake(ipc.MethodPassword)
 	f.refuse = &ipc.Error{Code: ipc.AuthFailed, Detail: "wrong password"}
-	m := start(t, f, &softkey.Slot{})
-	m = press(t, m, "enter", "a", "x", "enter")
-	if m.stage != reading || !strings.Contains(m.content(), "! ipc: AUTH_FAILED: wrong password") {
-		t.Errorf("after a wrong password, stage %d:\n%s", m.stage, m.content())
+	m := press(t, start(t, f, &softkey.Slot{}), "3", "enter", "a", "x", "enter")
+	if m.auth == nil || m.auth.stage != reading || !strings.Contains(plain(m), "ERROR ◤ ipc: AUTH_FAILED: wrong password") {
+		t.Errorf("after a wrong password:\n%s", plain(m))
 	}
 	m = press(t, m, "a", "y", "esc", "a", "enter")
-	if len(f.completed) != 1 || m.stage != reading {
-		t.Errorf("declined: %d completions, stage %d", len(f.completed), m.stage)
+	if len(f.completed) != 1 || m.auth == nil || m.auth.stage != reading {
+		t.Errorf("declined: %d completions", len(f.completed))
 	}
 	m = press(t, m, "esc")
-	if m.stage != browsing {
-		t.Errorf("back: stage %d", m.stage)
+	if m.auth != nil {
+		t.Error("esc did not close the authorization")
 	}
 }
 
@@ -160,10 +320,9 @@ func TestApproveWithKey(t *testing.T) {
 	f.ch.Credentials = [][]byte{key.Credential.CredentialID()}
 	slot := &softkey.Slot{}
 	slot.Insert(key)
-	m := start(t, f, slot)
-	m = press(t, m, "enter")
-	if !strings.Contains(m.content(), "[a] approve (touch of a registered key)") {
-		t.Fatalf("the summary:\n%s", m.content())
+	m := press(t, start(t, f, slot), "3", "enter")
+	if !strings.Contains(plain(m), "AUTHORIZE WITH  TOUCH OF A REGISTERED KEY") {
+		t.Fatalf("the summary:\n%s", plain(m))
 	}
 	m = press(t, m, "a")
 	if len(f.completed) != 1 || f.completed[0].Password != nil || f.completed[0].Assertion == nil {
@@ -176,8 +335,8 @@ func TestApproveWithKey(t *testing.T) {
 		t.Errorf("with the PIN: %d completions, %d tries left", len(f.completed), key.Retries)
 	}
 	m = press(t, m, "enter", "a", "0", "0", "0", "0", "enter")
-	if len(f.completed) != 2 || m.stage != reading || !strings.Contains(m.content(), "PIN was wrong") {
-		t.Errorf("a wrong PIN: %d completions, stage %d\n%s", len(f.completed), m.stage, m.content())
+	if len(f.completed) != 2 || m.auth == nil || m.auth.stage != reading || !strings.Contains(plain(m), "PIN was wrong") {
+		t.Errorf("a wrong PIN: %d completions\n%s", len(f.completed), plain(m))
 	}
 }
 
@@ -187,48 +346,241 @@ func TestNoKey(t *testing.T) {
 	f := newFake(ipc.MethodKey)
 	f.ch.ExpiresAt = time.Now().Add(time.Second).Unix()
 	f.ch.Credentials = [][]byte{{1}}
-	m := start(t, f, &softkey.Slot{})
-	m = press(t, m, "enter")
+	m := press(t, start(t, f, &softkey.Slot{}), "3", "enter")
 	next, cmd := m.Update(tea.KeyPressMsg{Code: 'a', Text: "a"})
-	if !strings.Contains(next.(Model).content(), "Insert and touch a registered security key") {
-		t.Errorf("while waiting:\n%s", next.(Model).content())
+	if !strings.Contains(plain(next.(Model)), "INSERT AND TOUCH A REGISTERED SECURITY KEY") {
+		t.Errorf("while waiting:\n%s", plain(next.(Model)))
 	}
-	m = drive(t, next.(Model), cmd())
-	if !strings.Contains(m.content(), "no security key was inserted") || len(f.completed) != 0 {
-		t.Errorf("after the wait:\n%s", m.content())
+	for _, c := range cmd().(tea.BatchMsg) {
+		if msg := c(); msg != nil {
+			if _, spin := msg.(spinTick); !spin {
+				m = drive(t, next.(Model), msg)
+			}
+		}
+	}
+	if !strings.Contains(plain(m), "no security key was inserted") || len(f.completed) != 0 {
+		t.Errorf("after the wait:\n%s", plain(m))
 	}
 }
 
 // TestRejectAndFreeze: rejecting and freezing take no authorization.
 func TestRejectAndFreeze(t *testing.T) {
 	f := newFake(ipc.MethodPassword)
-	m := start(t, f, &softkey.Slot{})
-	m = press(t, m, "r")
-	m = press(t, m, "f")
-	if len(f.rejected) != 1 || f.rejected[0] != approvalID || f.frozen != 1 || !strings.Contains(m.content(), "Every wallet is frozen") {
-		t.Errorf("rejected %v, frozen %d\n%s", f.rejected, f.frozen, m.content())
+	m := press(t, start(t, f, &softkey.Slot{}), "3", "r", "f")
+	if len(f.rejected) != 1 || f.rejected[0] != approvalID || len(f.frozen) != 1 || f.frozen[0] != "" || !strings.Contains(plain(m), "Every wallet is frozen") {
+		t.Errorf("rejected %v, frozen %v\n%s", f.rejected, f.frozen, plain(m))
 	}
 	if _, cmd := m.Update(tea.KeyPressMsg{Code: 'q', Text: "q"}); cmd == nil || cmd() != tea.Quit() {
 		t.Error("q does not quit")
 	}
 }
 
-// TestVisible: what the view draws has no control sequence, whatever the
-// wallet or a key sent.
+// TestUnfreeze: u on a frozen wallet opens the authorization of unfreeze
+// for it, with the wallet's summary, and on a wallet that is not frozen
+// asks the wallet nothing. F freezes the chosen wallet alone.
+func TestUnfreeze(t *testing.T) {
+	f := newFake(ipc.MethodPassword)
+	f.ch.Summary = []string{"Unfreeze wallet nueva2 (w_bbbb…)"}
+	m := press(t, start(t, f, &softkey.Slot{}), "2", "u")
+	if len(f.begun) != 0 || !strings.Contains(plain(m), "Wallet agente is not frozen.") {
+		t.Fatalf("u on a wallet that is not frozen: began %v\n%s", f.begun, plain(m))
+	}
+	m = press(t, m, "F")
+	if len(f.frozen) != 1 || f.frozen[0] != walletA || !strings.Contains(plain(m), "Wallet AGENTE is frozen.") {
+		t.Fatalf("F froze %v\n%s", f.frozen, plain(m))
+	}
+	m = press(t, m, "down")
+	if !strings.Contains(plain(m), "u unfreeze") {
+		t.Errorf("the footer of a frozen wallet:\n%s", plain(m))
+	}
+	m = press(t, m, "u")
+	if len(f.begun) != 1 || f.begun[0] != ipc.ActUnfreeze+" "+walletB {
+		t.Fatalf("began %v", f.begun)
+	}
+	if v := plain(m); !strings.Contains(v, "UNFREEZE NUEVA2") || !strings.Contains(v, "Unfreeze wallet nueva2") {
+		t.Fatalf("the dialog:\n%s", v)
+	}
+	m = press(t, m, "r") // r rejects approvals only
+	if len(f.rejected) != 0 || m.auth == nil {
+		t.Fatalf("r in an unfreeze: rejected %v", f.rejected)
+	}
+	m = press(t, m, "a", "p", "w", "enter")
+	if len(f.completed) != 1 || string(f.completed[0].Password) != "pw" || !strings.Contains(plain(m), "Wallet nueva2 is unfrozen.") {
+		t.Errorf("completed %d\n%s", len(f.completed), plain(m))
+	}
+}
+
+// TestOneRefresh: the status after an action asks for no refresh of its
+// own; only the refresh does, so one chain of it runs however many actions
+// the person takes.
+func TestOneRefresh(t *testing.T) {
+	m := start(t, newFake(ipc.MethodPassword), &softkey.Slot{})
+	next, cmd := m.Update(tea.KeyPressMsg{Code: 'f', Text: "f"})
+	next, cmd = next.Update(cmd()) // done, which asks for the status
+	if _, cmd = next.Update(cmd()); cmd != nil {
+		t.Error("the status after an action asked for another refresh")
+	}
+	if _, cmd = next.Update(m.poll()); cmd == nil {
+		t.Error("the refresh did not ask for the next one")
+	}
+}
+
+// TestPalette: the palette filters as the person types, and runs what is
+// chosen; q there is text, not quitting.
+func TestPalette(t *testing.T) {
+	f := newFake(ipc.MethodPassword)
+	m := press(t, start(t, f, &softkey.Slot{}), ":", "q", "u")
+	if v := plain(m); !strings.Contains(v, "Quit") || strings.Contains(v, "Freeze every wallet") {
+		t.Fatalf("filtered by \"qu\":\n%s", v)
+	}
+	m = press(t, m, "backspace", "backspace", "f", "r", "e", "e", "z", "e", "enter")
+	if len(f.frozen) != 1 || m.overlay != noOverlay {
+		t.Errorf("frozen %v, overlay %d", f.frozen, m.overlay)
+	}
+	m = press(t, m, ":", "k", "e", "y", "enter")
+	if m.tab != tabKeys {
+		t.Errorf("the palette did not go to the keys: tab %d", m.tab)
+	}
+}
+
+// sgr matches the colour sequences lipgloss writes, the only ones the view
+// may write.
+var sgr = regexp.MustCompile("\x1b\\[[0-9;:]*m")
+
+// TestVisible: what the view draws has no control sequence but its own
+// colours, whatever the wallet or a key sent.
 func TestVisible(t *testing.T) {
 	f := newFake(ipc.MethodPassword)
 	f.st.Wallets[0].Wallet.Label = "evil\x1b[2J\x1b]0;owned\x07"
+	f.st.Keys[0].Name = "key\x1b[31m\u202e"
 	f.ch.Summary = []string{"bidi \u202egnp.exe", "bell\x07"}
 	m := start(t, f, &softkey.Slot{})
-	views := m.content()
-	m = press(t, m, "enter")
-	views += m.content()
+	var views []string
+	for _, k := range []string{"1", "2", "4", "3", "enter"} {
+		m = press(t, m, k)
+		views = append(views, m.render())
+	}
+	// The forms and the budget name the wallet too.
+	f.st.Wallets[0].Session = nil
+	f.expired = []ipc.Expired{{WalletID: walletA, BodyHash: make([]byte, 32)}}
+	m = drive(t, press(t, m, "esc", "2"), m.fetch())
+	views = append(views, press(t, m, "s").render(), press(t, m, "b").render(), press(t, m, "e").render())
+	all := strings.Join(views, "\n")
+	bare := sgr.ReplaceAllString(all, "")
 	for _, bad := range []string{"\x1b", "\x07", "\u202e"} {
-		if strings.Contains(views, bad) {
+		if strings.Contains(bare, bad) {
 			t.Errorf("the view draws %q", bad)
 		}
 	}
-	if !strings.Contains(views, "evil?[2J?]0;owned?") || !strings.Contains(views, "bidi ?gnp.exe") {
-		t.Errorf("views:\n%s", views)
+	if !strings.Contains(bare, "EVIL?[2J?]0;OW") || !strings.Contains(bare, "bidi ?gnp.exe") || !strings.Contains(bare, "key?[31m?") {
+		t.Errorf("views:\n%s", ansi.Strip(all))
+	}
+}
+
+// TestSnapshots compares each tab with its snapshot in testdata, without
+// colours; go test -run Snapshots -update writes them again.
+func TestSnapshots(t *testing.T) {
+	f := newFake(ipc.MethodPassword)
+	f.expired = testExpired
+	addAudit(t, f, 3)
+	m := start(t, f, &softkey.Slot{})
+	for _, c := range []struct{ name, keys string }{
+		{"overview", "1"}, {"wallets", "2"}, {"approvals", "3"}, {"keys", "4"}, {"authorize", "3\n"}, {"help", "?"}, {"palette", ":"},
+		{"session", "2js"}, {"create", "2c"}, {"budget", "2b "}, {"restore", "2Rab\nabandon\nab"}, {"phrase", "2jp"},
+		{"editor", "2e"}, {"review", "2e\b\b\b\b\b\b\b\b\b\b9\x12"},
+		{"audit", "5"}, {"system", "6"}, {"keyadd", "4a"},
+	} {
+		v := m
+		for _, k := range strings.Split(c.keys, "") {
+			switch k {
+			case "\n":
+				k = "enter"
+			case " ":
+				k = "space"
+			case "\b":
+				k = "backspace"
+			case "\x12":
+				k = "ctrl+r"
+			}
+			v = press(t, v, k)
+		}
+		if c.name == "phrase" {
+			f.result = encoded(t, &ipc.RecoveryPhrase{Phrase: []byte(testPhrase)})
+			v = press(t, v, "a", "p", "w", "enter")
+		}
+		got := plain(v)
+		path := filepath.Join("testdata", c.name+".golden")
+		if *update {
+			if err := os.WriteFile(path, []byte(got), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			continue
+		}
+		want, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got != string(want) {
+			t.Errorf("%s differs from %s:\n%s", c.name, path, got)
+		}
+	}
+}
+
+// TestMainnet: on mainnet the network is a badge in the colour of danger.
+func TestMainnet(t *testing.T) {
+	m := start(t, newFake(ipc.MethodPassword), &softkey.Slot{})
+	m.network = "mainnet"
+	if v := plain(m); !strings.Contains(v, "MAINNET ◤") {
+		t.Errorf("mainnet:\n%s", v)
+	}
+}
+
+// TestContrast: every colour of text reaches 4.5:1 against the background
+// and the dialogs' panel (WCAG 2.1, AA).
+func TestContrast(t *testing.T) {
+	lum := func(hex string) float64 {
+		var rgb [3]float64
+		for i := range rgb {
+			var v int
+			for _, c := range hex[1+2*i : 3+2*i] {
+				v = v*16 + strings.IndexRune("0123456789ABCDEF", c)
+			}
+			c := float64(v) / 255
+			if c <= 0.03928 {
+				rgb[i] = c / 12.92
+			} else {
+				rgb[i] = math.Pow((c+0.055)/1.055, 2.4)
+			}
+		}
+		return 0.2126*rgb[0] + 0.7152*rgb[1] + 0.0722*rgb[2]
+	}
+	ratio := func(a, b string) float64 {
+		la, lb := lum(a), lum(b)
+		return (max(la, lb) + 0.05) / (min(la, lb) + 0.05)
+	}
+	hexOf := func(c interface{ RGBA() (r, g, b, a uint32) }) string {
+		r, g, b, _ := c.RGBA()
+		const digits = "0123456789ABCDEF"
+		out := []byte{'#'}
+		for _, v := range []uint32{r >> 8, g >> 8, b >> 8} {
+			out = append(out, digits[v>>4], digits[v&15])
+		}
+		return string(out)
+	}
+	for name, c := range map[string]interface{ RGBA() (r, g, b, a uint32) }{
+		"text": cText, "dim": cDim, "yellow": cYellow, "cyan": cCyan, "red": cRed,
+		"hud": cHUD, "green": cGreen, "orange": cOrange, "magenta": cMagenta,
+	} {
+		for bgName, bg := range map[string]interface{ RGBA() (r, g, b, a uint32) }{"background": cBg, "panel": cPanel} {
+			if r := ratio(hexOf(c), hexOf(bg)); r < 4.5 {
+				t.Errorf("%s on the %s: %.2f:1", name, bgName, r)
+			}
+		}
+	}
+	// The badges and the selection: black on their colour.
+	for name, c := range map[string]interface{ RGBA() (r, g, b, a uint32) }{"cyan": cCyan, "red": cRed, "hud": cHUD, "magenta": cMagenta, "yellow": cYellow} {
+		if r := ratio("#000000", hexOf(c)); r < 4.5 {
+			t.Errorf("black on %s: %.2f:1", name, r)
+		}
 	}
 }

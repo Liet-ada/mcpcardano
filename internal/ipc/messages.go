@@ -19,7 +19,7 @@ var messages = map[string]message{
 	MsgSignDraft:         {true, false, func() Body { return new(SignDraft) }, func() Body { return new(SignDraftResult) }},
 	MsgCreateWallet:      {true, false, func() Body { return new(CreateWallet) }, func() Body { return new(WalletCreated) }},
 	MsgGetApprovalStatus: {true, false, func() Body { return new(GetApprovalStatus) }, func() Body { return new(ApprovalStatus) }},
-	MsgGetPolicyStatus:   {true, false, func() Body { return new(GetPolicyStatus) }, func() Body { return new(PolicyStatus) }},
+	MsgGetPolicyStatus:   {true, true, func() Body { return new(GetPolicyStatus) }, func() Body { return new(PolicyStatus) }},
 	MsgPing:              {true, false, func() Body { return new(Empty) }, func() Body { return new(PingResult) }},
 	MsgListWallets:       {true, false, func() Body { return new(Empty) }, func() Body { return new(WalletList) }},
 

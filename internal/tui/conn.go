@@ -64,6 +64,7 @@ func (c *Conn) Begin(ctx context.Context, action string, params ipc.Body) (*ipc.
 	if err != nil {
 		return nil, err
 	}
+	defer clear(raw) // restore_wallet carries the recovery phrase
 	var ch ipc.Challenge
 	if err := c.call(ctx, ipc.MsgBeginAuthorization, &ipc.BeginAuthorization{Action: action, Params: raw}, &ch); err != nil {
 		return nil, err
@@ -71,14 +72,70 @@ func (c *Conn) Begin(ctx context.Context, action string, params ipc.Body) (*ipc.
 	return &ch, nil
 }
 
-func (c *Conn) Complete(ctx context.Context, a *ipc.CompleteAuthorization) error {
-	return c.call(ctx, ipc.MsgCompleteAuthorization, a, &ipc.Completed{})
+func (c *Conn) Complete(ctx context.Context, a *ipc.CompleteAuthorization) ([]byte, error) {
+	var done ipc.Completed
+	err := c.call(ctx, ipc.MsgCompleteAuthorization, a, &done)
+	return done.Result, err
 }
 
 func (c *Conn) Reject(ctx context.Context, id string) error {
 	return c.call(ctx, ipc.MsgReject, &ipc.ApprovalRef{ApprovalID: id}, &ipc.Empty{})
 }
 
-func (c *Conn) FreezeAll(ctx context.Context) error {
-	return c.call(ctx, ipc.MsgFreeze, &ipc.Freeze{}, &ipc.Empty{})
+func (c *Conn) Freeze(ctx context.Context, walletID string) error {
+	return c.call(ctx, ipc.MsgFreeze, &ipc.Freeze{WalletID: walletID}, &ipc.Empty{})
+}
+
+func (c *Conn) CloseSession(ctx context.Context, walletID string) error {
+	return c.call(ctx, ipc.MsgCloseSession, &ipc.WalletRef{WalletID: walletID}, &ipc.Empty{})
+}
+
+func (c *Conn) Expired(ctx context.Context, walletID string) ([]ipc.Expired, error) {
+	var l ipc.ExpiredList
+	err := c.call(ctx, ipc.MsgListExpired, &ipc.ListExpired{WalletID: walletID}, &l)
+	return l.Entries, err
+}
+
+func (c *Conn) ShowPolicy(ctx context.Context, walletID string) (*ipc.WalletPolicy, error) {
+	var w ipc.WalletPolicy
+	if err := c.call(ctx, ipc.MsgShowPolicy, &ipc.WalletRef{WalletID: walletID}, &w); err != nil {
+		return nil, err
+	}
+	return &w, nil
+}
+
+func (c *Conn) Unlock(ctx context.Context, password []byte) error {
+	return c.call(ctx, ipc.MsgUnlock, &ipc.Unlock{Password: password}, &ipc.Empty{})
+}
+
+func (c *Conn) ShowAudit(ctx context.Context, from uint64, limit uint32) (*ipc.AuditPage, error) {
+	var p ipc.AuditPage
+	if err := c.call(ctx, ipc.MsgShowAudit, &ipc.ShowAudit{From: from, Limit: limit}, &p); err != nil {
+		return nil, err
+	}
+	return &p, nil
+}
+
+func (c *Conn) VerifyAudit(ctx context.Context) (*ipc.AuditCheck, error) {
+	var r ipc.AuditCheck
+	if err := c.call(ctx, ipc.MsgVerifyAudit, &ipc.Empty{}, &r); err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+func (c *Conn) ShowTemplate(ctx context.Context) (*ipc.Template, error) {
+	var t ipc.Template
+	if err := c.call(ctx, ipc.MsgShowTemplate, &ipc.Empty{}, &t); err != nil {
+		return nil, err
+	}
+	return &t, nil
+}
+
+func (c *Conn) PolicyStatus(ctx context.Context, walletID string) (*ipc.PolicyStatus, error) {
+	var ps ipc.PolicyStatus
+	if err := c.call(ctx, ipc.MsgGetPolicyStatus, &ipc.GetPolicyStatus{WalletID: walletID}, &ps); err != nil {
+		return nil, err
+	}
+	return &ps, nil
 }

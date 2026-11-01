@@ -4,10 +4,13 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 
+	"github.com/Liet-ada/mcpcardano/internal/doctor"
 	"github.com/Liet-ada/mcpcardano/internal/ipc"
 	"github.com/Liet-ada/mcpcardano/internal/tui"
 )
@@ -30,5 +33,14 @@ func (a *admin) view(*options, []string) error {
 		}
 		return err
 	}
-	return tui.Run(a.ctx, conn, a.keys.open, a.network, in, out)
+	check := func(ctx context.Context) (doctor.Report, error) {
+		env, err := doctor.NewEnv(strings.TrimPrefix(a.hello.Software, "mcpcardano "))
+		if err != nil {
+			return nil, err
+		}
+		return doctor.Run(ctx, env), nil
+	}
+	server := &tui.ServerConn{Socket: DefaultSocket(), Version: a.hello.Software}
+	defer server.Close()
+	return tui.Run(a.ctx, conn, a.keys.open, a.network, check, server, in, out)
 }

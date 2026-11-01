@@ -4,16 +4,11 @@
 package cli
 
 import (
-	"bytes"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
-	"math"
-	"slices"
 	"time"
 
-	"github.com/Liet-ada/mcpcardano/internal/audit"
-	"github.com/Liet-ada/mcpcardano/internal/cborx"
+	"github.com/Liet-ada/mcpcardano/internal/actions"
 	"github.com/Liet-ada/mcpcardano/internal/ipc"
 	"github.com/Liet-ada/mcpcardano/internal/model"
 )
@@ -108,7 +103,8 @@ func (a *admin) approve(_ *options, args []string) error {
 	if err := approvalArg(args[0]); err != nil {
 		return err
 	}
-	if err := a.authorize(ipc.ActApproveDraft, &ipc.ApproveDraft{ApprovalID: args[0]}, nil); err != nil {
+	act := actions.ApproveDraft(args[0])
+	if err := a.authorize(act.Name, act.Params, nil); err != nil {
 		return err
 	}
 	a.printf("Approved. The server sends the transaction on its next round, within 20 seconds.\n")
@@ -145,7 +141,8 @@ func (a *admin) unfreeze(o *options, _ []string) error {
 	if err := walletArg(o.wallet, true); err != nil {
 		return err
 	}
-	if err := a.authorize(ipc.ActUnfreeze, &ipc.WalletRef{WalletID: o.wallet}, nil); err != nil {
+	act := actions.Unfreeze(o.wallet)
+	if err := a.authorize(act.Name, act.Params, nil); err != nil {
 		return err
 	}
 	a.printf("Wallet %s is unfrozen.\n", o.wallet)
@@ -156,15 +153,15 @@ func (a *admin) sessionOpen(o *options, _ []string) error {
 	if err := walletArg(o.wallet, true); err != nil {
 		return err
 	}
-	if o.duration < time.Second || o.duration/time.Second > math.MaxUint32 {
-		return usageError("-for must be a duration such as 30m or 2h")
-	}
 	max, err := model.ParseAmount(o.max)
-	if err != nil || max == 0 {
+	if err != nil {
 		return usageError("-max must be an amount of lovelace above zero")
 	}
-	s := &ipc.OpenSession{WalletID: o.wallet, Seconds: uint32(o.duration / time.Second), MaxLovelace: max}
-	if err := a.authorize(ipc.ActOpenSession, s, nil); err != nil {
+	act, err := actions.OpenSession(o.wallet, o.duration, max)
+	if err != nil {
+		return usageError("%v", err)
+	}
+	if err := a.authorize(act.Name, act.Params, nil); err != nil {
 		return err
 	}
 	a.printf("Session open on wallet %s.\n", o.wallet)
@@ -236,21 +233,12 @@ func (a *admin) budgetRelease(o *options, args []string) error {
 		a.printf("No expired_unconfirmed entries.\n")
 		return nil
 	}
-	slices.SortFunc(ids, bytes.Compare)
-	ids = slices.CompactFunc(ids, bytes.Equal)
 	var r ipc.Released
-	if err := a.authorize(ipc.ActReleaseBudget, &ipc.ReleaseBudget{WalletID: o.wallet, Entries: ids}, &r); err != nil {
+	act := actions.ReleaseBudget(o.wallet, ids)
+	if err := a.authorize(act.Name, act.Params, &r); err != nil {
 		return err
 	}
 	a.printf("Released %s of the budget of wallet %s.\n", ada(r.Lovelace), o.wallet)
-	return nil
-}
-
-// labelArg checks a wallet label: the visible text the wallet accepts.
-func labelArg(label string) error {
-	if n := len(label); n == 0 || n > ipc.MaxLabel || ipc.Detail(label) != label {
-		return usageError("-label must be 1 to %d bytes of visible text", ipc.MaxLabel)
-	}
 	return nil
 }
 
@@ -259,11 +247,12 @@ func (a *admin) printWallet(w ipc.Wallet) {
 }
 
 func (a *admin) walletCreate(o *options, _ []string) error {
-	if err := labelArg(o.label); err != nil {
-		return err
+	act, err := actions.CreateWallet(o.label)
+	if err != nil {
+		return usageError("%v", err)
 	}
 	var w ipc.Wallet
-	if err := a.authorize(ipc.ActCreateWallet, &ipc.CreateWallet{Label: o.label}, &w); err != nil {
+	if err := a.authorize(act.Name, act.Params, &w); err != nil {
 		return err
 	}
 	a.printWallet(w)
@@ -273,16 +262,20 @@ func (a *admin) walletCreate(o *options, _ []string) error {
 }
 
 func (a *admin) walletRestore(o *options, _ []string) error {
-	if err := labelArg(o.label); err != nil {
-		return err
+	if _, err := actions.RestoreWallet(o.label, nil); err != nil {
+		return usageError("%v", err)
 	}
 	phrase, err := a.secret("Recovery phrase, its words separated by spaces: ")
 	if err != nil {
 		return err
 	}
 	defer clear(phrase)
+	act, err := actions.RestoreWallet(o.label, phrase)
+	if err != nil {
+		return usageError("%v", err)
+	}
 	var w ipc.Wallet
-	if err := a.authorize(ipc.ActRestoreWallet, &ipc.RestoreWallet{Label: o.label, Phrase: phrase}, &w); err != nil {
+	if err := a.authorize(act.Name, act.Params, &w); err != nil {
 		return err
 	}
 	a.printWallet(w)
@@ -295,7 +288,8 @@ func (a *admin) walletBackup(o *options, _ []string) error {
 		return err
 	}
 	var r ipc.RecoveryPhrase
-	if err := a.authorize(ipc.ActShowRecoveryPhrase, &ipc.WalletRef{WalletID: o.wallet}, &r); err != nil {
+	act := actions.ShowPhrase(o.wallet)
+	if err := a.authorize(act.Name, act.Params, &r); err != nil {
 		return err
 	}
 	defer clear(r.Phrase)
@@ -306,14 +300,6 @@ func (a *admin) walletBackup(o *options, _ []string) error {
 	return nil
 }
 
-var auditCodec = func() *cborx.Codec {
-	c, err := cborx.New(cborx.RecordLimits())
-	if err != nil {
-		panic(err) // constant limits
-	}
-	return c
-}()
-
 func (a *admin) auditShow(o *options, _ []string) error {
 	if o.limit == 0 || o.limit > ipc.MaxAuditPage {
 		return usageError("-limit must be 1 to %d", ipc.MaxAuditPage)
@@ -323,46 +309,16 @@ func (a *admin) auditShow(o *options, _ []string) error {
 		return err
 	}
 	for _, raw := range p.Entries {
-		var e audit.Entry
-		var body any
-		if err := auditCodec.Unmarshal(raw, &e); err != nil {
-			return err
-		}
-		if err := auditCodec.Unmarshal(e.Body, &body); err != nil {
-			return err
-		}
-		text, err := json.Marshal(jsonable(body))
+		e, err := actions.ReadAudit(raw)
 		if err != nil {
 			return err
 		}
-		a.printf("%d  %s  %s  %s\n", e.Seq, time.Unix(e.Time, 0).Format(time.DateTime), e.Type, text)
+		a.printf("%d  %s  %s  %s\n", e.Seq, time.Unix(e.Time, 0).Format(time.DateTime), e.Type, e.Body)
 	}
 	if p.Next != 0 {
 		a.printf("More with: mcpcardano audit show -from %d\n", p.Next)
 	}
 	return nil
-}
-
-// jsonable turns a decoded CBOR value into one encoding/json can write: map
-// keys as text and bytes as hex.
-func jsonable(v any) any {
-	switch x := v.(type) {
-	case map[any]any:
-		m := make(map[string]any, len(x))
-		for k, val := range x {
-			m[fmt.Sprint(jsonable(k))] = jsonable(val)
-		}
-		return m
-	case []any:
-		out := make([]any, len(x))
-		for i := range x {
-			out[i] = jsonable(x[i])
-		}
-		return out
-	case []byte:
-		return hex.EncodeToString(x)
-	}
-	return v
 }
 
 func (a *admin) auditVerify(*options, []string) error {

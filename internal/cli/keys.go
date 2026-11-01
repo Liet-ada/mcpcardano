@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Liet-ada/mcpcardano/internal/actions"
 	"github.com/Liet-ada/mcpcardano/internal/fido"
 	"github.com/Liet-ada/mcpcardano/internal/ipc"
 )
@@ -128,9 +129,9 @@ func nameFlag(fs *flag.FlagSet, o *options) {
 	fs.StringVar(&o.name, "name", "", "the key's name")
 }
 
-// nameArg checks a key's name: the visible text the wallet accepts.
+// nameArg checks a key's name.
 func nameArg(name string) error {
-	if n := len(name); n == 0 || n > ipc.MaxLabel || ipc.Detail(name) != name {
+	if actions.CheckKeyName(name) != nil {
 		return usageError("-name must be 1 to %d bytes of visible text", ipc.MaxLabel)
 	}
 	return nil
@@ -183,7 +184,11 @@ func (a *admin) keyAdd(o *options, _ []string) error {
 		}
 		fmt.Fprintln(a.errOut)
 	}
-	if err := a.authorize(ipc.ActAddKey, &ipc.AddKey{Name: o.name, AuthenticatorData: data}, nil); err != nil {
+	act, err := actions.AddKey(o.name, data)
+	if err != nil {
+		return usageError("%v", err)
+	}
+	if err := a.authorize(act.Name, act.Params, nil); err != nil {
 		return err
 	}
 	a.printf("The security key %q is registered.\n", o.name)
@@ -203,7 +208,8 @@ func (a *admin) keyRemove(o *options, _ []string) error {
 	}
 	for _, k := range st.Keys {
 		if k.Name == o.name {
-			if err := a.authorize(ipc.ActRemoveKey, &ipc.KeyRef{CredentialID: k.CredentialID}, nil); err != nil {
+			act := actions.RemoveKey(k.CredentialID)
+			if err := a.authorize(act.Name, act.Params, nil); err != nil {
 				return err
 			}
 			a.printf("The security key %q is removed.\n", o.name)
@@ -234,7 +240,8 @@ func (a *admin) keyList(*options, []string) error {
 
 func (a *admin) recoverStart(*options, []string) error {
 	var r ipc.Recovery
-	if err := a.authorize(ipc.ActStartRecovery, &ipc.Empty{}, &r); err != nil {
+	act := actions.StartRecovery()
+	if err := a.authorize(act.Name, act.Params, &r); err != nil {
 		return err
 	}
 	a.printf("The recovery started: every wallet is frozen, and at %s the registered keys will be removed.\n", clock(r.EndsAt))
@@ -258,7 +265,8 @@ func (a *admin) recoverStatus(*options, []string) error {
 }
 
 func (a *admin) recoverCancel(*options, []string) error {
-	if err := a.authorize(ipc.ActCancelRecovery, &ipc.Empty{}, nil); err != nil {
+	act := actions.CancelRecovery()
+	if err := a.authorize(act.Name, act.Params, nil); err != nil {
 		return err
 	}
 	a.printf("The recovery is cancelled. The wallets stay frozen until you unfreeze them.\n")
